@@ -4,7 +4,7 @@
 - 작성: {{AGENT}} · {{DATE}} (보낸 쪽)
 - 받는 쪽: (에이전트(모델) 또는 역할 — 예: Codex (GPT-6) · Gemini (2.5 Pro) · 테스터)
 - 맡은 쪽: (받는 쪽이 접수할 때 적고 상태를 taken으로)
-- 기준 커밋: (sha — 받는 쪽은 이 커밋을 기준으로 본다)
+- 기준 커밋: (request.md를 커밋한 뒤의 HEAD sha — 받는 쪽은 이 커밋을 기준으로 본다)
 - 쓰기 허용: `docs/handoffs/{{ID}}/` · `outputs/evidence/{{ID}}/` — 이 밖은 읽기만
 - 기한:
 
