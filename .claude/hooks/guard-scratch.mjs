@@ -15,7 +15,7 @@ import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
-const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.harness', 'rules', 'docs', 'outputs', 'src', 'app', 'tests', 'scripts', 'config', '.claude', '.github', '.vscode'];
+const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.harness', 'rules', 'docs', 'src', 'app', 'tests', 'scripts', 'config', '.claude', '.github', '.vscode'];
 const ALLOWED_DIR_RE = /(^|[\\/])(\.scratch|evidence|_assets|node_modules|\.git)([\\/]|$)/;
 
 function loadConfig(root) {
@@ -48,7 +48,7 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   if (TEMP_RE.test(name)) return `임시 파일 이름(${name})은 ${config.scratchDir}/ 또는 세션 scratchpad에만 만든다 — 증거면 evidence/, 보존 자산이면 _assets/`;
   if (!relPosix.includes('/')) {
     const allow = new Set([...DEFAULT_ROOT_ALLOW, ...config.rootAllow, ...tracked]);
-    if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 rules/·docs/·outputs/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
+    if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 rules/·docs/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
   }
   return null;
 }

@@ -3,7 +3,7 @@
 // 검사: ① UTF-8 BOM ② 규칙 파일이 참조하는 스크립트가 .harness/catalog.yaml에 active인가 ③ 상시 규칙 예산
 //       ④ 규칙 파일 간 중복 문장(정규화 후 16자 이상 동일) ⑤ 기록 머리 귀속(작성:) ⑥ 생성물 수동 편집 표식
 //       ⑦ .harness/scripts/*.mjs 카탈로그 등재 ⑧ 중첩 참조 저장소(references)는 gitignore·미추적
-//       ⑨ human-run 큐의 axis가 rules/human-only.yaml에 등록돼 있는가 (§5) ⑩ closed FDR에 스펙 병합 흔적·RUN 증거(outputs/evidence/<ID>/runs)가 있는가 (§4·§6)
+//       ⑨ human-run 큐의 axis가 rules/human-only.yaml에 등록돼 있는가 (§5) ⑩ closed FDR에 스펙 병합 흔적·RUN 증거(FDR 폴더 evidence/runs 또는 lite §4 표)가 있는가 (§4·§6)
 //       ⑪ 핸드오프(docs/handoffs/HO-…/request.md)의 상태가 open|taken|answered|closed 중 하나인가 (§11)
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
 // --self-test: 위반 표본에서 각 검사가 실제로 잡히는지 확인.
@@ -74,7 +74,9 @@ export function lint(root) {
   if (existsSync(fdir)) for (const e of readdirSync(fdir, { withFileTypes: true })) {
     if (/README|\.gitkeep/.test(e.name)) continue;
     const isDir = e.isDirectory();
-    const head = isDir ? rd(join(fdir, e.name, 'manifest.yaml')) : frontmatter(rd(join(fdir, e.name)));
+    const liteFile = isDir ? join(fdir, e.name, 'fdr.md') : join(fdir, e.name);
+    const isStd = isDir && existsSync(join(fdir, e.name, 'manifest.yaml'));
+    const head = isStd ? rd(join(fdir, e.name, 'manifest.yaml')) : frontmatter(rd(liteFile));
     if (yamlScalar(head, 'status') !== 'closed') continue;
     const id = yamlScalar(head, 'id') || e.name.replace(/\.md$/, '');
     const cap = yamlScalar(head, 'capability').replace(/^(null|~)$/, '');
@@ -82,9 +84,9 @@ export function lint(root) {
     if (!cap || !spec) problems.push(`closed FDR ${id}: capability와 docs/specs/<capability>/spec.md가 없다 — 병합 없이 closed 불가 (shipped로 두거나 병합)`);
     else if (!spec.includes(id)) problems.push(`closed FDR ${id}: docs/specs/${cap}/spec.md에 병합 흔적(${id}) 없음`);
     let hasRun;
-    if (isDir) hasRun = walk(join(root, 'outputs', 'evidence', id, 'runs')).some((f) => !/\.gitkeep$/.test(f));
-    else { const sec = (rd(join(fdir, e.name)).split(/^## 4\. Test[^\n]*$/m)[1] || '').split(/^## /m)[0]; hasRun = sec.split('\n').filter((l) => /^\|/.test(l) && !/^\|[-| ]+\|$/.test(l)).length >= 2; }
-    if (!hasRun) problems.push(`closed FDR ${id}: RUN 증거 없음(${isDir ? `outputs/evidence/${id}/runs/ 비어 있음` : '§4 Test 표에 행 없음'}) — 미검증 상태로 closed 불가`);
+    if (isStd) hasRun = walk(join(fdir, e.name, 'evidence', 'runs')).some((f) => !/\.gitkeep$/.test(f));
+    else { const sec = (rd(liteFile).split(/^## 4\. Test[^\n]*$/m)[1] || '').split(/^## /m)[0]; hasRun = sec.split('\n').filter((l) => /^\|/.test(l) && !/^\|[-| ]+\|$/.test(l)).length >= 2; }
+    if (!hasRun) problems.push(`closed FDR ${id}: RUN 증거 없음(${isStd ? `${id}/evidence/runs/ 비어 있음` : '§4 Test 표에 행 없음'}) — 미검증 상태로 closed 불가`);
   }
   // ⑪ 핸드오프 상태
   const hdir = join(root, 'docs', 'handoffs');
@@ -109,16 +111,16 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-x.md'), '# 머리에 귀속 없음\n');
   writeFileSync(join(tmp, 'docs', 'X.generated.md'), '# 표식 없음\n');
   // ⑨⑩ 부정 모형: 미등록 axis의 human-run · 스펙 병합·RUN 없는 closed FDR(lite) · RUN 없는 closed FDR(standard, 스펙은 병합됨)
-  mkdirSync(join(tmp, 'docs', 'queue', 'human-run'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-std'), { recursive: true }); mkdirSync(join(tmp, 'outputs', 'evidence', 'FDR-000000-std', 'runs'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'specs', 'cap'), { recursive: true });
+  mkdirSync(join(tmp, 'docs', 'queue', 'human-run'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-std', 'evidence', 'runs'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-lite'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'specs', 'cap'), { recursive: true });
   writeFileSync(join(tmp, 'rules/human-only.yaml'), 'axes:\n  - id: external-account\n');
   writeFileSync(join(tmp, 'docs', 'queue', 'human-run', 'HR-000000-x.md'), '---\nid: HR-000000-x\naxis: real-device\n---\n');
-  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-lite.md'), '---\nid: FDR-000000-lite\nstatus: closed\ncapability:\n---\n## 4. Test\n\n| AC | 계층 | 명령 | RUN | 판정 |\n|---|---|---|---|---|\n\n## 5. Review\n');
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-lite', 'fdr.md'), '---\nid: FDR-000000-lite\nstatus: closed\ncapability:\n---\n## 4. Test\n\n| AC | 계층 | 명령 | RUN | 판정 |\n|---|---|---|---|---|\n\n## 5. Review\n');
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-std', 'manifest.yaml'), 'id: FDR-000000-std\nstatus: closed\ncapability: cap\n');
   writeFileSync(join(tmp, 'docs', 'specs', 'cap', 'spec.md'), '# cap\n병합: FDR-000000-std\n');
   // 양성 대조: 스펙 병합·RUN 있는 closed는 잡히지 않아야 한다
-  mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-ok'), { recursive: true }); mkdirSync(join(tmp, 'outputs', 'evidence', 'FDR-000000-ok', 'runs'), { recursive: true });
+  mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs'), { recursive: true });
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'manifest.yaml'), 'id: FDR-000000-ok\nstatus: closed\ncapability: cap\n');
-  writeFileSync(join(tmp, 'outputs', 'evidence', 'FDR-000000-ok', 'runs', 'unit.out'), 'exit 0\n');
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs', 'unit.out'), 'exit 0\n');
   // ⑪ 부정 모형: 상태 오기 · closed인데 result 없음 / 양성: answered
   for (const [id, st] of [['HO-000000-bad', 'done'], ['HO-000000-noresult', 'closed'], ['HO-000000-ok', 'answered']]) { mkdirSync(join(tmp, 'docs', 'handoffs', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'handoffs', id, 'request.md'), `# ${id}\n\n- 상태: ${st}\n- 작성: test · 2026-01-01\n`); }
   writeFileSync(join(tmp, 'docs', 'specs', 'cap', 'spec.md'), '# cap\n병합: FDR-000000-std · FDR-000000-ok\n');

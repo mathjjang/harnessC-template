@@ -77,8 +77,9 @@ export function create(root, kind, slug, title, { agent = '(모델 미확인)', 
     const prof = profile || ({ S: 'lite', M: 'standard', L: 'full' }[tier] || 'standard');
     if (!['lite', 'standard', 'full'].includes(prof)) throw new Error(`--profile은 lite|standard|full: ${prof} — 팩 프로파일(llm·data…)은 v0.1 생성기가 합성하지 않는다(ADR-261016-enforcement-alignment F04)`);
     if (prof === 'lite') {
-      const out = join(root, k.dir, `${id}.md`);
-      writeFileSync(out, fill(readFileSync(join(tpl, 'FDR-lite-template.md'), 'utf8'), vars));
+      const out = join(root, k.dir, id);
+      mkdirSync(out, { recursive: true });
+      writeFileSync(join(out, 'fdr.md'), fill(readFileSync(join(tpl, 'FDR-lite-template.md'), 'utf8'), vars));
       return { id, path: out, collided, profile: prof };
     }
     const src = join(tpl, prof === 'full' ? 'FDR-full' : 'FDR-standard');
@@ -138,7 +139,7 @@ if (process.argv.includes('--self-test')) {
     const f2 = create(tmp, 'fdr', 'sample', '제목', { agent: 'test' });
     if (!f2.collided || !/-2$/.test(f2.id)) fails.push('같은 날 같은 slug -2 미부여');
     const lite = create(tmp, 'fdr', 'lite-one', '제목', { agent: 'test', profile: 'lite' });
-    if (!lite.path.endsWith('.md')) fails.push('lite 단일 파일 아님');
+    if (!existsSync(join(lite.path, 'fdr.md'))) fails.push('lite 폴더(fdr.md) 아님');
     try { create(tmp, 'adr', 'Bad Slug', 'x'); fails.push('잘못된 slug 통과'); } catch { /* 기대 */ }
     try { create(tmp, 'fdr', 'bad-prof', 'x', { profile: 'llm' }); fails.push('미정의 profile 통과'); } catch { /* 기대 */ }
     const collab = join(tmp, 'collab'); mkdirSync(collab, { recursive: true });

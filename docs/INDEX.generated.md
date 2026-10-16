@@ -9,7 +9,7 @@
 
 - [ADR-261016-enforcement-alignment](docs/decisions/ADR-261016-enforcement-alignment.md) — ADR-261016-enforcement-alignment: 하네스C 보장 범위 정렬 — 규칙 문구와 집행기 일치(RFC 재판정 P0) · Accepted
 - [ADR-261016-external-collab](docs/decisions/ADR-261016-external-collab.md) — ADR-261016-external-collab: 외부 조직과의 협업 저장소 — 형제 체크아웃·DEC/MTG·guard-reference · Accepted
-- [ADR-261016-layout-and-handoff](docs/decisions/ADR-261016-layout-and-handoff.md) — ADR-261016-layout-and-handoff: 폴더 재배치(rules·docs·outputs·.harness)와 에이전트 간 핸드오프( · Accepted
+- [ADR-261016-layout-and-handoff](docs/decisions/ADR-261016-layout-and-handoff.md) — ADR-261016-layout-and-handoff: 폴더 재배치(rules·docs·.harness)와 에이전트 간 핸드오프(HO) · Accepted
 
 ## PLAN — 분해 (0)
 
@@ -29,4 +29,8 @@
 ## runbook (1)
 
 - [handoff](docs/runbooks/handoff.md) — 핸드오프 — 에이전트 간 주고받기
+
+## 증거 — 기록별 evidence/ 모아 보기 (1)
+
+- [RFC-261016-harness-c-methodology-review](docs/research/evidence/RFC-261016-harness-c-methodology-review/) — 파일 3
 

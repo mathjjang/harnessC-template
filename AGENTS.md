@@ -41,7 +41,7 @@
 ## 다른 에이전트와 주고받기 (다른 세션·Codex·Gemini 등)
 
 - 맡기고 받는 것은 **핸드오프** `docs/handoffs/HO-…/`로만 한다. 채팅·`.scratch/`·남의 문서에 이어 쓰기로 주고받지 않는다. 절차는 `docs/runbooks/handoff.md`.
-- 받았으면: `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따르고 상태 `taken`·맡은 쪽 기입. 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`가 만든 새 파일에만, 끝나면 `answered`. 남길 재현물은 `outputs/evidence/<HO-ID>/`. 커밋은 보낸 쪽이 한다.
+- 받았으면: `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따르고 상태 `taken`·맡은 쪽 기입. 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`가 만든 새 파일에만, 끝나면 `answered`. 남길 재현물은 그 HO 폴더의 `evidence/`. 커밋은 보낸 쪽이 한다.
 
 ## 보고
 

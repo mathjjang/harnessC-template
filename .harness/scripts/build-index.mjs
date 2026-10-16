@@ -22,14 +22,28 @@ function mainIndex() {
     const items = list(dir, rx).filter((i) => !/README/.test(i.name));
     out += `## ${h} (${items.length})\n\n`;
     for (const i of items) {
-      const t = i.dir ? rd(join(i.path, 'manifest.yaml')) || rd(join(i.path, '01-spec.md')) || rd(join(i.path, 'request.md')) || rd(join(i.path, 'brief.md')) : rd(i.path);
+      const t = i.dir ? rd(join(i.path, 'manifest.yaml')) || rd(join(i.path, 'fdr.md')) || rd(join(i.path, '01-spec.md')) || rd(join(i.path, 'request.md')) || rd(join(i.path, 'brief.md')) : rd(i.path);
       const st = scalar(t, 'status') || scalar(t, 'state') || ((t.match(/^- 상태:\s*(\S+)/m) || [])[1] || '');
       out += `- [${i.name.replace(/\.md$/, '')}](${dir}/${i.name}) — ${(scalar(t, 'title') || title(t)).replace(/^"|"$/g, '').slice(0, 80)}${st ? ` · ${st}` : ''}\n`;
     }
     out += '\n';
   }
+  out += evidenceSection();
   return out;
 }
+/** 증거는 기록 옆 evidence/에 있다. 완료보고서·검수조서용으로 여기서 모아 본다. */
+function evidenceSection() {
+  const rows = [];
+  for (const dir of ['docs/features', 'docs/handoffs', 'docs/plans']) for (const i of list(dir, /^(FDR|HO|PLAN)-/).filter((x) => x.dir)) {
+    const ev = join(i.path, 'evidence');
+    if (existsSync(ev)) rows.push([i.name, `${dir}/${i.name}/evidence/`, countFiles(ev)]);
+  }
+  for (const dir of ['docs/research', 'docs/runbooks']) for (const i of list(`${dir}/evidence`, /./).filter((x) => x.dir)) rows.push([i.name, `${dir}/evidence/${i.name}/`, countFiles(i.path)]);
+  let s = `## 증거 — 기록별 evidence/ 모아 보기 (${rows.length})\n\n`;
+  for (const [id, p, n] of rows) s += `- [${id}](${p}) — 파일 ${n}\n`;
+  return s + '\n';
+}
+function countFiles(d) { let n = 0; for (const e of readdirSync(d, { withFileTypes: true })) { if (e.isDirectory()) n += countFiles(join(d, e.name)); else if (e.name !== '.gitkeep') n++; } return n; }
 function specsIndex() {
   let out = HEAD('현재 동작 스펙 인덱스');
   const caps = list('docs/specs', /^[a-z0-9-]+$/).filter((i) => i.dir);

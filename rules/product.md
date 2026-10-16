@@ -11,4 +11,4 @@
 - 요구사항: `docs/requirements/` (`harness.yaml` `requirements.mode`가 separate-repo면 그 저장소)
 - 현재 동작: `docs/specs/`
 - 결정·탐구·기능: `docs/decisions/` · `docs/research/` · `docs/features/`
-- 산출물: `outputs/` (증거 `outputs/evidence/<ID>/` · 보고서 `outputs/reports/`)
+- 증거: 각 기록 폴더의 `evidence/` (모아 보기: `docs/INDEX.generated.md` 증거 절)

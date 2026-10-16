@@ -38,5 +38,5 @@ human:                        # rules/human-only.yaml 축에 등록된 것만. �
   queue: []
 
 evidence:
-  runs: outputs/evidence/{{ID}}/runs/   # RUN 원문 (산출물은 outputs/에 모은다)
+  runs: evidence/runs/   # RUN 원문 — 이 FDR 폴더 안 (증거는 기록 옆에)
   review_package: null        # 리뷰 패키지(스크린샷·trace·RUN 요약) 경로

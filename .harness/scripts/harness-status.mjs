@@ -19,7 +19,7 @@ function activeFdrs(root) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (!/^FDR-/.test(e.name)) continue;
     const base = join(dir, e.name);
-    const manifest = e.isDirectory() ? rd(join(base, 'manifest.yaml')) : rd(base);
+    const manifest = e.isDirectory() ? (rd(join(base, 'manifest.yaml')) || rd(join(base, 'fdr.md'))) : rd(base);
     const status = yamlScalar(manifest, 'status') || '?';
     if (['closed', 'abandoned'].includes(status)) continue;
     const log = e.isDirectory() ? rd(join(base, 'session-log.md')) : '';

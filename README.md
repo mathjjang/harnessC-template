@@ -34,7 +34,7 @@ README.md · AGENTS.md · CLAUDE.md · GEMINI.md · harness.yaml
 rules/      규칙만      HARNESS.md(방법론 코어) · product.md(제품 불변) · packs/<팩>.md · human-only.yaml
 docs/       문서만      requirements · meetings · research(RFC) · decisions(ADR) · plans · features(FDR)
                         specs(현재 동작) · runbooks · handoffs(에이전트 간) · queue · incidents · project_wiki · retros
-outputs/    산출물만    evidence/<ID>/(통과 근거) · reports/(보고서·SOP)
+                        — 기록의 증거는 그 기록 폴더의 evidence/에 (기능 하나 = 폴더 하나)
 src/ tests/ 코드        (개발 시작 시)
 collab/     외부 협업   발주사·협력사와 같이 보는 별도 저장소 (팩 external-collab, gitignore)
 

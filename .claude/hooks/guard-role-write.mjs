@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { writeTargets, destructiveTargets, FORBIDDEN_RE } from '../../.harness/scripts/lib/write-targets.mjs';
 
-const COMMON = [/^\.scratch\//, /^docs\/queue\//, /^docs\/features\/[^/]+\.md$/, /^docs\/features\/[^/]+\/session-log\.md$/, /^outputs\/evidence\//, /^docs\/handoffs\/HO-[^/]+\/(\d{2}-[a-z0-9]+|result)\.md$/];
+const COMMON = [/^\.scratch\//, /^docs\/queue\//, /^docs\/features\/[^/]+\/fdr\.md$/, /^docs\/features\/[^/]+\/session-log\.md$/, /^docs\/[a-z]+\/[^/]+\/evidence\//, /^docs\/research\/evidence\//, /^docs\/handoffs\/HO-[^/]+\/(\d{2}-[a-z0-9]+|result)\.md$/];
 const ALLOW = {
   reviewer: [...COMMON, /^docs\/features\/[^/]+\/06-review\.md$/],
   tester: [...COMMON],
@@ -46,7 +46,7 @@ if (process.argv.includes('--self-test')) {
   const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp') };
   const cases = [
     ['reviewer', 'Bash', 'cat > docs/features/FDR-1/06-review.md <<EOF', null],
-    ['reviewer', 'Bash', 'cat > docs/features/FDR-261016-x.md <<EOF', null],
+    ['reviewer', 'Bash', 'cat > docs/features/FDR-261016-x/fdr.md <<EOF', null],
     ['reviewer', 'Bash', 'echo x > src/app.ts', 'deny'],
     ['reviewer', 'Bash', 'echo x>src/app.ts', 'deny'],
     ['reviewer', 'Bash', 'sed -i s/a/b/ src/app.ts', 'deny'],
@@ -55,7 +55,8 @@ if (process.argv.includes('--self-test')) {
     ['reviewer', 'Bash', 'git status && node .harness/scripts/lint.mjs', null],
     ['reviewer', 'Bash', 'node x.mjs > /tmp/sp/out.txt', null],
     ['reviewer', 'Bash', 'echo x > docs/features/FDR-1/03-impl.md', 'deny'],
-    ['tester', 'Bash', 'npm test > outputs/evidence/FDR-1/runs/unit.out', null],
+    ['tester', 'Bash', 'npm test > docs/features/FDR-1/evidence/runs/unit.out', null],
+    ['tester', 'Bash', 'node r.mjs > docs/handoffs/HO-261016-x/evidence/r.json', null],
     ['reviewer', 'Bash', 'cat > docs/handoffs/HO-261016-x/02-claude.md <<EOF', null],
     ['reviewer', 'Bash', 'echo x > docs/handoffs/HO-261016-x/request.md', 'deny'],
     ['tester', 'Bash', 'echo x > docs/features/FDR-1/06-review.md', 'deny'],
@@ -63,7 +64,7 @@ if (process.argv.includes('--self-test')) {
     ['tester', 'Bash', 'npm install', null],
     ['tester', 'Bash', 'cat > docs/queue/qa/QA-261016-x.md <<EOF', null],
     ['tester', 'Write', { file_path: '/repo/src/a.ts' }, 'deny'],
-    ['tester', 'Write', { file_path: '/repo/outputs/evidence/FDR-1/runs/x.out' }, null],
+    ['tester', 'Write', { file_path: '/repo/docs/features/FDR-1/evidence/runs/x.out' }, null],
     ['developer', 'Bash', 'echo x > src/app.ts', null],
   ];
   let fail = 0;
