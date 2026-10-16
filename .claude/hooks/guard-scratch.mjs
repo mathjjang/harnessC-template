@@ -12,6 +12,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
+import { writeTargets } from '../../scripts/lib/write-targets.mjs';
 
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
 const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'HARNESS.md', 'AGENTS.md', 'CLAUDE.md', 'harness.yaml', 'human-only.yaml', 'init.mjs', '.scratch', 'docs', 'scripts', 'tools', 'packs', 'tiers', 'evidence', 'src', 'app', 'tests', 'config', '.claude', '.github', '.vscode'];
@@ -50,16 +51,6 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
     if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 docs/·scripts/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
   }
   return null;
-}
-
-/** Bash 명령에서 쓰기 대상 경로를 보수적으로 뽑는다. */
-export function writeTargets(cmd) {
-  const out = [];
-  const s = String(cmd || '');
-  const TOK = `("[^"]+"|'[^']+'|[^\\s;&|()]+)`;
-  for (const m of s.matchAll(new RegExp(`(?:^|[\\s;&|(])(?:\\d?>>?|tee(?:\\s+-a)?|touch|mkdir(?:\\s+-p)?|Out-File(?:\\s+-FilePath)?|Set-Content(?:\\s+-Path)?|New-Item(?:\\s+-Path)?)\\s+(?!-)${TOK}`, 'gi'))) out.push(m[1].replace(/^["']|["']$/g, ''));
-  for (const m of s.matchAll(new RegExp(`(?:^|[\\s;&|(])(?:cp|mv)(?:\\s+-\\S+)*\\s+(?:"[^"]+"|'[^']+'|[^\\s;&|()]+)\\s+${TOK}`, 'g'))) out.push(m[1].replace(/^["']|["']$/g, ''));
-  return out.filter((t) => !/^(\/dev\/null|nul|&\d|-)$/i.test(t));
 }
 
 function deny(reason) {

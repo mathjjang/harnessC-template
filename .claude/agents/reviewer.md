@@ -13,8 +13,8 @@ hooks:
     - matcher: Bash
       hooks:
         - type: command
-          command: "node -e \"const c=require('fs').readFileSync(0,'utf8');if(/\\b(sed -i|tee|>>?|git (commit|push|checkout|reset)|rm |mv |cp )\\b/.test(JSON.parse(c).tool_input.command||'')){console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'리뷰어는 쓰지 않는다 — 발견은 06-review.md에 적어 구현자에게'}}))}\""
-          timeout: 5
+          command: "node .claude/hooks/guard-role-write.mjs --role reviewer"
+          timeout: 10
 ---
 
 # 리뷰 에이전트 — 불변 6줄

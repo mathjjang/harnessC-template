@@ -8,6 +8,13 @@ permissionMode: default
 memory: project
 background: true
 maxTurns: 60
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: "node .claude/hooks/guard-role-write.mjs --role tester"
+          timeout: 10
 ---
 
 # 검증 에이전트 — 불변 6줄

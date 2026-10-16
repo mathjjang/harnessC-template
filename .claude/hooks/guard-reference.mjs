@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// guard-reference.mjs — PreToolUse 훅 (Write|Edit|NotebookEdit). 참조 저장소(harness.yaml `references`)에 대한 쓰기를 쓰기 전에 판정한다.
+// guard-reference.mjs — PreToolUse 훅 (Write|Edit|NotebookEdit · Bash). 참조 저장소(harness.yaml `references`)에 대한 쓰기를 쓰기 전에 판정한다.
+// Bash는 리다이렉션·tee·cp·mv 대상 경로를 뽑아 같은 규칙으로 판정하고, 내용 검사(②③)는 명령 문자열 전체에 적용한다 — ADR-261016-enforcement-alignment(F08).
 //
 //   mode: read-only(기본)  → 모든 쓰기 거부 (AGENTS.md "참조 저장소는 읽되 고치지 않는다")
 //   trust: external        → ① writable 폴더 밖 거부
@@ -12,6 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseReferences } from '../../scripts/lib/refs.mjs';
+import { writeTargets } from '../../scripts/lib/write-targets.mjs';
 
 const DEV_MARK_RE = /docs\/(decisions|features|research|plans|queue|specs|incidents)\/|\b(FDR|ADR|RFC|PLAN|PG|INC)-\d{6}-[a-z0-9-]+/;
 const DEFAULT_ASK = ['원가', '공수', '내부 판단'];
@@ -68,14 +70,17 @@ if (process.argv.includes('--self-test')) {
   ];
   let fail = 0;
   for (const [p, c, want] of cases) { const got = (judge(p, c, ctx) || {}).decision || null; if (got !== want) { fail++; console.error(`FAIL ${p}: want ${want} got ${got}`); } }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (경로·내용 ${cases.length}건)`);
+  // Bash 경로: 리다이렉션 대상이 writable 밖이면 deny, 안이면 허용
+  const bash = [['cat > /collab/requirements/x.md <<EOF', 'deny'], ['echo 안건 >> /collab/meetings/x.md', null], ['cp a.md /ro/x.md', 'deny']];
+  for (const [cmd, want] of bash) { let got = null; for (const t of writeTargets(cmd)) { const d = judge(t, cmd, ctx); if (d) { got = d.decision; break; } } if (got !== want) { fail++; console.error(`FAIL bash ${cmd}: want ${want} got ${got}`); } }
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (경로·내용 ${cases.length}건 · Bash ${bash.length}건)`);
   process.exit(fail ? 1 : 0);
 }
 
 let raw = ''; try { raw = readFileSync(0, 'utf8'); } catch { /* */ }
 let input = {}; try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
 const tool = input.tool_name || '';
-if (!/^(Write|Edit|NotebookEdit)$/.test(tool)) process.exit(0);
+if (!/^(Write|Edit|NotebookEdit|Bash)$/.test(tool)) process.exit(0);
 const cwd = input.cwd || process.cwd();
 let root = cwd; try { root = execSync('git rev-parse --show-toplevel', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* git 밖 */ }
 const hyPath = resolve(root, 'harness.yaml');
@@ -83,6 +88,10 @@ const hy = existsSync(hyPath) ? readFileSync(hyPath, 'utf8') : (existsSync(resol
 const refs = parseReferences(hy);
 if (!refs.length) process.exit(0);
 const ti = input.tool_input || {};
+if (tool === 'Bash') {
+  for (const t of writeTargets(ti.command)) { const d = judge(t, ti.command, { root, cwd, refs }); if (d) { emit(d); break; } }
+  process.exit(0);
+}
 const d = judge(ti.file_path || ti.notebook_path, ti.content ?? ti.new_string ?? ti.new_source ?? '', { root, cwd, refs });
 if (d) emit(d);
 process.exit(0);
