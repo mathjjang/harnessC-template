@@ -46,6 +46,12 @@
             "command": "node .claude/hooks/guard-scratch.mjs",
             "timeout": 10,
             "statusMessage": "임시 파일 자리 검사"
+          },
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-reference.mjs",
+            "timeout": 10,
+            "statusMessage": "참조 저장소 쓰기 검사"
           }
         ]
       },

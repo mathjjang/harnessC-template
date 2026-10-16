@@ -23,7 +23,9 @@ review:
   independent_session: true
   model: null                # 리뷰어 모델. null이면 상속. 구현자와 다르게 두는 것을 권장
 
-references: []               # 읽기 전용·이식 재료. 예: - { path: ../other-repo, mode: read-only, pin: <sha> }
+references: []               # 형제 체크아웃 저장소 (submodule 아님). 훅 guard-reference가 쓰기를 판정한다.
+#  - { path: ../other-repo, mode: read-only, pin: <sha> }                        # 이식 재료 — 읽기만
+#  - { path: ../<proj>-collab, role: collab, trust: external, mode: read-write, writable: [meetings/, decisions/, questions/, deliverables/], ask_words: [원가, 공수, 마진] }   # 외부 조직과 같이 보는 협업 저장소 (팩 external-collab)
 
 human_only: human-only.yaml  # 사람만 할 수 있는 검증 등록부
 

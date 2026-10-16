@@ -4,8 +4,9 @@
 ## RFC — 탐구 (0)
 
 
-## ADR — 결정 (0)
+## ADR — 결정 (1)
 
+- [ADR-261016-external-collab](docs/decisions/ADR-261016-external-collab.md) — ADR-261016-external-collab: 외부 조직과의 협업 저장소 — 형제 체크아웃·DEC/MTG·guard-reference
 
 ## PLAN — 분해 (0)
 
