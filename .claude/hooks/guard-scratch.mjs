@@ -18,12 +18,12 @@ const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'RE
 const ALLOWED_DIR_RE = /(^|[\\/])(\.scratch|evidence|_assets|node_modules|\.git)([\\/]|$)/;
 
 function loadConfig(root) {
-  const cfg = { rootAllow: [], scratchDir: '.scratch' };
+  const cfg = { rootAllow: [], scratchDir: '.scratch', allowDirs: [] };
   const hy = existsSync(resolve(root, 'harness.yaml')) ? readFileSync(resolve(root, 'harness.yaml'), 'utf8') : '';
   const m = hy.match(/^scratch:\s*\n((?:[ \t]+.*\n?)*)/m);
   if (m) { const list = m[1].match(/root_allow:\s*\[([^\]]*)\]/); if (list) cfg.rootAllow = list[1].split(',').map((s) => s.trim()).filter(Boolean); const d = m[1].match(/dir:\s*(\S+)/); if (d) cfg.scratchDir = d[1]; }
   const jp = resolve(root, 'scripts', 'clutter-config.json');
-  if (existsSync(jp)) { try { const j = JSON.parse(readFileSync(jp, 'utf8')); cfg.rootAllow.push(...(j.rootAllow || [])); if (j.scratchDir) cfg.scratchDir = j.scratchDir; } catch { /* 무시 */ } }
+  if (existsSync(jp)) { try { const j = JSON.parse(readFileSync(jp, 'utf8')); cfg.rootAllow.push(...(j.rootAllow || [])); cfg.allowDirs.push(...(j.allowDirs || [])); if (j.scratchDir) cfg.scratchDir = j.scratchDir; } catch { /* 무시 */ } }
   return cfg;
 }
 function trackedRoot(root) {
@@ -41,6 +41,7 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   if (scratchpad && !relative(scratchpad, abs).startsWith('..')) return null;
   const relPosix = rel.split(sep).join('/');
   if (ALLOWED_DIR_RE.test(relPosix)) return null;
+  if ((config.allowDirs || []).some((d) => relPosix === d || relPosix.startsWith(d.replace(/\/$/, '') + '/'))) return null;
   const top = relPosix.split('/')[0];
   const name = basename(relPosix);
   if (TEMP_RE.test(name)) return `임시 파일 이름(${name})은 ${config.scratchDir}/ 또는 세션 scratchpad에만 만든다 — 증거면 evidence/, 보존 자산이면 _assets/`;
