@@ -1,0 +1,26 @@
+{
+  "_harnessC": "v0.1 — 손으로 작성. 이후 harness build가 HARNESS.md+팩에서 생성한다. 생성 구간은 손으로 고치지 않는다.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node scripts/harness-status.mjs", "timeout": 10, "statusMessage": "하네스 세션 카드" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node scripts/check-session-log.mjs", "timeout": 10, "statusMessage": "세션 로그 확인" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node .claude/hooks/mobile-mode.mjs", "timeout": 5, "statusMessage": "모바일 모드 판정 (Remote Control 연결 시)" }
+        ]
+      }
+    ]
+  }
+}

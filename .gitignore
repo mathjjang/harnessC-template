@@ -1,0 +1,8 @@
+node_modules/
+*.local
+*.local.*
+.claude/settings.local.json
+.claude/worktrees/
+evidence/runs/*.out
+.DS_Store
+Thumbs.db
