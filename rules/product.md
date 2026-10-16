@@ -1,0 +1,14 @@
+# 제품 불변 — {{PROJECT_NAME}}
+
+> 이 프로젝트에서만 참인 것. 위반 = 재작업. 짧게 둔다(≤3KB). Claude Code·Gemini CLI는 자동으로 읽고(`CLAUDE.md`·`GEMINI.md`가 import), 그 밖의 에이전트는 `AGENTS.md` "가장 먼저"에 따라 직접 읽는다.
+
+## 불변
+
+- (init 시 채운다. 예: "로컬 저장이 기본이다", "외부 LLM은 어댑터 뒤에만", "발주사 데이터는 저장소에 두지 않는다")
+
+## 정본 위치
+
+- 요구사항: `docs/requirements/` (`harness.yaml` `requirements.mode`가 separate-repo면 그 저장소)
+- 현재 동작: `docs/specs/`
+- 결정·탐구·기능: `docs/decisions/` · `docs/research/` · `docs/features/`
+- 산출물: `outputs/` (증거 `outputs/evidence/<ID>/` · 보고서 `outputs/reports/`)

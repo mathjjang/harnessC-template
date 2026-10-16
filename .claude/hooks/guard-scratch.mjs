@@ -7,15 +7,15 @@
 //      허용 구역(.scratch/ · evidence/ · **/evidence/** · **/_assets/** · 세션 scratchpad_dir) 밖에 만드는 것
 //   ③ Bash의 리다이렉션·tee·touch·cp·mv·mkdir·Out-File·Set-Content·New-Item 대상이 위 ①②에 해당하는 것
 // 막지 않는 것: 기존 파일 편집 · 허용 구역 · node_modules/.git · 저장소 밖 경로(scratchpad 포함)
-// 설정: harness.yaml `scratch:` 또는 scripts/clutter-config.json (없으면 기본값). 우회 플래그 없음 — 갈 곳을 바꾸는 것이 시정이다.
+// 설정: harness.yaml `scratch:` 또는 .harness/scripts/clutter-config.json (없으면 기본값). 우회 플래그 없음 — 갈 곳을 바꾸는 것이 시정이다.
 // 자기 검사: node .claude/hooks/guard-scratch.mjs --self-test
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
-import { writeTargets } from '../../scripts/lib/write-targets.mjs';
+import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
-const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'HARNESS.md', 'AGENTS.md', 'CLAUDE.md', 'harness.yaml', 'human-only.yaml', 'init.mjs', '.scratch', 'docs', 'scripts', 'tools', 'packs', 'tiers', 'evidence', 'src', 'app', 'tests', 'config', '.claude', '.github', '.vscode'];
+const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.harness', 'rules', 'docs', 'outputs', 'src', 'app', 'tests', 'scripts', 'config', '.claude', '.github', '.vscode'];
 const ALLOWED_DIR_RE = /(^|[\\/])(\.scratch|evidence|_assets|node_modules|\.git)([\\/]|$)/;
 
 function loadConfig(root) {
@@ -23,7 +23,7 @@ function loadConfig(root) {
   const hy = existsSync(resolve(root, 'harness.yaml')) ? readFileSync(resolve(root, 'harness.yaml'), 'utf8') : '';
   const m = hy.match(/^scratch:\s*\n((?:[ \t]+.*\n?)*)/m);
   if (m) { const list = m[1].match(/root_allow:\s*\[([^\]]*)\]/); if (list) cfg.rootAllow = list[1].split(',').map((s) => s.trim()).filter(Boolean); const d = m[1].match(/dir:\s*(\S+)/); if (d) cfg.scratchDir = d[1]; }
-  const jp = resolve(root, 'scripts', 'clutter-config.json');
+  const jp = resolve(root, '.harness', 'clutter-config.json');
   if (existsSync(jp)) { try { const j = JSON.parse(readFileSync(jp, 'utf8')); cfg.rootAllow.push(...(j.rootAllow || [])); cfg.allowDirs.push(...(j.allowDirs || [])); if (j.scratchDir) cfg.scratchDir = j.scratchDir; } catch { /* 무시 */ } }
   return cfg;
 }
@@ -48,7 +48,7 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   if (TEMP_RE.test(name)) return `임시 파일 이름(${name})은 ${config.scratchDir}/ 또는 세션 scratchpad에만 만든다 — 증거면 evidence/, 보존 자산이면 _assets/`;
   if (!relPosix.includes('/')) {
     const allow = new Set([...DEFAULT_ROOT_ALLOW, ...config.rootAllow, ...tracked]);
-    if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 docs/·scripts/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
+    if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 rules/·docs/·outputs/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
   }
   return null;
 }
@@ -61,7 +61,7 @@ if (process.argv.includes('--self-test')) {
   const root = resolve('/repo');
   const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp'), config: { rootAllow: ['Makefile'], scratchDir: '.scratch' }, tracked: new Set(['src', 'README.md']) };
   const cases = [
-    ['src/a.ts', null], ['.tmp-probe.mjs', 'deny'], ['scripts/probe-x.mjs', 'deny'], ['.scratch/probe-x.mjs', null], ['docs/features/FDR-1/evidence/run.log', null],
+    ['src/a.ts', null], ['.tmp-probe.mjs', 'deny'], ['.harness/scripts/probe-x.mjs', 'deny'], ['.scratch/probe-x.mjs', null], ['docs/features/FDR-1/evidence/run.log', null],
     ['newfile.txt', 'deny'], ['Makefile', null], ['README.md', null], ['/tmp/sp/x.log', null], ['../outside/x.log', null], ['app/build.log', 'deny'], ['docs/x/_assets/a.log', null],
   ];
   let fail = 0;

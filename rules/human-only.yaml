@@ -1,0 +1,10 @@
+# rules/human-only.yaml — 사람만 할 수 있는 검증 등록부
+# 기본값은 "에이전트가 한다". 여기 등록된 축만 사람 큐(docs/queue/human-run)에 들어갈 수 있다.
+# 등록 없이 사람 큐에 넣는 것은 .harness/scripts/lint.mjs ⑨가 막는다(큐 머리말 `axis:` ↔ 아래 id). "체감"은 측정 지표로 바꿀 수 없음을 적을 때만.
+
+axes:
+  - id: external-account
+    reason: 결제·스토어·외부 계정 자격이 사람에게만 있다
+  - id: safety-signoff
+    reason: 보안·데이터 유실·공개 계약 변경은 실행이 아니라 판단을 사람이 한다 (비동기 사인오프)
+  # 팩이 추가한다. 예) hardware-device 팩: real-device(실기기·실로봇)

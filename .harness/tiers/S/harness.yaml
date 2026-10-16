@@ -1,0 +1,31 @@
+# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.1.0)
+# init.mjs가 읽고, .harness/scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
+
+harness: 0.1.0
+project: "{{PROJECT_NAME}}"
+tier: S                      # S | M | L  — FDR 기본 프로파일·게이트 수·상시 규칙 상한
+packs: []                    # 켜진 팩 (.harness/packs/<name>/). 켜고 끄는 것은 ADR.
+gate_mode: standard          # fast | standard | strict (FDR별 오버라이드 가능)
+human_touchpoints: [spec, review]
+
+ids:
+  scheme: date-slug          # <TYPE>-<YYMMDD>-<slug>
+
+requirements:
+  mode: monorepo             # monorepo | separate-repo (다른 조직·역할이 쓰면 separate-repo)
+  path: docs/requirements
+
+budgets:
+  always_on_kb: 15           # 규칙 파일 합계 상한 (S 15 · M 25 · L 40)
+  core_kb: 10
+
+review:
+  independent_session: true
+  model: null                # 리뷰어 모델. null이면 상속. 구현자와 다르게 두는 것을 권장
+
+references: []               # 읽기 전용·이식 재료. 예: - { path: ../other-repo, mode: read-only, pin: <sha> }
+
+human_only: rules/human-only.yaml  # 사람만 할 수 있는 검증 등록부
+
+metrics:
+  enabled: true

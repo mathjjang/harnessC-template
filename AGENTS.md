@@ -1,14 +1,15 @@
 # AGENTS.md — {{PROJECT_NAME}} 에이전트 운영 규칙
 
-> 하네스C 코어 v0.1.0 · 모든 에이전트(Claude Code·Codex·Cursor 등) 공통. 충돌 시 `CLAUDE.md`(제품 불변) → `HARNESS.md`(방법론) → 이 파일 순으로 이긴다.
-> v0.1에서는 손으로 작성한다. 이후 `harness build`가 `HARNESS.md`+팩에서 생성한다.
+> 하네스C 코어 v0.1.0 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 충돌 시 `rules/product.md`(제품 불변) → `rules/HARNESS.md`(방법론) → 이 파일 순으로 이긴다.
+> v0.1에서는 손으로 작성한다. 이후 `harness build`가 `rules/HARNESS.md`+팩에서 생성한다.
 > 지원 매트릭스(v0.1): 쓰기 전 훅(guard-scratch·guard-reference·guard-role-write)은 **Claude Code**(`.claude/`)에만 연결돼 있다. 다른 런타임은 git pre-commit 게이트(lint·check-clutter·build-index)만 보장받는다 — 그 환경에서는 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
-1. `HARNESS.md` §1 로딩 순서대로 읽는다. 전체 eager-load 금지.
-2. 세션 시작 카드(`node scripts/harness-status.mjs`)에서 활성 기록·큐·다음 ID를 본다.
-3. 작업 유형을 정하고 `HARNESS.md` §2 라우팅으로 절차와 산출물을 고른다.
+0. `rules/product.md`(제품 불변)를 읽는다 — Claude Code·Gemini CLI는 자동 import, 그 밖은 직접.
+1. `rules/HARNESS.md` §1 로딩 순서대로 읽는다. 전체 eager-load 금지.
+2. 세션 시작 카드(`node .harness/scripts/harness-status.mjs`)에서 활성 기록·큐·다음 ID를 본다.
+3. 작업 유형을 정하고 `rules/HARNESS.md` §2 라우팅으로 절차와 산출물을 고른다.
 
 ## 지시 집행
 
@@ -27,15 +28,21 @@
 ## 파일
 
 - 모든 텍스트 파일은 UTF-8(BOM 없음). 한글→ASCII 치환으로 "수리"하지 않는다. 깨져 보이면 읽는 쪽 인코딩부터 의심.
-- 생성물(`*.generated.md`, `docs/init-manifest.json`, `.claude/` 생성 구간)은 손으로 고치지 않는다.
+- 생성물(`*.generated.md`, `.harness/init-manifest.json`, `.claude/` 생성 구간)은 손으로 고치지 않는다.
 - 참조 저장소(`harness.yaml` `references`)는 읽되 고치지 않는다(`mode: read-only`). 결함은 그 저장소 담당에게. `trust: external` 협업 저장소는 `writable` 폴더에만 쓰고, 개발 저장소 경로·기록 ID·원가·공수를 쓰지 않는다 — 훅이 거부·질의한다.
-- 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에 만든다. 루트와 `scripts/`에 만들면 훅(Claude Code)·pre-commit 게이트가 거부한다 — 우회 플래그는 없다.
+- 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에 만든다. 루트와 `.harness/scripts/`에 만들면 훅(Claude Code)·pre-commit 게이트가 거부한다 — 우회 플래그는 없다.
 
 ## 다중 에이전트
 
 - 구현자·리뷰어·테스터는 다른 세션이다. 리뷰어·테스터는 제품 코드를 고치지 않는다(에이전트 정의가 막는다).
 - 다른 에이전트가 활성인 영역은 직접 고치지 않고 큐·리뷰로 전달한다.
 - "제안해줘·방안·리서치" 요청의 산출물은 문서다. 코드 수정은 "진행해" 이후에만.
+
+## 다른 에이전트와 주고받기 (다른 세션·Codex·Gemini 등)
+
+- 맡기고 받는 것은 **핸드오프** `docs/handoffs/HO-…/`로만 한다. 채팅·`.scratch/`·남의 문서에 이어 쓰기로 주고받지 않는다. 절차는 `docs/runbooks/handoff.md`.
+- 받았으면: `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따른다. 상태를 `taken`, 맡은 쪽에 자기 이름(모델). 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`로 만든 **새 파일**에만 쓰고 상태를 `answered`로. 남의 파일은 고치지 않는다.
+- 재현이 필요하면 `.scratch/<HO-ID>/`에서 하고, 남길 것은 `outputs/evidence/<HO-ID>/`로 옮긴다. 커밋은 보낸 쪽이 결과(`result.md`)와 함께 한다.
 
 ## 보고
 

@@ -1,0 +1,38 @@
+# FDR manifest — 상태 정본 (rules/HARNESS.md §4). 전이는 손이 아니라 도구로(v0.1: 손 편집 허용, updated 갱신 필수).
+schema_version: 2
+id: {{ID}}
+slug: {{SLUG}}
+title: "{{TITLE}}"
+profile: standard
+status: draft                 # draft | in-progress | shipped | closed | abandoned
+abandoned_reason: null
+gate_mode: standard           # fast | standard | strict — fast는 fast_reason 필수
+fast_reason: null
+risk: low                     # low | medium | high
+current_stage: spec
+created: {{DATE}}
+updated: {{DATE}}
+
+source_req: []                # confirmed REQ만
+capability: null              # docs/specs/<capability> — close 시 01-spec 델타 병합
+plan_ref: null
+depends_on: []
+related_rfc: []
+related_adr: []
+pg: []                        # 참조하는 PG ID (내용은 docs/queue/pg/)
+
+stages:
+  - { id: spec,        state: pending, artifact: 01-spec.md }
+  - { id: design,      state: pending, artifact: 02-design.md }
+  - { id: impl,        state: pending, artifact: 03-impl.md }
+  - { id: unit,        state: pending, artifact: 04-unit.md }
+  - { id: integration, state: pending, artifact: 05-integration.md }
+  - { id: review,      state: pending, artifact: 06-review.md }
+  - { id: close,       state: pending, artifact: 07-close.md }
+
+human:                        # rules/human-only.yaml 축에 등록된 것만. 항목은 docs/queue/human-run/ 에 생성
+  queue: []
+
+evidence:
+  runs: outputs/evidence/{{ID}}/runs/   # RUN 원문 (산출물은 outputs/에 모은다)
+  review_package: null        # 리뷰 패키지(스크린샷·trace·RUN 요약) 경로

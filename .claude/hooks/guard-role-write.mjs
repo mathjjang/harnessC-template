@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// guard-role-write.mjs — PreToolUse 훅 (Bash · Write|Edit). 리뷰어·테스터의 쓰기를 **경로**로 판정한다 (HARNESS.md §5 "리뷰어·테스터는 제품 코드를 고치지 않는다").
+// guard-role-write.mjs — PreToolUse 훅 (Bash · Write|Edit). 리뷰어·테스터의 쓰기를 **경로**로 판정한다 (rules/HARNESS.md §5 "리뷰어·테스터는 제품 코드를 고치지 않는다").
 //
 //   사용: node .claude/hooks/guard-role-write.mjs --role reviewer|tester   (에이전트 정의 frontmatter hooks)
 //   허용: 역할의 산출 경로만 — reviewer: FDR 파일(lite)·06-review.md·session-log·evidence/·docs/queue/ · tester: FDR 파일(lite)·evidence/·docs/queue/ · 둘 다 .scratch/·저장소 밖(scratchpad)
@@ -9,12 +9,12 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { writeTargets, destructiveTargets, FORBIDDEN_RE } from '../../scripts/lib/write-targets.mjs';
+import { writeTargets, destructiveTargets, FORBIDDEN_RE } from '../../.harness/scripts/lib/write-targets.mjs';
 
-const COMMON = [/^\.scratch\//, /^docs\/queue\//, /^docs\/features\/[^/]+\.md$/, /^docs\/features\/[^/]+\/session-log\.md$/, /^docs\/features\/[^/]+\/evidence\//];
+const COMMON = [/^\.scratch\//, /^docs\/queue\//, /^docs\/features\/[^/]+\.md$/, /^docs\/features\/[^/]+\/session-log\.md$/, /^outputs\/evidence\//, /^docs\/handoffs\/HO-[^/]+\/(\d{2}-[a-z0-9]+|result)\.md$/];
 const ALLOW = {
   reviewer: [...COMMON, /^docs\/features\/[^/]+\/06-review\.md$/],
-  tester: [...COMMON, /^evidence\//],
+  tester: [...COMMON],
 };
 const norm = (p) => String(p).replace(/^\/([a-zA-Z])\/(.*)$/, (m, d, r) => `${d.toUpperCase()}:/${r}`);
 
@@ -52,16 +52,18 @@ if (process.argv.includes('--self-test')) {
     ['reviewer', 'Bash', 'sed -i s/a/b/ src/app.ts', 'deny'],
     ['reviewer', 'Bash', 'rm -rf dist', 'deny'],
     ['reviewer', 'Bash', 'git commit -m x', 'deny'],
-    ['reviewer', 'Bash', 'git status && node scripts/lint.mjs', null],
+    ['reviewer', 'Bash', 'git status && node .harness/scripts/lint.mjs', null],
     ['reviewer', 'Bash', 'node x.mjs > /tmp/sp/out.txt', null],
     ['reviewer', 'Bash', 'echo x > docs/features/FDR-1/03-impl.md', 'deny'],
-    ['tester', 'Bash', 'npm test > docs/features/FDR-1/evidence/runs/unit.out', null],
+    ['tester', 'Bash', 'npm test > outputs/evidence/FDR-1/runs/unit.out', null],
+    ['reviewer', 'Bash', 'cat > docs/handoffs/HO-261016-x/02-claude.md <<EOF', null],
+    ['reviewer', 'Bash', 'echo x > docs/handoffs/HO-261016-x/request.md', 'deny'],
     ['tester', 'Bash', 'echo x > docs/features/FDR-1/06-review.md', 'deny'],
     ['tester', 'Bash', 'npm install lodash', 'deny'],
     ['tester', 'Bash', 'npm install', null],
     ['tester', 'Bash', 'cat > docs/queue/qa/QA-261016-x.md <<EOF', null],
     ['tester', 'Write', { file_path: '/repo/src/a.ts' }, 'deny'],
-    ['tester', 'Write', { file_path: '/repo/evidence/runs/x.out' }, null],
+    ['tester', 'Write', { file_path: '/repo/outputs/evidence/FDR-1/runs/x.out' }, null],
     ['developer', 'Bash', 'echo x > src/app.ts', null],
   ];
   let fail = 0;

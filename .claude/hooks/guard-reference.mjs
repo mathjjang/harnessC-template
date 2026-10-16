@@ -12,8 +12,8 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseReferences } from '../../scripts/lib/refs.mjs';
-import { writeTargets } from '../../scripts/lib/write-targets.mjs';
+import { parseReferences } from '../../.harness/scripts/lib/refs.mjs';
+import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 
 const DEV_MARK_RE = /docs\/(decisions|features|research|plans|queue|specs|incidents)\/|\b(FDR|ADR|RFC|PLAN|PG|INC)-\d{6}-[a-z0-9-]+/;
 const DEFAULT_ASK = ['원가', '공수', '내부 판단'];

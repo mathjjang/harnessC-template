@@ -1,10 +1,10 @@
 # harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.1.0)
-# init.mjs가 읽고, scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
+# init.mjs가 읽고, .harness/scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
 
 harness: 0.1.0
 project: "{{PROJECT_NAME}}"
 tier: M                      # S | M | L  — FDR 기본 프로파일·게이트 수·상시 규칙 상한
-packs: []                    # 켜진 팩 (packs/<name>/). 켜고 끄는 것은 ADR.
+packs: []                    # 켜진 팩 (.harness/packs/<name>/). 켜고 끄는 것은 ADR.
 gate_mode: standard          # fast | standard | strict (FDR별 오버라이드 가능)
 human_touchpoints: [spec, review]
 
@@ -27,9 +27,9 @@ references: []               # 형제 체크아웃 저장소 (submodule 아님).
 #  - { path: ../other-repo, mode: read-only, pin: <sha> }                        # 이식 재료 — 읽기만
 #  - { path: ../<proj>-collab, role: collab, trust: external, mode: read-write, writable: [meetings/, decisions/, questions/, deliverables/], ask_words: [원가, 공수, 마진] }   # 외부 조직과 같이 보는 협업 저장소 (팩 external-collab)
 
-human_only: human-only.yaml  # 사람만 할 수 있는 검증 등록부
+human_only: rules/human-only.yaml  # 사람만 할 수 있는 검증 등록부
 
-scratch:                     # 임시 파일 규율 (HARNESS.md §8) — 훅 guard-scratch·게이트 check-clutter가 읽는다
+scratch:                     # 임시 파일 규율 (rules/HARNESS.md §8) — 훅 guard-scratch·게이트 check-clutter가 읽는다
   dir: .scratch              # 세션을 넘겨 살아야 하는 임시 파일의 유일한 자리 (gitignore)
   max_age_days: 14
   root_allow: []             # 루트에 추가로 허용할 항목 (등재는 ADR)

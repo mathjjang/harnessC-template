@@ -1,0 +1,88 @@
+# .harness/catalog.yaml — 도구 상태 정본 (rules/HARNESS.md §1·§9). 규칙 문장은 여기 `active`인 도구만 참조할 수 있다(.harness/scripts/lint.mjs ②).
+# status: active | planned | retired. planned 도구는 규칙 본문에 쓰지 못한다 — "미도입이니 네가 지켜라"를 막는다.
+tools:
+  - name: init.mjs
+    status: active
+    command: node init.mjs --name <이름> [--tier S|M|L] [--packs a,b]
+    enforcement: generate
+    self_test: node init.mjs --self-test
+    rule: 템플릿 적용은 결정론 복사·치환·manifest
+  - name: harness-status.mjs
+    status: active
+    command: node .harness/scripts/harness-status.mjs
+    enforcement: report
+    self_test: node .harness/scripts/harness-status.mjs --self-test
+    rule: rules/HARNESS.md §1 라우터 — 세션 시작 카드
+  - name: new-doc.mjs
+    status: active
+    command: node .harness/scripts/new-doc.mjs <kind> <slug> "<제목>" | reply <HO-ID> --agent "<에이전트(모델)>" [--result]
+    enforcement: generate
+    self_test: node .harness/scripts/new-doc.mjs --self-test
+    rule: rules/HARNESS.md §3 — ID 채번·귀속·manifest·세션 로그 생성
+  - name: lint.mjs
+    status: active
+    command: node .harness/scripts/lint.mjs
+    enforcement: gate
+    self_test: node .harness/scripts/lint.mjs --self-test
+    rule: rules/HARNESS.md §1(도구 참조·예산) §8(귀속·중복·생성물) §5(human-run axis 등록) §4·§6(closed FDR의 스펙 병합·RUN 존재) §11(핸드오프 상태·result) — 형식·존재·연결만. 내용 타당성은 리뷰어
+  - name: build-index.mjs
+    status: active
+    command: node .harness/scripts/build-index.mjs [--check]
+    enforcement: generate
+    self_test: node .harness/scripts/build-index.mjs --self-test
+    rule: rules/HARNESS.md §3·§7 — 생성 인덱스
+  - name: check-session-log.mjs
+    status: active
+    command: node .harness/scripts/check-session-log.mjs
+    enforcement: report
+    self_test: node .harness/scripts/check-session-log.mjs --self-test
+    rule: rules/HARNESS.md §8 — 세션 로그
+  - name: guard-scratch.mjs
+    status: active
+    command: (PreToolUse 훅) node .claude/hooks/guard-scratch.mjs
+    enforcement: gate
+    self_test: node .claude/hooks/guard-scratch.mjs --self-test
+    rule: rules/HARNESS.md §8 임시 파일 — 루트 신규 항목·임시 패턴 생성을 쓰기 전에 거부
+  - name: guard-reference.mjs
+    status: active
+    command: (PreToolUse 훅 Write|Edit|NotebookEdit|Bash) node .claude/hooks/guard-reference.mjs
+    enforcement: gate
+    self_test: node .claude/hooks/guard-reference.mjs --self-test
+    rule: AGENTS.md 참조 저장소 · CLAUDE.md 불변 1(발주사 산출물 분리) — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
+  - name: guard-role-write.mjs
+    status: active
+    command: (에이전트 frontmatter PreToolUse 훅 Bash) node .claude/hooks/guard-role-write.mjs --role reviewer|tester
+    enforcement: gate
+    self_test: node .claude/hooks/guard-role-write.mjs --self-test
+    rule: rules/HARNESS.md §5 리뷰어·테스터는 제품 코드를 고치지 않는다 — 경로 기반 허용(산출 경로만)·git/의존성 변경 금지
+  - name: write-targets.mjs
+    status: active
+    command: (라이브러리) .harness/scripts/lib/write-targets.mjs
+    enforcement: none
+    self_test: node .harness/scripts/lib/write-targets.mjs --self-test
+    rule: Bash 쓰기 대상 추출 — guard-scratch·guard-reference·guard-role-write 공유 (사유 — 판정은 훅이 한다)
+  - name: check-clutter.mjs
+    status: active
+    command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]
+    enforcement: gate
+    self_test: node .harness/scripts/check-clutter.mjs --self-test
+    rule: rules/HARNESS.md §8 임시 파일 — 커밋 차단·잔고 보고·archive·gc (baseline 래칫)
+  - name: pre-commit
+    status: active
+    command: git config core.hooksPath .harness/scripts/git-hooks
+    enforcement: gate
+    self_test: (각 게이트의 self-test)
+    rule: check-clutter · lint · build-index --check
+  # planned (규칙 본문에서 참조 금지 — 도입 시 active로)
+  - name: harness-run.mjs
+    status: planned
+    rule: RUN 원장(명령·커밋·종료코드·출력 해시) — rules/HARNESS.md §6 "RUN ID 인용"의 집행 수단
+  - name: fdr-close.mjs
+    status: planned
+    rule: FDR close 시 01-spec 델타를 docs/specs/에 병합 — rules/HARNESS.md §4
+  - name: harness-build.mjs
+    status: planned
+    rule: rules/HARNESS.md+팩 → AGENTS.md·CLAUDE.md·.claude/ 생성 — 원칙 10
+  - name: metrics.mjs
+    status: planned
+    rule: FDR 리드타임·큐 대기·우회·규칙 KB 집계
