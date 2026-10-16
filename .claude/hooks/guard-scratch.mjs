@@ -33,6 +33,8 @@ function trackedRoot(root) {
 /** 경로 하나를 판정한다. 반환 null = 허용, 문자열 = 거부 사유 */
 export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   if (!path) return null;
+  const norm = (p) => p.replace(/^\/([a-zA-Z])\/(.*)$/, (m, d, r) => `${d.toUpperCase()}:/${r}`); // MSYS /d/x → D:/x
+  path = norm(path);
   const abs = isAbsolute(path) ? path : resolve(cwd || root, path);
   const rel = relative(root, abs);
   if (!rel || rel.startsWith('..') || isAbsolute(rel)) return null;                 // 저장소 밖 (scratchpad 포함)
