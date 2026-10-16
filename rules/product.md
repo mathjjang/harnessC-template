@@ -1,6 +1,6 @@
 # 제품 불변 — {{PROJECT_NAME}}
 
-> 이 프로젝트에서만 참인 것. 위반 = 재작업. 짧게 둔다(≤3KB). Claude Code·Gemini CLI는 자동으로 읽고(`CLAUDE.md`·`GEMINI.md`가 import), 그 밖의 에이전트는 `AGENTS.md` "가장 먼저"에 따라 직접 읽는다.
+> 이 프로젝트에서만 참인 것. 위반 = 재작업. ≤3KB. Claude·Gemini는 자동 import, 그 밖은 AGENTS.md "가장 먼저 0".
 
 ## 불변
 

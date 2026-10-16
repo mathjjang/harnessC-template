@@ -2,7 +2,7 @@
 
 > 하네스C 코어 v0.1.0 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 충돌 시 `rules/product.md`(제품 불변) → `rules/HARNESS.md`(방법론) → 이 파일 순으로 이긴다.
 > v0.1에서는 손으로 작성한다. 이후 `harness build`가 `rules/HARNESS.md`+팩에서 생성한다.
-> 지원 매트릭스(v0.1): 쓰기 전 훅(guard-scratch·guard-reference·guard-role-write)은 **Claude Code**(`.claude/`)에만 연결돼 있다. 다른 런타임은 git pre-commit 게이트(lint·check-clutter·build-index)만 보장받는다 — 그 환경에서는 아래 규칙을 커밋 전 스스로 점검한다.
+> 지원 매트릭스(v0.1): 쓰기 전 훅은 **Claude Code**에만 있다. 다른 런타임은 pre-commit 게이트만 — 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
@@ -41,8 +41,7 @@
 ## 다른 에이전트와 주고받기 (다른 세션·Codex·Gemini 등)
 
 - 맡기고 받는 것은 **핸드오프** `docs/handoffs/HO-…/`로만 한다. 채팅·`.scratch/`·남의 문서에 이어 쓰기로 주고받지 않는다. 절차는 `docs/runbooks/handoff.md`.
-- 받았으면: `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따른다. 상태를 `taken`, 맡은 쪽에 자기 이름(모델). 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`로 만든 **새 파일**에만 쓰고 상태를 `answered`로. 남의 파일은 고치지 않는다.
-- 재현이 필요하면 `.scratch/<HO-ID>/`에서 하고, 남길 것은 `outputs/evidence/<HO-ID>/`로 옮긴다. 커밋은 보낸 쪽이 결과(`result.md`)와 함께 한다.
+- 받았으면: `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따르고 상태 `taken`·맡은 쪽 기입. 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`가 만든 새 파일에만, 끝나면 `answered`. 남길 재현물은 `outputs/evidence/<HO-ID>/`. 커밋은 보낸 쪽이 한다.
 
 ## 보고
 

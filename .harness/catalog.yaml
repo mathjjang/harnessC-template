@@ -48,7 +48,7 @@ tools:
     command: (PreToolUse 훅 Write|Edit|NotebookEdit|Bash) node .claude/hooks/guard-reference.mjs
     enforcement: gate
     self_test: node .claude/hooks/guard-reference.mjs --self-test
-    rule: AGENTS.md 참조 저장소 · CLAUDE.md 불변 1(발주사 산출물 분리) — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
+    rule: AGENTS.md 참조 저장소 · rules/product.md 불변(외부 산출물 분리) — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
   - name: guard-role-write.mjs
     status: active
     command: (에이전트 frontmatter PreToolUse 훅 Bash) node .claude/hooks/guard-role-write.mjs --role reviewer|tester
