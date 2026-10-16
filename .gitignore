@@ -1,5 +1,5 @@
 node_modules/
-.scratch/
+.scratch/*
 !.scratch/README.md
 *.local
 *.local.*

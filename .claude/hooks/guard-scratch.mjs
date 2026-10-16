@@ -27,7 +27,7 @@ function loadConfig(root) {
   return cfg;
 }
 function trackedRoot(root) {
-  try { return new Set(execSync('git ls-files --cached --others --exclude-standard', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean).map((p) => p.split('/')[0])); } catch { return new Set(); }
+  try { return new Set(execSync('git ls-files --cached --others --exclude-standard', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean).map((p) => p.split('/')[0])); } catch { return new Set(); }
 }
 
 /** 경로 하나를 판정한다. 반환 null = 허용, 문자열 = 거부 사유 */
@@ -92,5 +92,6 @@ const ti = input.tool_input || {};
 let reason = null;
 if (/^(Write|Edit|NotebookEdit)$/.test(tool)) reason = judge(ti.file_path || ti.notebook_path, ctx);
 else if (tool === 'Bash') for (const t of writeTargets(ti.command)) { reason = judge(t, ctx); if (reason) break; }
+if (process.env.GUARD_SCRATCH_DEBUG) console.error(JSON.stringify({ tool, root, cwd, scratchpad: ctx.scratchpad, trackedCount: ctx.tracked.size, reason }));
 if (reason) deny(reason);
 process.exit(0);
