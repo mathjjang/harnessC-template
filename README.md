@@ -33,7 +33,8 @@ AGENTS.md / CLAUDE.md 운영 규칙 · 제품 불변 (CLAUDE.md는 @AGENTS.md �
 harness.yaml          프로젝트 설정 단일 파일 (티어·팩·게이트·예산·참조)
 human-only.yaml       사람만 할 수 있는 검증 등록부 — 등록 없으면 사람 큐 진입 불가
 init.mjs              템플릿 적용기 (self-test 보유)
-scripts/              harness-status(세션 카드) · new-doc(생성기) · lint · build-index · check-session-log
+scripts/              harness-status(세션 카드) · new-doc(생성기) · lint · build-index · check-session-log · check-clutter · git-hooks/pre-commit
+.scratch/             세션을 넘겨 살아야 하는 임시 파일의 유일한 자리 (gitignore · 14일 gc)
 tools/catalog.yaml    도구 상태 정본 — 규칙은 active 도구만 참조할 수 있다
 .claude/              settings(훅: SessionStart·Stop·UserPromptSubmit 모바일 모드) · agents(developer·reviewer·tester) · skills · rules(경로 범위) · hooks
 docs/                 requirements · specs(현재 동작) · research · decisions · plans · features · queue · incidents · runbooks · project_wiki · retros · _templates
@@ -49,10 +50,17 @@ evidence/runs/        RUN 원문
 | 티어·팩 적용, {{VAR}} 치환, sha256 매니페스트 | `init.mjs` active |
 | 날짜형 ID 생성(충돌 시 -2), 귀속 머리, FDR manifest·세션 로그 | `new-doc.mjs` active |
 | 세션 시작 카드, 세션 로그 경고, 모바일 모드 자동 전환 | 훅 active |
-| 린트: BOM·도구 참조·규칙 예산·중복 문장·귀속·생성물 표식 | `lint.mjs` active |
+| 린트: BOM·도구 참조·규칙 예산·중복 문장·귀속·생성물 표식·scripts 카탈로그 | `lint.mjs` active |
+| 임시 파일 규율: 루트 신규·임시 패턴 생성 거부(훅), 커밋 차단·잔고 보고·archive·gc(게이트) | `guard-scratch` · `check-clutter` active |
 | 기록·스펙·큐 인덱스 생성 | `build-index.mjs` active |
 | RUN 원장, FDR close 스펙 병합, AGENTS/CLAUDE 생성(`harness build`), metrics | **planned** — `tools/catalog.yaml` 참조. 규칙 본문은 이들을 참조하지 않는다 |
 | 팩의 훅·에이전트·self-test | draft — V2·미니앱 자산 이식(R4) 후 stable |
+
+## 활성화 (clone 직후 1회)
+
+```bash
+git config core.hooksPath scripts/git-hooks
+```
 
 ## 검증
 

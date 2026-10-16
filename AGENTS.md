@@ -28,6 +28,7 @@
 - 모든 텍스트 파일은 UTF-8(BOM 없음). 한글→ASCII 치환으로 "수리"하지 않는다. 깨져 보이면 읽는 쪽 인코딩부터 의심.
 - 생성물(`*.generated.md`, `docs/init-manifest.json`, `.claude/` 생성 구간)은 손으로 고치지 않는다.
 - 참조 저장소(`harness.yaml` `references`)는 읽되 고치지 않는다. 결함은 그 저장소 담당에게.
+- 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에 만든다. 루트와 `scripts/`에 만들면 훅이 거부한다 — 우회 플래그는 없다.
 
 ## 다중 에이전트
 

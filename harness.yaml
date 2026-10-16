@@ -27,5 +27,10 @@ references: []               # 읽기 전용·이식 재료. 예: - { path: ../o
 
 human_only: human-only.yaml  # 사람만 할 수 있는 검증 등록부
 
+scratch:                     # 임시 파일 규율 (HARNESS.md §8) — 훅 guard-scratch·게이트 check-clutter가 읽는다
+  dir: .scratch              # 세션을 넘겨 살아야 하는 임시 파일의 유일한 자리 (gitignore)
+  max_age_days: 14
+  root_allow: []             # 루트에 추가로 허용할 항목 (등재는 ADR)
+
 metrics:
   enabled: true

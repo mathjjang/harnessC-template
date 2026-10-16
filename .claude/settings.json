@@ -4,21 +4,60 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node scripts/harness-status.mjs", "timeout": 10, "statusMessage": "하네스 세션 카드" }
+          {
+            "type": "command",
+            "command": "node scripts/harness-status.mjs",
+            "timeout": 10,
+            "statusMessage": "하네스 세션 카드"
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node scripts/check-session-log.mjs", "timeout": 10, "statusMessage": "세션 로그 확인" }
+          {
+            "type": "command",
+            "command": "node scripts/check-session-log.mjs",
+            "timeout": 10,
+            "statusMessage": "세션 로그 확인"
+          }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "node .claude/hooks/mobile-mode.mjs", "timeout": 5, "statusMessage": "모바일 모드 판정 (Remote Control 연결 시)" }
+          {
+            "type": "command",
+            "command": "node .claude/hooks/mobile-mode.mjs",
+            "timeout": 5,
+            "statusMessage": "모바일 모드 판정 (Remote Control 연결 시)"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-scratch.mjs",
+            "timeout": 10,
+            "statusMessage": "임시 파일 자리 검사"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-scratch.mjs",
+            "timeout": 10,
+            "statusMessage": "임시 파일 자리 검사"
+          }
         ]
       }
     ]

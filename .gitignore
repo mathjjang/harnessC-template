@@ -1,4 +1,6 @@
 node_modules/
+.scratch/
+!.scratch/README.md
 *.local
 *.local.*
 .claude/settings.local.json
