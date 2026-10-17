@@ -3,7 +3,7 @@ id: {{ID}}
 trigger: "<언제 읽나 — 요청 유형 한 줄. 세션 카드가 이것과 매칭한다>"
 tools: []                  # 본문이 쓰는 도구 — .harness/catalog.yaml 에 active 인 것만
 state_file:                # 선택 — 단계가 있는 절차면 상태 파일 경로 (즉흥 순서 답변 금지)
-evidence: docs/records/<관련 기록>/evidence/   # 통과 근거 위치
+evidence: docs/<자리>/<관련 기록>/evidence/   # 통과 근거 위치
 source: []                 # 승격 출처 (INC·FDR·UAT)
 pack: 프로젝트              # 코어 런북은 .harness/runbooks/ — 여기(rules/runbooks/)는 프로젝트 절차
 ---

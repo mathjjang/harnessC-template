@@ -2,9 +2,9 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 코어 버전: **0.1.0** (기술 검토 단계 · 하네스B의 다음 세대)
+- 코어 버전: **0.2.0** (기술 검토 단계 · 하네스B의 다음 세대)
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
-- 근거와 진화 기록: [`docs/methodology/`](docs/methodology/) · 결정: [`docs/records/`](docs/records/)
+- 근거와 진화 기록: [`docs/methodology/`](docs/methodology/) · 결정: [`docs/decisions/`](docs/decisions/) · 탐구: [`docs/research/`](docs/research/)
 
 ## 새 프로젝트 시작
 
@@ -36,14 +36,15 @@ AGENTS.md · CLAUDE.md · GEMINI.md   공통 뼈대 (도구 입구 — 프로젝
 
 harness.yaml   프로젝트 설정 (티어·게이트·참조 저장소)                               ┐
 rules/         product.md(제품 불변) · domain/*.md(도메인 규칙) · runbooks/ · human-only.yaml │ 이 프로젝트만
-docs/          requirements/ · records/(모든 기록, ID 접두가 종류) · specs/(현재 참인 것) · queue/  │
+docs/          requirements/ · decisions/(ADR) · research/(RFC) · features/(FDR) · handoffs/(HO)   │
+               · records/(PLAN·MTG·INC·RETRO) · specs/(현재 참인 것) · queue/                        │
 collab/        외부 조직과 같이 보는 별도 저장소 (gitignore)                          │
 src/ tests/    코드                                                                   ┘
 .scratch/      임시 (gitignore · 14일 gc)
 ```
 
-- **폴더는 늘지 않는다.** `docs/`는 넷으로 고정. 기록 종류(ADR·RFC·FDR·HO·MTG·INC·RETRO)는 `docs/records/`의 ID 접두가 말하고, 인덱스가 종류별로 모아 준다. 데이터 소스 조건·프롬프트 계약 같은 도메인 자료는 `docs/specs/<name>.md` **파일**이다.
-- **증거는 기록 옆.** `docs/records/<ID>/evidence/`. 완료보고서용 모아 보기는 `docs/INDEX.generated.md` 증거 절.
+- **폴더는 늘지 않는다.** `docs/`는 여덟으로 고정. 자주 여는 기록 넷(ADR 결정·RFC 탐구·FDR 기능·HO 핸드오프)은 `docs/` 바로 아래 자기 폴더, 나머지(PLAN·MTG·INC·RETRO)는 `records/`. `INDEX.generated.md`가 한 곳에 모아 준다. 데이터 소스 조건·프롬프트 계약 같은 도메인 자료는 `docs/specs/<name>.md` **파일**이다.
+- **증거는 기록 옆.** `docs/<자리>/<ID>/evidence/`. 완료보고서용 모아 보기는 `docs/INDEX.generated.md` 증거 절.
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`(gitignore). main에 제품 코드 직접 커밋 금지. spike는 `rfc/*` 브랜치에서 바로 — 코드는 병합되지 않고 `promote`로 FDR에 재기반. `.harness/runbooks/work.md`.
 - 템플릿에만 있는 것: `init.mjs` · `.harness/tiers/` · `docs/methodology/` — `--prune`이 지운다.
 

@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 // new-doc.mjs — 기록 생성기 (.harness/HARNESS.md §3). 템플릿 복사·ID 채번(date-slug)·귀속 머리·manifest·세션 로그를 한 동작으로.
 // 사용: node .harness/scripts/new-doc.mjs <종류> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--profile lite|standard|full] [--ref <role>|--root <경로>]
-//   종류: fdr adr rfc plan inc retro ho(→ docs/records) · pg qa hr bl(→ docs/queue) · spec(→ docs/specs) · runbook(→ rules/runbooks) · mtg dec(→ 협업 저장소, --ref collab)
+//   종류: adr(→ docs/decisions) rfc(→ docs/research) fdr(→ docs/features) ho(→ docs/handoffs) plan inc retro(→ docs/records) · pg qa hr bl(→ docs/queue) · spec(→ docs/specs) · runbook(→ rules/runbooks) · mtg dec(→ 협업 저장소, --ref collab)
 //       node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--result]   핸드오프 응답(NN-<에이전트>.md) · 결과(result.md)
-// 폴더는 늘지 않는다 — 종류는 ID 접두가 말한다. --self-test: 임시 루트에서 전 종류 생성 후 ID·치환·충돌(-2)·거부 확인.
+// 폴더는 늘지 않는다 — 자리는 lib/records.mjs가 정한다. --self-test: 임시 루트에서 전 종류 생성 후 ID·치환·충돌(-2)·거부 확인.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findReference } from './lib/refs.mjs';
+import { RECORD_DIRS, DOCS_DIRS, recordDir } from './lib/records.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
-const REC = 'docs/records';
 
 const KINDS = {
-  fdr: { dir: REC, prefix: 'FDR' },
-  adr: { dir: REC, prefix: 'ADR', tpl: 'ADR-template.md' },
-  rfc: { dir: REC, prefix: 'RFC', tpl: 'RFC-template.md', folder: 'rfc.md' },
-  plan: { dir: REC, prefix: 'PLAN', tpl: 'PLAN-template.md' },
-  inc: { dir: REC, prefix: 'INC', tpl: 'INC-template.md' },
-  retro: { dir: REC, prefix: 'RETRO', tpl: 'RETRO-template.md' },
-  ho: { dir: REC, prefix: 'HO', tplDir: 'HO', evidence: true },
+  fdr: { dir: RECORD_DIRS.FDR, prefix: 'FDR' },
+  adr: { dir: RECORD_DIRS.ADR, prefix: 'ADR', tpl: 'ADR-template.md' },
+  rfc: { dir: RECORD_DIRS.RFC, prefix: 'RFC', tpl: 'RFC-template.md', folder: 'rfc.md' },
+  plan: { dir: RECORD_DIRS.PLAN, prefix: 'PLAN', tpl: 'PLAN-template.md' },
+  inc: { dir: RECORD_DIRS.INC, prefix: 'INC', tpl: 'INC-template.md' },
+  retro: { dir: RECORD_DIRS.RETRO, prefix: 'RETRO', tpl: 'RETRO-template.md' },
+  ho: { dir: RECORD_DIRS.HO, prefix: 'HO', tplDir: 'HO', evidence: true },
   pg: { dir: 'docs/queue', prefix: 'PG', tpl: 'PG-template.md' },
   qa: { dir: 'docs/queue', prefix: 'QA', tpl: 'QUEUE-template.md', source: 'qa' },
   hr: { dir: 'docs/queue', prefix: 'HR', tpl: 'QUEUE-template.md', source: 'human-run' },
@@ -93,10 +93,10 @@ export function create(root, kind, slug, title, { agent = '(모델 미확인)', 
   return { id, path: out, collided };
 }
 
-/** 핸드오프 응답: docs/records/<HO-ID>/NN-<에이전트>.md (NN = 기존 응답 수 + 1). --result면 result.md. 남의 파일은 고치지 않으므로 항상 새 파일. */
+/** 핸드오프 응답: docs/handoffs/<HO-ID>/NN-<에이전트>.md (NN = 기존 응답 수 + 1). --result면 result.md. 남의 파일은 고치지 않으므로 항상 새 파일. */
 export function reply(root, hoId, { agent = '(모델 미확인)', result = false } = {}) {
-  const dir = join(root, REC, hoId);
-  if (!/^HO-/.test(hoId) || !existsSync(join(dir, 'request.md'))) throw new Error(`핸드오프 없음: ${REC}/${hoId}/request.md`);
+  const dir = join(root, recordDir(hoId), hoId);
+  if (!/^HO-/.test(hoId) || !existsSync(join(dir, 'request.md'))) throw new Error(`핸드오프 없음: ${recordDir(hoId)}/${hoId}/request.md`);
   const date = new Date().toISOString().slice(0, 10);
   const tpl = join(root, '.harness', 'templates');
   if (result) {
@@ -126,13 +126,13 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     for (const kind of ['adr', 'plan', 'inc', 'retro', 'pg', 'qa', 'hr', 'bl', 'runbook']) {
       const r = create(tmp, kind, 'sample', '제목', { agent: 'test' });
       if (!existsSync(r.path) || noVars(r.path)) fails.push(`${kind} 미생성/치환 누락`);
-      const want = { pg: 'docs/queue', qa: 'docs/queue', hr: 'docs/queue', bl: 'docs/queue', runbook: 'rules/runbooks' }[kind] || REC;
+      const want = { pg: 'docs/queue', qa: 'docs/queue', hr: 'docs/queue', bl: 'docs/queue', runbook: 'rules/runbooks' }[kind] || RECORD_DIRS[kind.toUpperCase()];
       if (!r.path.replace(/\\/g, '/').includes(`/${want}/`)) fails.push(`${kind} 자리 오류: ${r.path}`);
     }
     const rfc = create(tmp, 'rfc', 'q', '탐구', { agent: 'test' });
-    if (!existsSync(join(rfc.path, 'rfc.md')) || !existsSync(join(rfc.path, 'evidence'))) fails.push('rfc 폴더(rfc.md+evidence) 아님');
+    if (!existsSync(join(rfc.path, 'rfc.md')) || !existsSync(join(rfc.path, 'evidence')) || !rfc.path.replace(/\\/g, '/').includes('/docs/research/')) fails.push('rfc 폴더(docs/research · rfc.md+evidence) 아님');
     const f1 = create(tmp, 'fdr', 'sample', '제목', { agent: 'test' });
-    if (!existsSync(join(f1.path, 'manifest.yaml')) || !existsSync(join(f1.path, 'evidence', 'runs'))) fails.push('fdr standard manifest/evidence 없음');
+    if (!existsSync(join(f1.path, 'manifest.yaml')) || !existsSync(join(f1.path, 'evidence', 'runs')) || !f1.path.replace(/\\/g, '/').includes('/docs/features/')) fails.push('fdr standard(docs/features) manifest/evidence 없음');
     const f2 = create(tmp, 'fdr', 'sample', '제목', { agent: 'test' });
     if (!f2.collided || !/-2$/.test(f2.id)) fails.push('같은 날 같은 slug -2 미부여');
     const lite = create(tmp, 'fdr', 'lite-one', '제목', { agent: 'test', profile: 'lite' });
@@ -149,17 +149,17 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!d.path.startsWith(join(collab, 'decisions')) || noVars(d.path)) fails.push('dec 미생성/치환 누락');
     const h = create(tmp, 'ho', 'review', '리뷰 요청', { agent: 'Claude Code (test)' });
     const req = join(h.path, 'request.md');
-    if (!/^HO-\d{6}-review$/.test(h.id) || !/^- 상태: open$/m.test(readFileSync(req, 'utf8')) || noVars(req) || !existsSync(join(h.path, 'evidence'))) fails.push('ho 미생성/치환 누락');
+    if (!/^HO-\d{6}-review$/.test(h.id) || !/^- 상태: open$/m.test(readFileSync(req, 'utf8')) || noVars(req) || !existsSync(join(h.path, 'evidence')) || !h.path.replace(/\\/g, '/').includes('/docs/handoffs/')) fails.push('ho 미생성(docs/handoffs)/치환 누락');
     const r1 = reply(tmp, h.id, { agent: 'Codex (GPT-6)' }); const r2 = reply(tmp, h.id, { agent: 'Claude Code (test)' });
     if (!r1.path.endsWith('01-codex.md') || !r2.path.endsWith('02-claude.md') || /\{\{NN\}\}/.test(readFileSync(r1.path, 'utf8'))) fails.push('reply 채번/치환 오류');
     if (!existsSync(reply(tmp, h.id, { agent: 'x', result: true }).path)) fails.push('result 미생성');
     try { reply(tmp, h.id, { result: true }); fails.push('result 중복 생성 통과'); } catch { /* 기대 */ }
     try { reply(tmp, 'HO-000000-none', {}); fails.push('없는 HO 통과'); } catch { /* 기대 */ }
-    const top = readdirSync(join(tmp, 'docs')).sort().join(',');
-    if (top !== 'queue,records,specs') fails.push(`docs/ 폴더가 늘었다: ${top}`);
+    const top = readdirSync(join(tmp, 'docs')).filter((d) => !DOCS_DIRS.includes(d));
+    if (top.length) fails.push(`docs/ 폴더가 늘었다: ${top.join(',')}`);
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (${Object.keys(KINDS).length}종 생성·치환·충돌·거부·핸드오프 응답·docs 폴더 불변)`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (${Object.keys(KINDS).length}종 생성·자리·치환·충돌·거부·핸드오프 응답·docs 폴더 불변)`);
   process.exit(fails.length ? 1 : 0);
 }
 

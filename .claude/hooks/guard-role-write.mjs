@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { writeTargets, destructiveTargets, FORBIDDEN_RE } from '../../.harness/scripts/lib/write-targets.mjs';
 
-const R = 'docs\\/records\\/';
+const R = 'docs\\/(?:decisions|research|features|handoffs|records)\\/';   // 기록 자리(lib/records.mjs와 같은 목록)
 const COMMON = [/^\.scratch\//, /^docs\/queue\//, new RegExp(`^${R}FDR-[^/]+/fdr\\.md$`), new RegExp(`^${R}[^/]+/session-log\\.md$`), new RegExp(`^${R}[^/]+/evidence/`), new RegExp(`^${R}HO-[^/]+/(\\d{2}-[a-z0-9]+|result)\\.md$`)];
 const ALLOW = {
   reviewer: [...COMMON, new RegExp(`^${R}FDR-[^/]+/06-review\\.md$`)],
@@ -46,8 +46,8 @@ if (process.argv.includes('--self-test')) {
   const root = resolve('/repo');
   const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp') };
   const cases = [
-    ['reviewer', 'Bash', 'cat > docs/records/FDR-1/06-review.md <<EOF', null],
-    ['reviewer', 'Bash', 'cat > docs/records/FDR-261016-x/fdr.md <<EOF', null],
+    ['reviewer', 'Bash', 'cat > docs/features/FDR-1/06-review.md <<EOF', null],
+    ['reviewer', 'Bash', 'cat > docs/features/FDR-261016-x/fdr.md <<EOF', null],
     ['reviewer', 'Bash', 'echo x > src/app.ts', 'deny'],
     ['reviewer', 'Bash', 'echo x>src/app.ts', 'deny'],
     ['reviewer', 'Bash', 'sed -i s/a/b/ src/app.ts', 'deny'],
@@ -55,18 +55,19 @@ if (process.argv.includes('--self-test')) {
     ['reviewer', 'Bash', 'git commit -m x', 'deny'],
     ['reviewer', 'Bash', 'git status && node .harness/scripts/lint.mjs', null],
     ['reviewer', 'Bash', 'node x.mjs > /tmp/sp/out.txt', null],
-    ['reviewer', 'Bash', 'echo x > docs/records/FDR-1/03-impl.md', 'deny'],
-    ['tester', 'Bash', 'npm test > docs/records/FDR-1/evidence/runs/unit.out', null],
-    ['tester', 'Bash', 'node r.mjs > docs/records/HO-261016-x/evidence/r.json', null],
-    ['reviewer', 'Bash', 'cat > docs/records/HO-261016-x/02-claude.md <<EOF', null],
-    ['reviewer', 'Bash', 'echo x > docs/records/HO-261016-x/request.md', 'deny'],
-    ['reviewer', 'Bash', 'echo x > docs/records/ADR-261016-x.md', 'deny'],
-    ['tester', 'Bash', 'echo x > docs/records/FDR-1/06-review.md', 'deny'],
+    ['reviewer', 'Bash', 'echo x > docs/features/FDR-1/03-impl.md', 'deny'],
+    ['tester', 'Bash', 'npm test > docs/features/FDR-1/evidence/runs/unit.out', null],
+    ['tester', 'Bash', 'node r.mjs > docs/handoffs/HO-261016-x/evidence/r.json', null],
+    ['reviewer', 'Bash', 'cat > docs/handoffs/HO-261016-x/02-claude.md <<EOF', null],
+    ['reviewer', 'Bash', 'echo x > docs/handoffs/HO-261016-x/request.md', 'deny'],
+    ['reviewer', 'Bash', 'echo x > docs/decisions/ADR-261016-x.md', 'deny'],
+    ['reviewer', 'Bash', 'echo x > docs/research/RFC-261016-x/rfc.md', 'deny'],
+    ['tester', 'Bash', 'echo x > docs/features/FDR-1/06-review.md', 'deny'],
     ['tester', 'Bash', 'npm install lodash', 'deny'],
     ['tester', 'Bash', 'npm install', null],
     ['tester', 'Bash', 'cat > docs/queue/QA-261016-x.md <<EOF', null],
     ['tester', 'Write', { file_path: '/repo/src/a.ts' }, 'deny'],
-    ['tester', 'Write', { file_path: '/repo/docs/records/FDR-1/evidence/runs/x.out' }, null],
+    ['tester', 'Write', { file_path: '/repo/docs/features/FDR-1/evidence/runs/x.out' }, null],
     ['developer', 'Bash', 'echo x > src/app.ts', null],
   ];
   let fail = 0;

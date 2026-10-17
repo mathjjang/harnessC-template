@@ -14,6 +14,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hashCore } from './.harness/scripts/lib/core-files.mjs';
+import { DOCS_DIRS } from './.harness/scripts/lib/records.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TEXT_EXT = /\.(md|yaml|yml|json|mjs|js|ts|txt|html|css)$/i;
@@ -105,7 +106,7 @@ function selfTest() {
     if (Object.keys(r.manifest.core).length < 10 || Object.values(r.manifest.core).some((h) => h.length !== 64)) fails.push('core 해시 없음');
     if (existsSync(join(tmp, '.harness', 'tiers')) || existsSync(join(tmp, 'init.mjs')) || existsSync(join(tmp, 'docs', 'methodology'))) fails.push('prune 미동작');
     const docsTop = readdirSync(join(tmp, 'docs')).filter((n) => !n.includes('.')).sort().join(',');
-    if (docsTop !== 'queue,records,requirements,specs') fails.push(`docs/ 폴더 고정 위반: ${docsTop}`);
+    if (docsTop !== [...DOCS_DIRS].sort().join(',')) fails.push(`docs/ 폴더 고정 위반: ${docsTop}`);
     try { run({ name: 'x', tier: 'Q', dryRun: true }, tmp); fails.push('잘못된 tier 통과'); } catch { /* 기대: 거부 */ }
   } catch (e) { fails.push(`예외: ${e.message}`); }
   rmSync(tmp, { recursive: true, force: true });

@@ -85,6 +85,12 @@ tools:
     enforcement: none
     self_test: node .harness/scripts/lib/refs.mjs --self-test
     rule: harness.yaml references 파서 — new-doc·harness-status·guard-reference·lint 공유 (사유 — 판정은 호출자가 한다)
+  - name: records.mjs
+    status: active
+    command: (라이브러리) .harness/scripts/lib/records.mjs
+    enforcement: none
+    self_test: node .harness/scripts/lib/records.mjs --self-test
+    rule: .harness/HARNESS.md §1 기록 자리(ADR→docs/decisions · RFC→research · FDR→features · HO→handoffs · 그 밖→records) — new-doc·lint·build-index·harness-status·work·check-branch-record·check-session-log·guard-scratch·guard-role-write 공유 (사유 — 판정은 호출자가 한다)
   - name: work.mjs
     status: active
     command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | list | gc [--apply]

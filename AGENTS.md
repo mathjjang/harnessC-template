@@ -1,6 +1,6 @@
 # AGENTS.md — {{PROJECT_NAME}} 에이전트 운영 규칙
 
-> 하네스C 코어 v0.1.0 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
+> 하네스C 코어 v0.2.0 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
@@ -37,7 +37,7 @@
 
 ## 다른 에이전트와 주고받기 (다른 세션·Codex·Gemini 등)
 
-- 맡기고 받는 것은 **핸드오프** `docs/records/HO-…/`로만. 채팅·`.scratch/`·남의 문서에 이어 쓰기 금지. 절차 `.harness/runbooks/handoff.md`.
+- 맡기고 받는 것은 **핸드오프** `docs/handoffs/HO-…/`로만. 채팅·`.scratch/`·남의 문서에 이어 쓰기 금지. 절차 `.harness/runbooks/handoff.md`.
 - 받았으면 `request.md`의 기준 커밋·쓰기 허용·완료 조건을 따르고 상태 `taken`. 응답은 `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"`가 만든 새 파일에만, 끝나면 `answered`. 재현물은 그 폴더의 `evidence/`. 커밋은 보낸 쪽이.
 
 ## 보고

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // build-index.mjs — 생성 인덱스 (.harness/HARNESS.md §3·§7). docs/INDEX.generated.md · docs/specs/index.md · docs/queue/INDEX.generated.md
-// 기록은 한 폴더(docs/records)에 있고 종류는 ID 접두가 말한다 — 이 인덱스가 종류별로 모아 보여 준다. 증거(각 기록의 evidence/)도 여기서 모아 본다.
+// 기록은 종류별 자리(lib/records.mjs — decisions·research·features·handoffs·records)에 있다 — 이 인덱스가 한 곳에 모아 보여 준다. 증거(각 기록의 evidence/)도 여기서 모아 본다.
 // 정본은 각 파일의 머리말. 이 산출물은 손으로 고치지 않는다. --check: 생성 결과가 디스크와 다르면 종료코드 1.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listRecords } from './lib/records.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(HERE, '..', '..');
-const REC = 'docs/records';
 const KINDS = [['ADR', '결정'], ['RFC', '탐구'], ['PLAN', '분해'], ['FDR', '기능'], ['HO', '핸드오프'], ['MTG', '회의(내부)'], ['INC', '사고'], ['RETRO', '회고']];
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const scalar = (t, k) => ((t.match(new RegExp(`^\\s*${k}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
@@ -22,7 +22,7 @@ function countFiles(d) { let n = 0; for (const e of readdirSync(d, { withFileTyp
 
 function mainIndex() {
   let out = HEAD('기록 카탈로그');
-  const all = list(REC, /^[A-Z]+-\d{6}-/);
+  const all = listRecords(ROOT).map((r) => ({ name: r.name, rel: r.dir, dir: !r.name.endsWith('.md'), path: r.path }));
   for (const [prefix, label] of KINDS) {
     const items = all.filter((i) => i.name.startsWith(prefix + '-'));
     if (!items.length) continue;
@@ -30,7 +30,7 @@ function mainIndex() {
     for (const i of items) {
       const t = mainText(i);
       const st = scalar(t, 'status') || scalar(t, 'state') || ((t.match(/^- 상태:\s*(\S+)/m) || [])[1] || '');
-      out += `- [${i.name.replace(/\.md$/, '')}](${REC}/${i.name}) — ${(scalar(t, 'title') || title(t)).replace(/^"|"$/g, '').slice(0, 80)}${st ? ` · ${st}` : ''}\n`;
+      out += `- [${i.name.replace(/\.md$/, '')}](${i.rel}/${i.name}) — ${(scalar(t, 'title') || title(t)).replace(/^"|"$/g, '').slice(0, 80)}${st ? ` · ${st}` : ''}\n`;
     }
     out += '\n';
   }
@@ -40,7 +40,7 @@ function mainIndex() {
   if (rbs.length) { out += `## runbook (${rbs.length})\n\n`; for (const [k, i] of rbs) out += `- [${i.name.replace(/\.md$/, '')}](${k === '코어' ? '.harness' : 'rules'}/runbooks/${i.name}) — ${k} · ${scalar(rd(i.path), 'trigger').slice(0, 70)}\n`; out += '\n'; }
   const ev = all.filter((i) => i.dir && existsSync(join(i.path, 'evidence')) && countFiles(join(i.path, 'evidence')) > 0);
   out += `## 증거 — 기록별 evidence/ 모아 보기 (${ev.length})\n\n`;
-  for (const i of ev) out += `- [${i.name}](${REC}/${i.name}/evidence/) — 파일 ${countFiles(join(i.path, 'evidence'))}\n`;
+  for (const i of ev) out += `- [${i.name}](${i.rel}/${i.name}/evidence/) — 파일 ${countFiles(join(i.path, 'evidence'))}\n`;
   return out + '\n';
 }
 function specsIndex() {

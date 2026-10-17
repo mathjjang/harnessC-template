@@ -1,6 +1,6 @@
 # HARNESS.md — 하네스C 코어 규칙 (how)
 
-> 하네스C 코어 v0.1.0 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
+> 하네스C 코어 v0.2.0 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
 
 ## 1. 지식 층 (로딩 순서)
 
@@ -10,11 +10,11 @@
 라우터  harness-status 카드 · docs/specs/index.md      세션 시작 시 자동
 스펙    docs/specs/                                    지금 참인 것 — 제품 동작·데이터 소스·프롬프트 계약
 runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
-기록    docs/records/<TYPE>-<YYMMDD>-<slug>            근거가 필요할 때만. 불변 역사. 증거는 그 폴더의 evidence/
+기록    docs/decisions(ADR) · research(RFC) · features(FDR) · handoffs(HO) · records(PLAN·MTG·INC·RETRO)   근거가 필요할 때만. 불변 역사. 증거는 그 폴더의 evidence/
 큐      docs/queue/<PG|QA|HR|BL>-…                     열린 것만
 ```
 
-폴더는 늘지 않는다 — `docs/`는 넷, 종류는 ID 접두가 말한다(lint ⑬·훅). 전체 eager-load 금지. 규칙이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
+폴더는 늘지 않는다 — `docs/`는 여덟(requirements·decisions·research·features·handoffs·records·specs·queue)으로 고정, 기록의 자리는 종류가 정한다(lint ⑬·훅·`lib/records.mjs`). 전체 eager-load 금지. 규칙이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
 
 ## 2. 라우팅 (위에서부터 먼저 맞는 것)
 
@@ -34,7 +34,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 ## 3. ID와 생성
 
 - ID = `<TYPE>-<YYMMDD>-<slug>` (예 `FDR-261016-customs-api`). 등록부·번호 대역 없음. 같은 날 같은 슬러그만 충돌(`-2`).
-- 생성은 `node .harness/scripts/new-doc.mjs <fdr|adr|rfc|plan|inc|retro|ho|pg|qa|hr|bl|runbook|spec|mtg|dec> <slug> "<제목>"`. 손 복사 금지. 생성기가 귀속 머리·manifest·세션 로그·`evidence/`를 만든다.
+- 생성은 `node .harness/scripts/new-doc.mjs <fdr|adr|rfc|plan|inc|retro|ho|pg|qa|hr|bl|runbook|spec|mtg|dec> <slug> "<제목>"`. 손 복사 금지. 생성기가 자리를 고르고 귀속 머리·manifest·세션 로그·`evidence/`를 만든다.
 - `MTG`(회의)·`DEC`(외부 조직과의 합의 결정)는 협업 저장소(`harness.yaml references` role `collab`)에 만든다(`--ref collab`). ADR은 내부 결정이며 DEC를 인용한다. 역방향 인용은 훅이 거부. 절차: `.harness/runbooks/collab.md`.
 - 인덱스 `docs/INDEX.generated.md`·`docs/specs/index.md`·`docs/queue/INDEX.generated.md`는 생성물. 손 편집 금지.
 
@@ -95,9 +95,9 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 
 ## 10. 원칙 (요약)
 
-1 규칙은 파일이 정본 · 2 절차/산출물 분리 · 3 사람 2접점 · 4 통과는 원문 인용 · 5 규칙은 기계가 강제, 게이트는 self-test · 6 방법론은 REP로 자기 개정 · 7 사본에는 대조가 딸린다 · 8 **템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만** — 도메인·제품 규칙은 프로젝트 `rules/` · 9 코어는 도메인을 모른다 · 10 규칙 정본 하나, 하네스별 파일은 생성물 · 11 등재·증명은 생성기가 · 12 큐는 한 스키마 · 13 기록은 역사, 스펙은 현재 · 14 다른 조직이 쓰는 저장소는 분리(gitignore된 중첩 또는 형제 체크아웃 · 의존은 개발→협업 한 방향 · 합의는 DEC, 내부 결정은 ADR) · 15 폴더는 고정, 종류는 이름이 말한다.
+1 규칙은 파일이 정본 · 2 절차/산출물 분리 · 3 사람 2접점 · 4 통과는 원문 인용 · 5 규칙은 기계가 강제, 게이트는 self-test · 6 방법론은 REP로 자기 개정 · 7 사본에는 대조가 딸린다 · 8 **템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만** — 도메인·제품 규칙은 프로젝트 `rules/` · 9 코어는 도메인을 모른다 · 10 규칙 정본 하나, 하네스별 파일은 생성물 · 11 등재·증명은 생성기가 · 12 큐는 한 스키마 · 13 기록은 역사, 스펙은 현재 · 14 다른 조직이 쓰는 저장소는 분리(gitignore된 중첩 또는 형제 체크아웃 · 의존은 개발→협업 한 방향 · 합의는 DEC, 내부 결정은 ADR) · 15 폴더는 고정, 기록은 종류별 자리에(ADR·RFC·FDR·HO는 자기 폴더, 그 밖은 records).
 
 ## 11. 동시 작업 · 핸드오프
 
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`, 브랜치 `<type>/<ID>`. main에 제품 코드 직접 커밋 금지(게이트). `rfc/*`는 spike — 코드는 병합되지 않고 기록만 반입. 승격은 `promote`(squash 1커밋). S는 ff 병합, M·L은 PR. 잔존 브랜치·worktree는 lint ⑮. 절차 `.harness/runbooks/work.md`.
-- 다른 세션·다른 회사 에이전트와는 `docs/records/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.
+- 다른 세션·다른 회사 에이전트와는 `docs/handoffs/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.

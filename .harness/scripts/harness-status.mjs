@@ -7,17 +7,17 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseReferences } from './lib/refs.mjs';
+import { listRecords, recordDir } from './lib/records.mjs';
 
 const ROOT = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const REC = 'docs/records';
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
-const records = (root) => { const d = join(root, REC); return existsSync(d) ? readdirSync(d).filter((n) => /^[A-Z]+-\d{6}-/.test(n)) : []; };
+const records = (root) => listRecords(root);
 
 function activeFdrs(root) {
   const out = [];
-  for (const n of records(root).filter((n) => n.startsWith('FDR-'))) {
-    const base = join(root, REC, n);
+  for (const r of records(root).filter((r) => r.name.startsWith('FDR-'))) {
+    const n = r.name; const base = r.path;
     const head = rd(join(base, 'manifest.yaml')) || rd(join(base, 'fdr.md')) || rd(base);
     const status = yamlScalar(head, 'status') || '?';
     if (['closed', 'abandoned'].includes(status)) continue;
@@ -35,7 +35,7 @@ function queueLine(root) {
     parts.push(`${k} ${open}${blocking ? `(차단 ${blocking})` : ''}`);
   }
   const ho = {};
-  for (const n of records(root).filter((n) => n.startsWith('HO-'))) { const s = (rd(join(root, REC, n, 'request.md')).match(/^- 상태:\s*(\S+)/m) || [])[1] || '?'; if (s !== 'closed') ho[s] = (ho[s] || 0) + 1; }
+  for (const r of records(root).filter((r) => r.name.startsWith('HO-'))) { const s = (rd(join(r.path, 'request.md')).match(/^- 상태:\s*(\S+)/m) || [])[1] || '?'; if (s !== 'closed') ho[s] = (ho[s] || 0) + 1; }
   if (Object.keys(ho).length) parts.push(`핸드오프 ${Object.entries(ho).map(([s, n]) => `${s} ${n}`).join('/')}`);
   return parts.length ? `큐: ${parts.join(' · ')}` : '큐: 비어 있음';
 }
@@ -73,9 +73,9 @@ function card(root) {
   lines.push(...collabLines(root, hy));
   const wtDir = ((hy.match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
   const wts = existsSync(join(root, wtDir)) ? readdirSync(join(root, wtDir)).filter((n) => existsSync(join(root, wtDir, n, '.git'))) : [];
-  if (wts.length) { const stale = wts.filter((n) => { const h = rd(join(root, REC, n, 'manifest.yaml')) || rd(join(root, REC, n, 'fdr.md')) || rd(join(root, REC, n, 'rfc.md')); return /^(closed|abandoned|concluded)$/i.test(yamlScalar(h, 'status') || (h.match(/^- 상태:\s*(\S+)/m) || [])[1] || ''); }); lines.push(`worktree ${wts.length}: ${wts.join(' · ')}${stale.length ? ` ⚠ 닫힌 기록 ${stale.length} → work.mjs gc --apply` : ''}`); }
+  if (wts.length) { const stale = wts.filter((n) => { const h = rd(join(root, recordDir(n), n, 'manifest.yaml')) || rd(join(root, recordDir(n), n, 'fdr.md')) || rd(join(root, recordDir(n), n, 'rfc.md')); return /^(closed|abandoned|concluded)$/i.test(yamlScalar(h, 'status') || (h.match(/^- 상태:\s*(\S+)/m) || [])[1] || ''); }); lines.push(`worktree ${wts.length}: ${wts.join(' · ')}${stale.length ? ` ⚠ 닫힌 기록 ${stale.length} → work.mjs gc --apply` : ''}`); }
   try { lines.push(execSync('node .harness/scripts/check-clutter.mjs --report', { cwd: root, encoding: 'utf8' }).trim()); } catch { lines.push('잡동사니: (check-clutter 없음)'); }
-  lines.push(`새 ID <TYPE>-${today}-<slug> (node .harness/scripts/new-doc.mjs) · 기록 docs/records · 스펙 docs/specs/index.md · 규칙 .harness/HARNESS.md`);
+  lines.push(`새 ID <TYPE>-${today}-<slug> (node .harness/scripts/new-doc.mjs) · 기록 docs/{decisions,research,features,handoffs,records} · 스펙 docs/specs/index.md · 규칙 .harness/HARNESS.md`);
   return lines.join('\n');
 }
 

@@ -1,7 +1,7 @@
 ---
 id: RB-work
 trigger: 파일을 고치는 작업을 시작할 때(FDR 구현·RFC spike·PLAN 통합), 끝낼 때, spike를 FDR로 승격할 때, 여러 세션·여러 사람이 같은 소스를 건드릴 때
-evidence: docs/records/<ID>/evidence/
+evidence: docs/<자리>/<ID>/evidence/
 pack: 코어
 ---
 
@@ -47,7 +47,7 @@ node .harness/scripts/work.mjs finish RFC-…                   # 기록 폴더(
 
 - `rfc/*`는 main에 병합되지 않는다 — spike 코드는 결론의 증거이지 제품이 아니다. 이것이 "spike를 ADR/FDR로 머지할 때 생기던 문제"(이전 프로젝트: 3,200줄 수작업 반입)를 없애는 선이다.
 - 승격 FDR은 보통 FDR이다 — 스펙 델타·테스트가 붙어야 병합된다. spike에서 돌린 실측은 FDR 브랜치에서 **다시 돌려** `evidence/runs/`에 둘 때만 RUN이다. AC 출처가 Concluded RFC이고 risk low면 `gate_mode: fast`.
-- 트리와 무관한 벤치·프로토콜 실측은 `docs/records/RFC-…/evidence/spike/`에(기록과 같이 다닌다).
+- 트리와 무관한 벤치·프로토콜 실측은 `docs/research/RFC-…/evidence/spike/`에(기록과 같이 다닌다).
 - 순서: 보통 `finish RFC`(기록 반입) → `promote`. promote가 먼저여도 된다(RFC 폴더 변경은 squash에서 제외된다).
 
 ## 3. 큰 요청 (PLAN)

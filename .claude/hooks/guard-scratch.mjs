@@ -13,11 +13,12 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
+import { DOCS_DIRS } from '../../.harness/scripts/lib/records.mjs';
 
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
 const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.worktrees', '.harness', 'rules', 'docs', 'src', 'app', 'tests', 'scripts', 'config', '.claude', '.github', '.vscode'];
 const ALLOWED_DIR_RE = /(^|[\\/])(\.scratch|evidence|_assets|node_modules|\.git)([\\/]|$)/;
-const DOCS_ALLOW = ['requirements', 'records', 'specs', 'queue', 'methodology'];   // docs/ 하위 폴더는 고정 — 종류는 ID 접두, 도메인 자료는 specs/ 파일 (lint ⑬과 동일)
+const DOCS_ALLOW = [...DOCS_DIRS, 'methodology'];   // docs/ 하위 폴더는 고정(lib/records.mjs) — 기록은 자기 자리, 도메인 자료는 specs/ 파일 (lint ⑬과 동일)
 const RULES_ALLOW = ['product.md', 'human-only.yaml', 'runbooks', 'domain', 'README.md'];
 
 function loadConfig(root) {
@@ -53,7 +54,7 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
     if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 rules/·docs/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
   }
   const seg = relPosix.split('/');
-  if (seg[0] === 'docs' && seg.length > 1 && !DOCS_ALLOW.includes(seg[1]) && !(seg.length === 2 && /\.md$/.test(seg[1]))) return `docs/${seg[1]}/는 만들지 않는다 — docs/ 폴더는 ${DOCS_ALLOW.slice(0, 4).join('·')}뿐. 기록은 docs/records/<TYPE-ID>, 도메인 조건은 docs/specs/<name>.md`;
+  if (seg[0] === 'docs' && seg.length > 1 && !DOCS_ALLOW.includes(seg[1]) && !(seg.length === 2 && /\.md$/.test(seg[1]))) return `docs/${seg[1]}/는 만들지 않는다 — docs/ 폴더는 ${DOCS_DIRS.join('·')}뿐. 기록은 자기 자리(ADR→decisions · RFC→research · FDR→features · HO→handoffs · 그 밖→records), 도메인 조건은 docs/specs/<name>.md`;
   if (seg[0] === 'rules' && seg.length > 1 && !RULES_ALLOW.includes(seg[1])) return `rules/${seg[1]}는 만들지 않는다 — rules/는 ${RULES_ALLOW.slice(0, 4).join('·')}뿐. 방법론은 .harness/ (템플릿에서만 고친다)`;
   return null;
 }
@@ -66,7 +67,7 @@ if (process.argv.includes('--self-test')) {
   const root = resolve('/repo');
   const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp'), config: { rootAllow: ['Makefile'], scratchDir: '.scratch' }, tracked: new Set(['src', 'README.md']) };
   const cases = [
-    ['src/a.ts', null], ['.tmp-probe.mjs', 'deny'], ['.harness/scripts/probe-x.mjs', 'deny'], ['.scratch/probe-x.mjs', null], ['docs/records/FDR-1/evidence/run.log', null], ['docs/prompts/x.md', 'deny'], ['docs/records/ADR-1.md', null], ['docs/README.md', null], ['rules/packs/x.md', 'deny'], ['rules/domain/x.md', null],
+    ['src/a.ts', null], ['.tmp-probe.mjs', 'deny'], ['.harness/scripts/probe-x.mjs', 'deny'], ['.scratch/probe-x.mjs', null], ['docs/features/FDR-1/evidence/run.log', null], ['docs/prompts/x.md', 'deny'], ['docs/decisions/ADR-1.md', null], ['docs/research/RFC-1/rfc.md', null], ['docs/handoffs/HO-1/request.md', null], ['docs/records/INC-1.md', null], ['docs/README.md', null], ['rules/packs/x.md', 'deny'], ['rules/domain/x.md', null],
     ['newfile.txt', 'deny'], ['Makefile', null], ['README.md', null], ['/tmp/sp/x.log', null], ['../outside/x.log', null], ['app/build.log', 'deny'], ['docs/x/_assets/a.log', null],
   ];
   let fail = 0;
@@ -74,7 +75,7 @@ if (process.argv.includes('--self-test')) {
   const bt = writeTargets('node x.mjs > .tmp-out.log 2>&1; echo hi | tee -a app/build.log; cp a b.txt; mkdir -p .scratch/s; Out-File -FilePath C:\\x\\y.log');
   const wantT = ['.tmp-out.log', 'app/build.log', 'b.txt', '.scratch/s', 'C:\\x\\y.log'];
   if (JSON.stringify([...bt].sort()) !== JSON.stringify([...wantT].sort())) { fail++; console.error('FAIL targets', bt); }
-  console.log(fail ? `self-test FAIL (${fail})` : 'self-test OK (경로 17 · Bash 대상 추출)');
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (경로 ${cases.length} · Bash 대상 추출)`);
   process.exit(fail ? 1 : 0);
 }
 
