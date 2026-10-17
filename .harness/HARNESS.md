@@ -1,21 +1,20 @@
 # HARNESS.md — 하네스C 코어 규칙 (how)
 
-> 하네스C 코어 v0.1.0 · **모든 프로젝트에서 동일한 파일**이다. 프로젝트에서 고치지 않는다(lint ⑫) — 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`.
-> 코어는 `harness.yaml`의 티어·설정으로 적응한다. 포크하지 않는다. 개정은 §9 REP.
+> 하네스C 코어 v0.1.0 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
 
 ## 1. 지식 층 (로딩 순서)
 
 ```
-규칙    .harness/HARNESS.md · rules/product.md · AGENTS.md · .claude/rules/*   항상 (예산 harness.yaml always_on_kb)
-도메인  rules/domain/*.md                                                 해당 작업 시 (프로젝트 고유)
-라우터  .harness/scripts/harness-status.mjs 카드 · docs/specs/index.md    세션 시작 시 자동
-스펙    docs/specs/                                                        "지금 참인 것" — 제품 동작·데이터 소스 조건·프롬프트 계약
-runbook .harness/runbooks/(코어) · rules/runbooks/(프로젝트)              trigger 매칭 시
-기록    docs/records/<TYPE>-<YYMMDD>-<slug>                                근거가 필요할 때만. 불변 역사. 증거는 그 폴더의 evidence/
-큐      docs/queue/<PG|QA|HR|BL>-…                                        열린 것만
+규칙    .harness/HARNESS.md · rules/product.md · AGENTS.md · .claude/rules/*  항상 (예산 always_on_kb)
+도메인  rules/domain/*.md                              해당 작업 시 (프로젝트 고유)
+라우터  harness-status 카드 · docs/specs/index.md      세션 시작 시 자동
+스펙    docs/specs/                                    지금 참인 것 — 제품 동작·데이터 소스·프롬프트 계약
+runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
+기록    docs/records/<TYPE>-<YYMMDD>-<slug>            근거가 필요할 때만. 불변 역사. 증거는 그 폴더의 evidence/
+큐      docs/queue/<PG|QA|HR|BL>-…                     열린 것만
 ```
 
-폴더는 늘지 않는다 — `docs/`는 `requirements · records · specs · queue` 넷, 종류는 ID 접두가 말한다(lint ⑬·훅이 막는다). 전체 eager-load 금지. 규칙 문장이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
+폴더는 늘지 않는다 — `docs/`는 `requirements · records · specs · queue` 넷, 종류는 ID 접두가 말한다(lint ⑬·훅). 전체 eager-load 금지. 규칙이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
 
 ## 2. 라우팅 (위에서부터 먼저 맞는 것)
 
@@ -67,14 +66,14 @@ runbook .harness/runbooks/(코어) · rules/runbooks/(프로젝트)             
 
 ## 6. 검증과 증거
 
-- 통과는 실행 결과 원문을 인용한 뒤에만 적는다 — RUN 원장 도입 전에는 명령·종료코드·출력 원문(기록 폴더의 `evidence/`)을 그 자리에 쓴다. 못 돌린 것은 **미검증**이라고 적는다.
+- 통과는 실행 결과 원문을 인용한 뒤에만 — RUN 원장 도입 전에는 명령·종료코드·출력 원문(기록 폴더의 `evidence/`). 못 돌린 것은 **미검증**.
 - 실패할 수 있었던 시험만 증거다(0행 모집단·양성만 있는 케이스는 시험이 아니다).
 - 유보("나중에")는 찾아본 경로를 적은 뒤에만. 저장소에 파일로 있는 것은 유보 사유가 아니다.
-- 목은 unit까지. integration·e2e는 실 경로. 외부 API는 실호출 1회 녹화본만 단위에서 허용. 실 경로가 없는 축(공식 API 없음·계약 미체결)은 녹화본·계약 시험으로 대신하되 **격리 통합**이라 적고 실연동 완료로 올려 부르지 않는다.
+- 목은 unit까지. integration·e2e는 실 경로. 외부 API는 실호출 1회 녹화본만 단위에서 허용. 실 경로가 없는 축(공식 API 없음·계약 미체결)은 녹화본·계약 시험으로 대신하되 **격리 통합**이라 적는다.
 - 검사 범위를 스스로 줄이지 않는다. 줄이면 실측 근거를 같은 줄에.
-- 빌드·실행 **성공 여부**는 로그가 아니라 산출물(mtime·해시)로 판정한다. 산출물은 성공의 필요조건이지 동작 정확성의 증거가 아니다 — 정확성은 시험이 말한다.
-- 스펙 시나리오는 관찰 가능한 결과 + 단언 등급(A 재조회·재진입 유지 > B 요청·전이 > C DOM). 등급은 요구의 성질로 고른다 — 저장·상태 요구는 A 필수, 접근성·배치 같은 표현 요구는 C가 정당한 증거. 상위 등급이 가능한 요구를 C만으로 통과시키지 않는다.
-- 게이트의 보장 범위는 도구 머리에 적힌 것까지다. `lint OK`는 형식·존재·연결의 통과이며 내용 타당성은 리뷰어 몫이다.
+- 빌드·실행 **성공 여부**는 로그가 아니라 산출물(mtime·해시)로. 산출물은 성공의 필요조건이지 정확성의 증거가 아니다 — 정확성은 시험이 말한다.
+- 스펙 시나리오는 관찰 가능한 결과 + 단언 등급(A 재조회·재진입 유지 > B 요청·전이 > C DOM). 등급은 요구의 성질로 — 저장·상태는 A 필수, 표현 요구는 C도 정당. 상위 등급이 가능한 요구를 C만으로 통과시키지 않는다.
+- 게이트의 보장 범위는 도구 머리에 적힌 것까지. `lint OK`는 형식·존재·연결의 통과이며 내용 타당성은 리뷰어 몫이다.
 
 ## 7. 큐 (하나의 스키마)
 

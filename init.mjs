@@ -17,7 +17,7 @@ import { hashCore } from './.harness/scripts/lib/core-files.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TEXT_EXT = /\.(md|yaml|yml|json|mjs|js|ts|txt|html|css)$/i;
-const SKIP_REL = new Set(['.git', 'node_modules', '.scratch', '.harness/tiers', '.harness/templates']); // 루트 기준 — 템플릿 원본은 치환하지 않는다
+const SKIP_REL = new Set(['.git', 'node_modules', '.scratch', '.harness/tiers', '.harness/templates', '.harness/scripts', '.harness/runbooks', '.claude']); // 루트 기준 — 템플릿 원본·스크립트의 {{…}}는 치환하지 않는다 (sync-core와 같은 범위)
 
 function parseArgs(argv) {
   const a = { tier: 'M', name: null, dryRun: false, prune: false, selfTest: false };

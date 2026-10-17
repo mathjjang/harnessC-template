@@ -23,7 +23,8 @@ export function sync(root, from, { dryRun = false } = {}) {
       if (statSync(src).isDirectory()) { rmSync(dst, { recursive: true, force: true }); cpSync(src, dst, { recursive: true, filter: (s) => !/init-manifest\.json$|[\\/]tiers([\\/]|$)/.test(s) }); }
       else { mkdirSync(dirname(dst), { recursive: true }); cpSync(src, dst); }
     }
-    for (const f of coreFiles(root)) if (/\.(md|yaml|json|mjs)$/.test(f)) { const p = join(root, f); const t = readFileSync(p, 'utf8'); const u = t.replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m); if (u !== t) writeFileSync(p, u); }
+    // 치환은 프로젝트명이 들어가는 입구 파일 셋만 — 스크립트·템플릿·런북의 {{…}}는 원본 그대로여야 한다
+    for (const f of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) { const p = join(root, f); if (!existsSync(p)) continue; const t = readFileSync(p, 'utf8'); const u = t.replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m); if (u !== t) writeFileSync(p, u); }
   }
   const after = dryRun ? hashCore(from) : hashCore(root);
   const changed = Object.keys({ ...before, ...after }).filter((f) => before[f] !== after[f]);
@@ -49,6 +50,7 @@ if (process.argv.includes('--self-test')) {
     const r = sync(proj, tpl);
     if (!/core v2/.test(readFileSync(join(proj, '.harness', 'HARNESS.md'), 'utf8'))) fails.push('코어 미복사');
     if (!/AGENTS — p1/.test(readFileSync(join(proj, 'AGENTS.md'), 'utf8'))) fails.push('치환 누락');
+    if (!/v2/.test(readFileSync(join(proj, '.harness', 'scripts', 'x.mjs'), 'utf8'))) fails.push('스크립트 미복사');
     if (existsSync(join(proj, '.harness', 'scripts', 'stale.mjs'))) fails.push('낡은 코어 파일 잔존');
     if (!existsSync(join(proj, 'rules-keep.md'))) fails.push('프로젝트 파일 손상');
     const m = JSON.parse(readFileSync(join(proj, '.harness', 'init-manifest.json'), 'utf8'));
