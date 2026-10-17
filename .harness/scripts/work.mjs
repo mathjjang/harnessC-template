@@ -105,7 +105,8 @@ export function prBody(root, id) {
 }
 /** gh로 PR을 열거나(없으면) 본문을 갱신한다(있으면). gh가 없으면 안내만 */
 export function openPr(root, id, { branch, base, gh = true } = {}) {
-  const body = prBody(root, id);
+  const wt = join(root, config(root).dir, id);
+  const body = prBody(existsSync(wt) ? wt : root, id);   // 본문은 브랜치(worktree)의 기록에서 — main에는 아직 없는 시험·리뷰가 거기 있다
   const tmp = join(root, '.git', `PR_BODY_${id}.md`); writeFileSync(tmp, body);
   if (!gh) return { note: `PR 본문 생성(${relative(root, tmp)}) — gh 없이 실행`, body };
   try { execSync('gh --version', { stdio: 'ignore' }); } catch { return { note: `gh가 없다 — GitHub에서 PR을 연다: ${branch} → ${base} (본문: .git/PR_BODY_${id}.md)`, body }; }
@@ -248,10 +249,12 @@ if (process.argv.includes('--self-test')) {
     const { create } = await import(pathToFileURL(join(tmp, '.harness', 'scripts', 'new-doc.mjs')).href);
     const f3 = create(tmp, 'fdr', 'pr-one', 'PR 하나', { agent: 't', profile: 'lite' });
     writeFileSync(join(f3.path, 'fdr.md'), rd(join(f3.path, 'fdr.md')).replace(/^scope: \[\].*$/m, 'scope: [src/**]').replace('- AC-1 … (출처 REQ-…)', '- AC-1 목록이 보인다 (출처 REQ-1)')); g('add -A'); g('commit -q -m f3');
-    const w3 = start(tmp, f3.id); writeFileSync(join(w3.path, 'src', 'c.ts'), 'c'); g('add -A', w3.path); g('commit -q -m c', w3.path);
+    const w3 = start(tmp, f3.id); writeFileSync(join(w3.path, 'src', 'c.ts'), 'c');
+    const wf = join(w3.path, relative(tmp, f3.path), 'fdr.md'); writeFileSync(wf, rd(wf).replace(/(\| AC \| 계층 \| 실행 명령 \| RUN\/결과 원문 \| 판정 \|\n\|---\|---\|---\|---\|---\|\n)/, '$1| AC-1 | unit | `t` | `ok` | 통과 |\n'));   // 시험 결과는 브랜치에만
+    g('add -A', w3.path); g('commit -q -m c', w3.path);
     const f4 = finish(tmp, f3.id, { gates: false, gh: false });
     if (f4.merged !== 'pr' || !execSync(`git --git-dir="${bare}" branch --list "fdr/${f3.id}"`, { encoding: 'utf8' }).trim()) fails.push(`finish(pr): 원격 push (${f4.merged})`);
-    const body = rd(join(tmp, '.git', `PR_BODY_${f3.id}.md`)); if (!/AC-1 목록이 보인다/.test(body) || !/scope: `src\/\*\*`/.test(body) || !/미기입/.test(body)) fails.push('PR 본문:\n' + body);
+    const body = rd(join(tmp, '.git', `PR_BODY_${f3.id}.md`)); if (!/AC-1 목록이 보인다/.test(body) || !/scope: `src\/\*\*`/.test(body) || !/미기입/.test(body) || !/\| AC-1 \| unit \|/.test(body)) fails.push('PR 본문(브랜치의 시험 행 포함):\n' + body);
     if (!existsSync(join(tmp, '.worktrees', f3.id))) fails.push('finish(pr): worktree는 병합 전까지 남아야');
     if (gc(tmp, { merged: new Set() }).some((x) => x.id === f3.id)) fails.push('gc: 병합 전 PR 브랜치를 지우려 함');
     gc(tmp, { apply: true, merged: new Set([`fdr/${f3.id}`]) }); if (existsSync(join(tmp, '.worktrees', f3.id)) || g(`branch --list "fdr/${f3.id}"`)) fails.push('gc: 병합된 PR 미정리');
