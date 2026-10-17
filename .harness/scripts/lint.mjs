@@ -48,7 +48,11 @@ export function lint(root) {
   const catalog = rd(join(root, '.harness', 'catalog.yaml'));
   const active = new Set([...catalog.matchAll(/^\s*-\s*name:\s*(\S+)[\s\S]*?status:\s*(\S+)/gm)].filter((m) => m[2] === 'active').map((m) => m[1]));
   const ruleText = RULE_FILES.map((f) => rd(join(root, f))).join('\n') + ['.claude/rules', '.harness/runbooks', 'rules/runbooks'].flatMap((d) => walk(join(root, d))).map((f) => rd(f)).join('\n');
-  for (const m of ruleText.matchAll(/scripts\/([a-z0-9-]+\.mjs)/g)) if (!active.has(m[1])) problems.push(`카탈로그에 active가 아닌 도구 참조: .harness/scripts/${m[1]}`);
+  // 코어 도구(.harness/scripts/…)는 카탈로그 active여야 하고, 프로젝트 도구(루트 scripts/…)는 파일이 실재하면 된다(프로젝트 소유 — 카탈로그는 코어 사본)
+  for (const m of ruleText.matchAll(/(?:(\.harness\/)|(?<![\w./-]))scripts\/([a-z0-9-]+\.mjs)/g)) {   // mockups/scripts/… 처럼 다른 폴더 아래 scripts/는 대상 아님
+    const core = Boolean(m[1]); const name = m[2];
+    if (core ? !active.has(name) : !(existsSync(join(root, 'scripts', name)) || active.has(name))) problems.push(core ? `카탈로그에 active가 아닌 도구 참조: .harness/scripts/${name}` : `규칙이 참조하는 프로젝트 도구가 없다: scripts/${name}`);
+  }
   // ③ 예산
   const budget = Number(yamlScalar(rd(join(root, 'harness.yaml')), 'always_on_kb') || 25);
   const kb = RULE_FILES.reduce((s, f) => s + (existsSync(join(root, f)) ? statSync(join(root, f)).size : 0), 0) / 1024;
@@ -163,7 +167,9 @@ if (process.argv.includes('--self-test')) {
   // ⑰ 부정: embedded 목업 게이트가 실패(exit 1) — ⑧은 embedded를 건너뛴다(gitignore 요구 없음)
   mkdirSync(join(tmp, 'mockups', 'scripts'), { recursive: true }); writeFileSync(join(tmp, 'mockups', 'scripts', 'validate.mjs'), 'console.log("목업 검사 위반 1건: m/x: 확정본과 다르다"); process.exit(1);\n');
   writeFileSync(join(tmp, '.harness', 'HARNESS.md'), '﻿규칙 본문. node .harness/scripts/ghost.mjs 를 돌린다.\n이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n' + 'x'.repeat(1500));
-  writeFileSync(join(tmp, 'AGENTS.md'), '이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n');
+  writeFileSync(join(tmp, 'AGENTS.md'), '이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n프로젝트 도구 node scripts/missing-tool.mjs · node scripts/ok-tool.mjs · 목업 node mockups/scripts/validate.mjs\n');
+  // ② 프로젝트 도구: 루트 scripts/에 있으면 통과, 없으면 위반 · 다른 폴더 아래 scripts/는 대상 아님
+  mkdirSync(join(tmp, 'scripts'), { recursive: true }); writeFileSync(join(tmp, 'scripts', 'ok-tool.mjs'), '');
   writeFileSync(join(tmp, '.harness', 'catalog.yaml'), 'tools:\n  - name: ghost.mjs\n    status: planned\n');
   writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-000000-x.md'), '# 머리에 귀속 없음\n');
   writeFileSync(join(tmp, 'docs', 'records', 'INC-000000-x.md'), '# 머리에 귀속 없음(records)\n');
@@ -186,10 +192,10 @@ if (process.argv.includes('--self-test')) {
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건'];
+  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-c/.test(x) || /참조 저장소 mockups/.test(x));
-  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 3건 · 기록 자리 3곳)`);
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-c/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
+  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 4건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
 const root = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(HERE, '..', '..');
