@@ -4,7 +4,7 @@
 //
 //   mode: read-only(기본)  → 모든 쓰기 거부 (AGENTS.md "참조 저장소는 읽되 고치지 않는다")
 //   trust: external        → ① writable 폴더 밖 거부
-//                            ② 내용에 개발 저장소 경로(docs/decisions/ …)·기록 ID(FDR-·ADR-·RFC-·PLAN-·PG-·INC-)가 있으면 거부 (원칙 14 — 의존은 한 방향)
+//                            ② 내용에 개발 저장소 경로(docs/records/ …)·기록 ID(FDR-·ADR-·RFC-·PLAN-·PG-·INC-)가 있으면 거부 (원칙 14 — 의존은 한 방향)
 //                            ③ ask_words(기본 원가·공수·내부 판단)가 있으면 사람에게 묻는다(ask)
 // 막지 않는 것: 개발 저장소 안 · 등록되지 않은 경로 · mode: read-write이면서 trust가 external이 아닌 저장소
 // 자기 검사: node .claude/hooks/guard-reference.mjs --self-test
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { parseReferences } from '../../.harness/scripts/lib/refs.mjs';
 import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 
-const DEV_MARK_RE = /docs\/(decisions|features|research|plans|queue|specs|incidents)\/|\b(FDR|ADR|RFC|PLAN|PG|INC)-\d{6}-[a-z0-9-]+/;
+const DEV_MARK_RE = /docs\/(records|queue|specs|requirements)\/|\b(FDR|ADR|RFC|PLAN|PG|QA|HR|BL|INC|HO|RETRO)-\d{6}-[a-z0-9-]+/;
 const DEFAULT_ASK = ['원가', '공수', '내부 판단'];
 const norm = (p) => String(p).replace(/^\/([a-zA-Z])\/(.*)$/, (m, d, r) => `${d.toUpperCase()}:/${r}`); // MSYS /d/x → D:/x
 
@@ -59,7 +59,7 @@ if (process.argv.includes('--self-test')) {
   const cases = [
     ['/collab/meetings/MTG-261016-kickoff/agenda.md', '안건', null],
     ['/collab/requirements/x.md', '요구', 'deny'],
-    ['/collab/meetings/x.md', '근거 docs/decisions/0001.md', 'deny'],
+    ['/collab/meetings/x.md', '근거 docs/records/ADR-x.md', 'deny'],
     ['/collab/decisions/DEC-261016-x.md', '출처 FDR-261016-foo', 'deny'],
     ['/collab/decisions/DEC-261016-x.md', '출처 MTG-261016-kickoff', null],
     ['/collab/meetings/x.md', '원가 800만', 'ask'],

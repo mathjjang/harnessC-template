@@ -5,6 +5,6 @@ node_modules/
 *.local.*
 .claude/settings.local.json
 .claude/worktrees/
-docs/**/evidence/runs/*.out
+docs/records/*/evidence/runs/*.out
 .DS_Store
 Thumbs.db

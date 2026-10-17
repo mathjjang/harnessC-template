@@ -26,13 +26,13 @@ updated: {{DATE}}
 
 **사전 일괄 질의 (Stage 1 — 접점 ①)**
 - Q1 … → 답:
-- PG 후보: (등재는 `node .harness/scripts/new-doc.mjs pg …`)
+- PG 후보: (등재는 `node .harness/scripts/new-doc.mjs pg …` → `docs/queue/PG-…`)
 
 ## 2. Design (구조·계약·비범위. 되돌리기 비싼 결정이 나오면 멈추고 REP→ADR)
 
 ## 3. Impl (커밋 · 바뀐 파일 · 고른 이유 한 줄)
 
-## 4. Test (계층별 RUN 원문 인용 — 못 돌린 것은 "미검증"으로)
+## 4. Test (계층별 RUN 원문 인용 — 원문은 이 폴더 `evidence/`. 못 돌린 것은 "미검증"으로)
 
 | AC | 계층 | 실행 명령 | RUN/결과 원문 | 판정 |
 |---|---|---|---|---|

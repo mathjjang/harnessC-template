@@ -1,5 +1,5 @@
 # rules/human-only.yaml — 사람만 할 수 있는 검증 등록부
-# 기본값은 "에이전트가 한다". 여기 등록된 축만 사람 큐(docs/queue/human-run)에 들어갈 수 있다.
+# 기본값은 "에이전트가 한다". 여기 등록된 축만 사람 큐(docs/queue/HR-…)에 들어갈 수 있다.
 # 등록 없이 사람 큐에 넣는 것은 .harness/scripts/lint.mjs ⑨가 막는다(큐 머리말 `axis:` ↔ 아래 id). "체감"은 측정 지표로 바꿀 수 없음을 적을 때만.
 
 axes:

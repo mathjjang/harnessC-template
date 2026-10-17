@@ -1,17 +1,10 @@
-# docs/ — 기록·스펙·큐 (하네스C 코어)
+# docs/ — 이 프로젝트의 문서 (폴더 넷, 고정)
 
-| 폴더 | 종류 | ID | 성격 |
-|---|---|---|---|
-| `requirements/` | 요구사항 층 (INTAKE·brief·scope·REQ·open-questions) | REQ-… | 입력 정본 (separate-repo면 링크만) |
-| `specs/` | 현재 동작 스펙 (capability별 spec.md) | capability slug | 현재 · FDR close가 병합 |
-| `research/` | RFC 탐구 | RFC-YYMMDD-slug | 역사 |
-| `decisions/` | ADR 결정 | ADR-YYMMDD-slug | 역사 · Supersede로만 뒤집음 |
-| `plans/` | PLAN 분해 | PLAN-YYMMDD-slug | 역사 |
-| `features/` | FDR 기능 기록 | FDR-YYMMDD-slug(.md 또는 폴더) | 역사 · shipped/closed |
-| `queue/{pg,qa,human-run,backlog}/` | 사람 결정·실행·결함·이월 큐 | PG-…/QA-…/HR-…/BL-… | 한 스키마, 집계는 생성물 |
-| `incidents/` | 사고 대장 | INC-YYMMDD-slug | 규칙 개정의 근거 |
-| `runbooks/` | 반복 절차 | RB-YYMMDD-slug | trigger로 라우팅 |
-| `project_wiki/` | 해설 (구조·도메인) | — | 낡음은 린트가 보고 |
-| `retros/` | 분기 회고 | — | metrics 입력 |
-| `_templates/` | 생성기 원천 | — | 손 복사 금지 |
-| `INDEX.generated.md` | 카탈로그 | — | 생성물 |
+| 폴더 | 무엇 | 늘어나는 단위 |
+|---|---|---|
+| `requirements/` | 입력 — 접수(INTAKE)·brief·scope·REQ·open-questions | 파일 |
+| `records/` | 과정(역사) — `<TYPE>-<YYMMDD>-<slug>` : ADR 결정 · RFC 탐구 · PLAN 분해 · FDR 기능 · HO 핸드오프 · MTG 회의(내부) · INC 사고 · RETRO 회고. 증거는 각 폴더의 `evidence/` | 파일 또는 폴더 |
+| `specs/` | 현재 참인 것 — 제품 동작(capability 폴더) · 데이터 소스 조건·프롬프트 계약 등(파일) | 파일 |
+| `queue/` | 열린 것 — `PG-` 정책 공백 · `QA-` 사람 발견 결함 · `HR-` 사람 실행 요청 · `BL-` 이월 | 파일 |
+
+새 폴더는 만들 수 없다(훅·lint ⑬). 종류는 이름이 말하고, `INDEX.generated.md`가 종류별로 모아 보여 준다. 생성은 `node .harness/scripts/new-doc.mjs <종류> <slug> "<제목>"`.

@@ -1,72 +1,90 @@
-# .harness/catalog.yaml — 도구 상태 정본 (rules/HARNESS.md §1·§9). 규칙 문장은 여기 `active`인 도구만 참조할 수 있다(.harness/scripts/lint.mjs ②).
+# .harness/catalog.yaml — 도구 상태 정본 (.harness/HARNESS.md §1·§9). 규칙 문장은 여기 `active`인 도구만 참조할 수 있다(lint ②).
 # status: active | planned | retired. planned 도구는 규칙 본문에 쓰지 못한다 — "미도입이니 네가 지켜라"를 막는다.
 tools:
   - name: init.mjs
     status: active
-    command: node init.mjs --name <이름> [--tier S|M|L] [--packs a,b]
+    command: node init.mjs --name <이름> [--tier S|M|L] [--prune]
     enforcement: generate
     self_test: node init.mjs --self-test
-    rule: 템플릿 적용은 결정론 복사·치환·manifest
+    rule: 템플릿 적용은 결정론 복사·치환·코어 해시 manifest (템플릿 저장소에만 있음)
+  - name: sync-core.mjs
+    status: active
+    command: node .harness/scripts/sync-core.mjs --from <템플릿 경로> [--dry-run]
+    enforcement: generate
+    self_test: node .harness/scripts/sync-core.mjs --self-test
+    rule: .harness/HARNESS.md §9 ⑦ — 코어는 템플릿에서만 고치고 프로젝트는 내려받는다. manifest core 해시 갱신
+  - name: core-files.mjs
+    status: active
+    command: (라이브러리) .harness/scripts/lib/core-files.mjs
+    enforcement: none
+    self_test: (lint ⑫·sync-core self-test가 덮는다)
+    rule: "모든 프로젝트에서 동일한" 파일 목록(CORE_PATHS)과 해시 — init·sync-core·lint ⑫ 공유 (사유 — 판정은 lint가 한다)
   - name: harness-status.mjs
     status: active
     command: node .harness/scripts/harness-status.mjs
     enforcement: report
     self_test: node .harness/scripts/harness-status.mjs --self-test
-    rule: rules/HARNESS.md §1 라우터 — 세션 시작 카드
+    rule: .harness/HARNESS.md §1 라우터 — 세션 시작 카드
   - name: new-doc.mjs
     status: active
     command: node .harness/scripts/new-doc.mjs <kind> <slug> "<제목>" | reply <HO-ID> --agent "<에이전트(모델)>" [--result]
     enforcement: generate
     self_test: node .harness/scripts/new-doc.mjs --self-test
-    rule: rules/HARNESS.md §3 — ID 채번·귀속·manifest·세션 로그 생성
+    rule: .harness/HARNESS.md §3 — ID 채번·귀속·manifest·세션 로그·evidence 생성. 폴더를 늘리지 않는다
   - name: lint.mjs
     status: active
     command: node .harness/scripts/lint.mjs
     enforcement: gate
     self_test: node .harness/scripts/lint.mjs --self-test
-    rule: rules/HARNESS.md §1(도구 참조·예산) §8(귀속·중복·생성물) §5(human-run axis 등록) §4·§6(closed FDR의 스펙 병합·RUN 존재) §11(핸드오프 상태·result) — 형식·존재·연결만. 내용 타당성은 리뷰어
+    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR) §11(HO 상태) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
   - name: build-index.mjs
     status: active
     command: node .harness/scripts/build-index.mjs [--check]
     enforcement: generate
     self_test: node .harness/scripts/build-index.mjs --self-test
-    rule: rules/HARNESS.md §3·§7 — 생성 인덱스
+    rule: .harness/HARNESS.md §3·§7 — 기록(종류별)·스펙·큐·증거 생성 인덱스
   - name: check-session-log.mjs
     status: active
     command: node .harness/scripts/check-session-log.mjs
     enforcement: report
     self_test: node .harness/scripts/check-session-log.mjs --self-test
-    rule: rules/HARNESS.md §8 — 세션 로그
+    rule: .harness/HARNESS.md §8 — 세션 로그
   - name: guard-scratch.mjs
     status: active
     command: (PreToolUse 훅) node .claude/hooks/guard-scratch.mjs
     enforcement: gate
     self_test: node .claude/hooks/guard-scratch.mjs --self-test
-    rule: rules/HARNESS.md §8 임시 파일 — 루트 신규 항목·임시 패턴 생성을 쓰기 전에 거부
+    rule: .harness/HARNESS.md §8 임시 파일 · §1 고정 폴더 — 루트·docs/·rules/ 신규 폴더와 임시 패턴 생성을 쓰기 전에 거부
   - name: guard-reference.mjs
     status: active
     command: (PreToolUse 훅 Write|Edit|NotebookEdit|Bash) node .claude/hooks/guard-reference.mjs
     enforcement: gate
     self_test: node .claude/hooks/guard-reference.mjs --self-test
-    rule: AGENTS.md 참조 저장소 · rules/product.md 불변(외부 산출물 분리) — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
+    rule: AGENTS.md 참조 저장소 · .harness/runbooks/collab.md — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
   - name: guard-role-write.mjs
     status: active
     command: (에이전트 frontmatter PreToolUse 훅 Bash) node .claude/hooks/guard-role-write.mjs --role reviewer|tester
     enforcement: gate
     self_test: node .claude/hooks/guard-role-write.mjs --self-test
-    rule: rules/HARNESS.md §5 리뷰어·테스터는 제품 코드를 고치지 않는다 — 경로 기반 허용(산출 경로만)·git/의존성 변경 금지
+    rule: .harness/HARNESS.md §5 리뷰어·테스터는 제품 코드를 고치지 않는다 — 경로 기반 허용(산출 경로만)·git/의존성 변경 금지
   - name: write-targets.mjs
     status: active
     command: (라이브러리) .harness/scripts/lib/write-targets.mjs
     enforcement: none
     self_test: node .harness/scripts/lib/write-targets.mjs --self-test
     rule: Bash 쓰기 대상 추출 — guard-scratch·guard-reference·guard-role-write 공유 (사유 — 판정은 훅이 한다)
+  - name: refs.mjs
+    status: active
+    command: (라이브러리) .harness/scripts/lib/refs.mjs
+    enforcement: none
+    self_test: node .harness/scripts/lib/refs.mjs --self-test
+    rule: harness.yaml references 파서 — new-doc·harness-status·guard-reference·lint 공유 (사유 — 판정은 호출자가 한다)
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]
     enforcement: gate
     self_test: node .harness/scripts/check-clutter.mjs --self-test
-    rule: rules/HARNESS.md §8 임시 파일 — 커밋 차단·잔고 보고·archive·gc (baseline 래칫)
+    rule: .harness/HARNESS.md §8 임시 파일 — 커밋 차단·잔고 보고·archive·gc (baseline 래칫)
   - name: pre-commit
     status: active
     command: git config core.hooksPath .harness/scripts/git-hooks
@@ -76,13 +94,13 @@ tools:
   # planned (규칙 본문에서 참조 금지 — 도입 시 active로)
   - name: harness-run.mjs
     status: planned
-    rule: RUN 원장(명령·커밋·종료코드·출력 해시) — rules/HARNESS.md §6 "RUN ID 인용"의 집행 수단
+    rule: RUN 원장(명령·커밋·종료코드·출력 해시) — .harness/HARNESS.md §6 "RUN ID 인용"의 집행 수단
   - name: fdr-close.mjs
     status: planned
-    rule: FDR close 시 01-spec 델타를 docs/specs/에 병합 — rules/HARNESS.md §4
+    rule: FDR close 시 01-spec 델타를 docs/specs/에 병합 — .harness/HARNESS.md §4
   - name: harness-build.mjs
     status: planned
-    rule: rules/HARNESS.md+팩 → AGENTS.md·CLAUDE.md·.claude/ 생성 — 원칙 10
+    rule: .harness/HARNESS.md → AGENTS.md·CLAUDE.md·.claude/ 생성 — 원칙 10
   - name: metrics.mjs
     status: planned
-    rule: FDR 리드타임·큐 대기·우회·규칙 KB 집계
+    rule: FDR 리드타임·큐 대기·우회·규칙 KB 집계 — RETRO 입력

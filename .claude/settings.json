@@ -1,5 +1,5 @@
 {
-  "_harnessC": "v0.1 — 손으로 작성. 이후 harness build가 rules/HARNESS.md+팩에서 생성한다. 생성 구간은 손으로 고치지 않는다.",
+  "_harnessC": "v0.1 — 손으로 작성. 이후 harness build가 .harness/HARNESS.md+팩에서 생성한다. 생성 구간은 손으로 고치지 않는다.",
   "hooks": {
     "SessionStart": [
       {

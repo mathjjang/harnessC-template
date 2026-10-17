@@ -1,0 +1,66 @@
+#!/usr/bin/env node
+// sync-core.mjs — 템플릿의 코어(모든 프로젝트 동일 부분)를 이 프로젝트에 내려받는다. lint ⑫가 막은 차이를 푸는 유일한 길.
+// 사용: node .harness/scripts/sync-core.mjs --from <템플릿 체크아웃 경로> [--dry-run]
+//   CORE_PATHS(lib/core-files.mjs)를 복사하고 {{PROJECT_NAME}}·{{TIER}}를 harness.yaml 값으로 치환한 뒤 .harness/init-manifest.json의 core 해시를 갱신한다.
+//   프로젝트 고유 파일(rules/ · docs/ · harness.yaml · README.md)은 건드리지 않는다. --self-test: 임시 모형에서 복사·치환·해시 갱신 확인.
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { CORE_PATHS, hashCore, coreFiles } from './lib/core-files.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
+
+export function sync(root, from, { dryRun = false } = {}) {
+  if (!existsSync(join(from, '.harness', 'HARNESS.md'))) throw new Error(`템플릿이 아니다: ${from}`);
+  const hy = readFileSync(join(root, 'harness.yaml'), 'utf8');
+  const vars = { PROJECT_NAME: yamlScalar(hy, 'project').replace(/^"|"$/g, ''), TIER: yamlScalar(hy, 'tier') };
+  const before = hashCore(root);
+  if (!dryRun) {
+    for (const rel of CORE_PATHS) {
+      const src = join(from, rel); if (!existsSync(src)) continue;
+      const dst = join(root, rel);
+      if (statSync(src).isDirectory()) { rmSync(dst, { recursive: true, force: true }); cpSync(src, dst, { recursive: true, filter: (s) => !/init-manifest\.json$|[\\/]tiers([\\/]|$)/.test(s) }); }
+      else { mkdirSync(dirname(dst), { recursive: true }); cpSync(src, dst); }
+    }
+    for (const f of coreFiles(root)) if (/\.(md|yaml|json|mjs)$/.test(f)) { const p = join(root, f); const t = readFileSync(p, 'utf8'); const u = t.replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m); if (u !== t) writeFileSync(p, u); }
+  }
+  const after = dryRun ? hashCore(from) : hashCore(root);
+  const changed = Object.keys({ ...before, ...after }).filter((f) => before[f] !== after[f]);
+  if (!dryRun) {
+    const mp = join(root, '.harness', 'init-manifest.json');
+    const m = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : { schema: 'harnessC.init-manifest', version: 2 };
+    m.core = after; m.coreVersion = yamlScalar(readFileSync(join(from, 'harness.yaml'), 'utf8'), 'harness'); m.syncedAt = new Date().toISOString().slice(0, 10);
+    writeFileSync(mp, JSON.stringify(m, null, 2) + '\n');
+  }
+  return { changed, vars };
+}
+
+if (process.argv.includes('--self-test')) {
+  const tmp = join(HERE, '..', '.sync-selftest'); rmSync(tmp, { recursive: true, force: true });
+  const tpl = join(tmp, 'tpl'), proj = join(tmp, 'proj');
+  for (const d of ['.harness/scripts/lib', '.claude/hooks']) { mkdirSync(join(tpl, d), { recursive: true }); mkdirSync(join(proj, d), { recursive: true }); }
+  writeFileSync(join(tpl, '.harness', 'HARNESS.md'), '# core v2\n'); writeFileSync(join(tpl, 'AGENTS.md'), '# AGENTS — {{PROJECT_NAME}}\n'); writeFileSync(join(tpl, 'harness.yaml'), 'harness: 0.2.0\n');
+  writeFileSync(join(tpl, '.claude', 'hooks', 'g.mjs'), 'v2'); writeFileSync(join(tpl, '.harness', 'scripts', 'x.mjs'), 'v2');
+  writeFileSync(join(proj, '.harness', 'HARNESS.md'), '# core v1\n'); writeFileSync(join(proj, 'AGENTS.md'), '# AGENTS — old\n'); writeFileSync(join(proj, 'harness.yaml'), 'harness: 0.1.0\nproject: "p1"\ntier: S\n');
+  writeFileSync(join(proj, 'rules-keep.md'), 'mine'); writeFileSync(join(proj, '.harness', 'scripts', 'stale.mjs'), 'old');
+  const fails = [];
+  try {
+    const r = sync(proj, tpl);
+    if (!/core v2/.test(readFileSync(join(proj, '.harness', 'HARNESS.md'), 'utf8'))) fails.push('코어 미복사');
+    if (!/AGENTS — p1/.test(readFileSync(join(proj, 'AGENTS.md'), 'utf8'))) fails.push('치환 누락');
+    if (existsSync(join(proj, '.harness', 'scripts', 'stale.mjs'))) fails.push('낡은 코어 파일 잔존');
+    if (!existsSync(join(proj, 'rules-keep.md'))) fails.push('프로젝트 파일 손상');
+    const m = JSON.parse(readFileSync(join(proj, '.harness', 'init-manifest.json'), 'utf8'));
+    if (m.coreVersion !== '0.2.0' || !m.core['.harness/HARNESS.md'] || !r.changed.length) fails.push('manifest 미갱신');
+    if (JSON.stringify(hashCore(proj)) !== JSON.stringify(m.core)) fails.push('해시 불일치');
+  } catch (e) { fails.push('예외: ' + e.message); }
+  rmSync(tmp, { recursive: true, force: true });
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (복사·치환·낡은 파일 제거·프로젝트 파일 보존·manifest)');
+  process.exit(fails.length ? 1 : 0);
+}
+
+const i = process.argv.indexOf('--from');
+if (i < 0) { console.error('사용: node .harness/scripts/sync-core.mjs --from <템플릿 경로> [--dry-run]'); process.exit(2); }
+const r = sync(join(HERE, '..', '..'), resolve(process.argv[i + 1]), { dryRun: process.argv.includes('--dry-run') });
+console.log(`${process.argv.includes('--dry-run') ? '[dry-run] ' : ''}코어 ${r.changed.length}개 파일 갱신${r.changed.length ? ':\n  ' + r.changed.join('\n  ') : ''}`);

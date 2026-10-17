@@ -2,7 +2,7 @@
 id: {{ID}}
 date: {{DATE}}
 severity: medium
-rule_changed:             # 이 사고로 개정된 규칙 (ADR-… / rules/HARNESS.md §) — 없으면 "없음(사유)"
+rule_changed:             # 이 사고로 개정된 규칙 (ADR-… / .harness/HARNESS.md §) — 없으면 "없음(사유)"
 enforcement_after:        # 개정 후 강제 등급 generate | gate | report | none
 recurrence_check:         # 재발을 잡는 도구·테스트
 ---
@@ -11,7 +11,7 @@ recurrence_check:         # 재발을 잡는 도구·테스트
 
 - 작성: {{AGENT}} · {{DATE}}
 
-> 사고는 여기 한 곳에만 적는다. 규칙 본문에는 `({{ID}})` 링크만 남긴다 (rules/HARNESS.md §8).
+> 사고는 여기 한 곳에만 적는다. 규칙 본문에는 `({{ID}})` 링크만 남긴다 (.harness/HARNESS.md §8).
 
 ## 무슨 일이 났나 (관측 원문)
 

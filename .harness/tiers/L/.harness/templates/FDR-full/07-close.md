@@ -4,7 +4,7 @@
 
 ## 1. 종결 상태
 
-- shipped (사람 대기: docs/queue/human-run/… ) | closed
+- shipped (사람 대기: docs/queue/HR-… ) | closed
 
 ## 2. 스펙 병합 (closed 조건 — 병합 없이 closed 불가)
 

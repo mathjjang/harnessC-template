@@ -5,10 +5,10 @@
 - 받는 쪽: (에이전트(모델) 또는 역할 — 예: Codex (GPT-6) · Gemini (2.5 Pro) · 테스터)
 - 맡은 쪽: (받는 쪽이 접수할 때 적고 상태를 taken으로)
 - 기준 커밋: (request.md를 커밋한 뒤의 HEAD sha — 받는 쪽은 이 커밋을 기준으로 본다)
-- 쓰기 허용: `docs/handoffs/{{ID}}/` (재현물은 그 안 `evidence/`) — 이 밖은 읽기만
+- 쓰기 허용: `docs/records/{{ID}}/` (재현물은 그 안 `evidence/`) — 이 밖은 읽기만
 - 기한:
 
-> 상태: open → taken(받는 쪽 접수) → answered(응답 파일 있음) → closed(보낸 쪽이 result.md 작성). 절차: `docs/runbooks/handoff.md`.
+> 상태: open → taken(받는 쪽 접수) → answered(응답 파일 있음) → closed(보낸 쪽이 result.md 작성). 절차: `.harness/runbooks/handoff.md`.
 
 ## 1. 요청 (한 문장)
 

@@ -7,7 +7,7 @@ owner_pack:               # 코어 | 팩 이름
 # {{TITLE}} — 현재 동작 스펙
 
 > 이것은 **현재** 동작의 정본이다. FDR `01-spec`의 델타(ADDED/MODIFIED/REMOVED)가 close 시 여기 병합된다. 손으로 고치고 싶은 변경은 lite FDR 한 장으로 한다.
-> 시나리오는 관찰 가능한 결과와 단언 등급을 가진다. C 단독은 통과가 아니다 (rules/HARNESS.md §6).
+> 시나리오는 관찰 가능한 결과와 단언 등급을 가진다. C 단독은 통과가 아니다 (.harness/HARNESS.md §6).
 
 ### Requirement: <요구 한 줄>
 

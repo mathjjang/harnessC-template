@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// check-clutter.mjs — 잡동사니 게이트·보고·정리 (rules/HARNESS.md §8 임시 파일 규율).
+// check-clutter.mjs — 잡동사니 게이트·보고·정리 (.harness/HARNESS.md §8 임시 파일 규율).
 //   (기본)      pre-commit: 스테이징된 파일 중 임시 패턴·루트 신규 항목이 있으면 exit 1
 //   --report    루트·.harness/scripts/의 미추적 잡동사니와 .scratch/ 오래된 항목 수를 한 줄로 (세션 카드용). baseline 등재분은 "기존"으로 구분
 //   --archive [--apply]  루트 잡동사니를 .scratch/archive-<날짜>/ 로 이동 (기본 dry-run)

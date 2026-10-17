@@ -1,4 +1,4 @@
-# FDR manifest — 상태 정본 (rules/HARNESS.md §4). 전이는 손이 아니라 도구로(v0.1: 손 편집 허용, updated 갱신 필수).
+# FDR manifest — 상태 정본 (.harness/HARNESS.md §4). 전이는 손이 아니라 도구로(v0.1: 손 편집 허용, updated 갱신 필수).
 schema_version: 2
 id: {{ID}}
 slug: {{SLUG}}
@@ -19,7 +19,7 @@ plan_ref: null
 depends_on: []
 related_rfc: []
 related_adr: []
-pg: []                        # 참조하는 PG ID (내용은 docs/queue/pg/)
+pg: []                        # 참조하는 PG ID (내용은 docs/queue/PG-…)
 
 stages:
   - { id: spec,        state: pending, artifact: 01-spec.md }
@@ -34,7 +34,7 @@ stages:
   - { id: audit,       state: pending, artifact: 06a-audit.md }
   - { id: close,       state: pending, artifact: 07-close.md }
 
-human:                        # rules/human-only.yaml 축에 등록된 것만. 항목은 docs/queue/human-run/ 에 생성
+human:                        # rules/human-only.yaml 축에 등록된 것만. 항목은 docs/queue/HR-…/ 에 생성
   queue: []
 
 evidence:
