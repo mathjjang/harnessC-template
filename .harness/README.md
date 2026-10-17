@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 |---|---|
 | `HARNESS.md` | 방법론 코어 규칙 — 로딩 순서·라우팅·ID·FDR·게이트·증거·큐·기록·REP·핸드오프 |
-| `runbooks/` | 코어 절차 — `handoff.md`(에이전트 간) · `collab.md`(외부 조직 협업) |
+| `runbooks/` | 코어 절차 정본 — `handoff.md` · `collab.md` · `work.md` · `fdr-start.md` · `mockup.md` · `meeting-prep.md` · `meeting-ingest.md`. 머리말 `entry:`가 있으면 `scripts/harness-build.mjs`가 런타임 입구를 만든다 |
 | `scripts/` | 세션 카드·생성기·린트·인덱스·게이트·sync-core (`git config core.hooksPath .harness/scripts/git-hooks`) |
 | `templates/` | 기록 템플릿 — 손 복사 금지, `scripts/new-doc.mjs`가 쓴다. `collab-skeleton/`은 협업 저장소 뼈대 |
 | `catalog.yaml` | 도구 상태 정본 — 규칙은 active 도구만 참조한다 |

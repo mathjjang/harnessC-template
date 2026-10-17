@@ -1,6 +1,6 @@
 # HARNESS.md — 하네스C 코어 규칙 (how)
 
-> 하네스C 코어 v0.2.1 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
+> 하네스C 코어 v0.3.0 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
 
 ## 1. 지식 층 (로딩 순서)
 
@@ -9,7 +9,7 @@
 도메인  rules/domain/*.md                              해당 작업 시 (프로젝트 고유)
 라우터  harness-status 카드 · docs/specs/index.md      세션 시작 시 자동
 스펙    docs/specs/                                    지금 참인 것 — 제품 동작·데이터 소스·프롬프트 계약
-runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
+runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 — 절차 정본. 런타임 입구(.claude/skills · .agents/skills · .gemini/commands)는 생성물
 기록    docs/decisions(ADR) · research(RFC) · features(FDR) · handoffs(HO) · records(PLAN·MTG·INC·RETRO)   근거가 필요할 때만. 불변 역사. 증거는 그 폴더의 evidence/
 큐      docs/queue/<PG|QA|HR|BL>-…                     열린 것만
 ```
@@ -25,7 +25,8 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 | 큰 요청 (여러 FDR·5파일↑·2시간↑) | 분해 | **PLAN** → FDR들 |
 | 사용자 가시 기능 | **FDP** | **FDR** |
 | 다른 에이전트(타사 포함)에게 맡김·리뷰 요청 | §11 | **HO** |
-| 반복 절차 | — | **runbook** (`rules/runbooks/`) |
+| 확정 목업이 있는 화면 | runbook `mockup.md` (승격→문자 이식→대조) | FDR + `mockup/` + 대조 기록 |
+| 반복 절차 | — | **runbook** (`rules/runbooks/` · 입구가 필요하면 머리말 `entry:`) |
 | 외부 데이터·LLM 프롬프트 등 조건이 있는 의존 | — | **스펙 파일** `docs/specs/<name>.md` |
 | 단순 수정 | — | 없음 |
 
@@ -74,6 +75,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 - 검사 범위를 스스로 줄이지 않는다. 줄이면 실측 근거를 같은 줄에.
 - 빌드·실행 **성공 여부**는 로그가 아니라 산출물(mtime·해시)로. 산출물은 성공의 필요조건이지 정확성의 증거가 아니다.
 - 스펙 시나리오는 관찰 가능한 결과 + 단언 등급(A 재조회·재진입 유지 > B 요청·전이 > C DOM). 저장·상태는 A 필수, 표현 요구는 C도 정당. 상위 등급이 가능한 요구를 C만으로 통과시키지 않는다.
+- 확정 목업이 있는 화면은 승인본 픽셀 대조 기록(같은 rev · 상태 전수 · 초과는 등재)이 shipped의 필요조건(lint ⑯). 판정은 수치, 이미지 판독 단정 금지. 절차 `.harness/runbooks/mockup.md`.
 - 게이트의 보장 범위는 도구 머리에 적힌 것까지. `lint OK`는 형식·존재·연결의 통과, 내용 타당성은 리뷰어 몫.
 
 ## 7. 큐 (하나의 스키마)

@@ -1,6 +1,6 @@
 # AGENTS.md — {{PROJECT_NAME}} 에이전트 운영 규칙
 
-> 하네스C 코어 v0.2.1 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
+> 하네스C 코어 v0.3.0 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
@@ -34,6 +34,7 @@
 
 - 구현자·리뷰어·테스터는 다른 세션이다. 리뷰어·테스터는 제품 코드를 고치지 않는다(훅이 막는다). 남이 활성인 영역은 큐·리뷰로 전달한다.
 - "제안해줘·방안·리서치" 요청의 산출물은 문서다. 코드 수정은 "진행해" 이후에만.
+- 절차는 `.harness/runbooks/`·`rules/runbooks/`가 정본이다. `.claude/skills`·`.agents/skills`·`.gemini/commands`는 거기서 생성된 포인터 — 런타임이 무엇이든 런북을 읽는다. 입구를 고치지 말고 런북을 고치고 `node .harness/scripts/harness-build.mjs`.
 
 ## 다른 에이전트와 주고받기 (다른 세션·Codex·Gemini 등)
 

@@ -1,0 +1,5 @@
+# 생성물: node .harness/scripts/harness-build.mjs · 손으로 편집하지 않는다 — 정본은 .harness/runbooks/fdr-start.md
+description = "FDR 착수 절차 — 생성·출처 확인·브랜치·사실 대조·델타 스펙·일괄 질의·위험 등급. \"FDR 시작\", \"기능 개발 착수\", \"새 FDR\" 요청 시."
+prompt = """
+절차 정본은 .harness/runbooks/fdr-start.md 이다. 그 파일을 읽고 그대로 따른다. 입력: {{args}}
+"""

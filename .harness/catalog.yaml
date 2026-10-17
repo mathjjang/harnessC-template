@@ -115,6 +115,18 @@ tools:
     enforcement: gate
     self_test: (각 게이트의 self-test)
     rule: check-branch-record · check-clutter · lint · build-index --check
+  - name: mockup-diff.mjs
+    status: active
+    command: node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <목업 폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]
+    enforcement: gate
+    self_test: node .harness/scripts/mockup-diff.mjs --self-test
+    rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 확정 목업 승격(rev 스탬프)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
+  - name: harness-build.mjs
+    status: active
+    command: node .harness/scripts/harness-build.mjs [--check]
+    enforcement: generate
+    self_test: node .harness/scripts/harness-build.mjs --self-test
+    rule: .harness/HARNESS.md 원칙 10 — 런북 머리말 entry:로 .claude/skills · .agents/skills · .gemini/commands 입구 생성(포인터). pre-commit이 --check로 신선도 검사
   # planned (규칙 본문에서 참조 금지 — 도입 시 active로)
   - name: harness-run.mjs
     status: planned
@@ -122,9 +134,6 @@ tools:
   - name: fdr-close.mjs
     status: planned
     rule: FDR close 시 01-spec 델타를 docs/specs/에 병합 — .harness/HARNESS.md §4
-  - name: harness-build.mjs
-    status: planned
-    rule: .harness/HARNESS.md → AGENTS.md·CLAUDE.md·.claude/ 생성 — 원칙 10
   - name: metrics.mjs
     status: planned
     rule: FDR 리드타임·큐 대기·우회·규칙 KB 집계 — RETRO 입력

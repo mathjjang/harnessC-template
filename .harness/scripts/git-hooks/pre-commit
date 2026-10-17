@@ -7,3 +7,5 @@ node "$ROOT/.harness/scripts/check-clutter.mjs" || exit 1          # 임시 파�
 node "$ROOT/.harness/scripts/lint.mjs" || exit 1                   # BOM·도구 참조·예산·중복·귀속·생성물·스크립트 카탈로그·참조 저장소·사람 큐·closed FDR·핸드오프
 node "$ROOT/.harness/scripts/build-index.mjs" --check || {         # 생성물 신선도
   echo "[pre-commit] 생성 인덱스가 낡았다 — node .harness/scripts/build-index.mjs 후 다시 커밋"; exit 1; }
+node "$ROOT/.harness/scripts/harness-build.mjs" --check || {       # 런타임 입구(.claude/.agents/.gemini) 신선도 — 정본은 런북
+  echo "[pre-commit] 런타임 입구가 런북과 다르다 — node .harness/scripts/harness-build.mjs 후 다시 커밋"; exit 1; }

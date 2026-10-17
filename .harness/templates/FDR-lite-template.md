@@ -34,7 +34,7 @@ updated: {{DATE}}
 
 ## 3. Impl (커밋 · 바뀐 파일 · 고른 이유 한 줄)
 
-## 4. Test (계층별 RUN 원문 인용 — 원문은 이 폴더 `evidence/`. 못 돌린 것은 "미검증"으로)
+## 4. Test (계층별 RUN 원문 인용 — 원문은 이 폴더 `evidence/`. 못 돌린 것은 "미검증"으로. 확정 목업이 있으면 `evidence/mockup-diff/rev<N>/results.json` 수치를 한 행으로)
 
 | AC | 계층 | 실행 명령 | RUN/결과 원문 | 판정 |
 |---|---|---|---|---|

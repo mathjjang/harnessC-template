@@ -1,7 +1,7 @@
-# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.2.1)
+# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.3.0)
 # init.mjs가 읽고, .harness/scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
 
-harness: 0.2.1
+harness: 0.3.0
 project: "{{PROJECT_NAME}}"
 tier: M                      # S | M | L  — FDR 기본 프로파일·게이트 수·상시 규칙 상한
 gate_mode: standard          # fast | standard | strict (FDR별 오버라이드 가능)
@@ -39,6 +39,13 @@ work:                        # 동시 작업 (HARNESS §11 · runbooks/work.md) 
   merge: pr                  # ff(S — 게이트 후 바로 병합) | pr(M·L — push 후 PR)
   link: []                   # worktree에 하드링크할 gitignore 재료 (예 .env.local)
   setup: ""                  # worktree 생성 후 1회 (예 pnpm install)
+
+mockup:                      # 확정 목업 대조 (.harness/runbooks/mockup.md) — mockup-diff.mjs가 읽는다. 목업이 없는 프로젝트는 그대로 둔다(mockup/ 없는 FDR은 대상 아님)
+  origin_env: APP_ORIGIN     # 구현 화면 오리진을 담은 환경변수 이름 — 값은 적지 않는다(사람마다 다르다 · 폴백 없음)
+  viewport: 1440x900
+  threshold: 0.01            # 불일치 % 상한 (V2 ADR-0037)
+  wait: 1000                 # 캡처 전 정착 ms
+  login: ""                  # 캡처 전 로그인 모듈(프로젝트 소유 · 예 rules/runbooks/mockup-login.mjs — export default async (page, env, { origin }))
 
 metrics:
   enabled: true

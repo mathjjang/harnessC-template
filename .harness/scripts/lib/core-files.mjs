@@ -7,6 +7,7 @@ import { join, relative, sep } from 'node:path';
 export const CORE_PATHS = [
   '.harness/HARNESS.md', '.harness/README.md', '.harness/catalog.yaml', '.harness/runbooks', '.harness/scripts', '.harness/templates',
   '.claude/settings.json', '.claude/hooks', '.claude/agents', '.claude/skills', '.claude/rules',
+  '.agents/skills', '.gemini/commands',
   'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
 ];
 export const CORE_EXCLUDE = /(^|\/)(init-manifest\.json|tiers\/|node_modules\/|\.gitkeep$)/;
