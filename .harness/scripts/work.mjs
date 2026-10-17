@@ -126,7 +126,10 @@ export function markShipped(wt, id) {
   const f = existsSync(join(r.path, 'manifest.yaml')) ? join(r.path, 'manifest.yaml') : join(r.path, 'fdr.md');
   writeFileSync(f, rd(f).replace(/^status:\s*(draft|in-progress)\b/m, 'status: shipped').replace(/^updated:.*$/m, `updated: ${new Date().toISOString().slice(0, 10)}`));
   const rel = relative(wt, f).split(sep).join('/');
-  git(wt, `add -- "${rel}"`); git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- "${rel}"`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true });
+  const paths = [rel];
+  const bi = join(wt, '.harness', 'scripts', 'build-index.mjs');   // 상태가 인덱스에 찍힌다 — 같이 갱신하지 않으면 pre-commit(build-index --check)이 거부한다
+  if (existsSync(bi)) { execSync(`"${process.execPath}" "${bi}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of ['docs/INDEX.generated.md', 'docs/specs/index.md', 'docs/queue/INDEX.generated.md']) if (existsSync(join(wt, g2))) paths.push(g2); }
+  git(wt, `add -- ${paths.map((p) => `"${p}"`).join(' ')}`); git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- ${paths.map((p) => `"${p}"`).join(' ')}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true });
   return true;
 }
 
@@ -219,7 +222,7 @@ if (process.argv.includes('--self-test')) {
   const tmp = join(HERE, '..', '.work-selftest'); rmSync(tmp, { recursive: true, force: true });
   const RFC_DIR = RECORD_DIRS.RFC, FDR_DIR = RECORD_DIRS.FDR;
   mkdirSync(join(tmp, RFC_DIR), { recursive: true }); mkdirSync(join(tmp, '.harness', 'scripts'), { recursive: true });
-  for (const f of ['new-doc.mjs', 'lib/refs.mjs', 'lib/records.mjs', 'lib/upstream.mjs']) { mkdirSync(dirname(join(tmp, '.harness', 'scripts', f)), { recursive: true }); writeFileSync(join(tmp, '.harness', 'scripts', f), readFileSync(join(HERE, f))); }
+  for (const f of ['new-doc.mjs', 'build-index.mjs', 'lib/refs.mjs', 'lib/records.mjs', 'lib/upstream.mjs']) { mkdirSync(dirname(join(tmp, '.harness', 'scripts', f)), { recursive: true }); writeFileSync(join(tmp, '.harness', 'scripts', f), readFileSync(join(HERE, f))); }
   execSync(`xcopy /E /I /Q "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}" >nul 2>&1 || cp -r "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}"`, { shell: true, stdio: 'ignore' });
   writeFileSync(join(tmp, 'harness.yaml'), 'tier: S\nwork:   # 머리 줄 주석도 허용\n  dir: .worktrees\n  base: main\n  merge: ff\n  link: [.env.local]\n');
   writeFileSync(join(tmp, '.env.local'), 'SECRET=1\n'); writeFileSync(join(tmp, '.gitignore'), '.env.local\n');
@@ -250,6 +253,7 @@ if (process.argv.includes('--self-test')) {
     const f2 = finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
+    if (!/shipped/.test(rd(join(tmp, 'docs', 'INDEX.generated.md'))) || g('status --porcelain')) fails.push('finish(fdr): shipped 표시가 인덱스와 함께 커밋되지 않았다');
     if (existsSync(join(tmp, '.worktrees', p.fdr))) fails.push('finish: worktree 잔존');
     const w2 = start(tmp, p.fdr); writeFileSync(join(w2.path, 'src', 'b.ts'), 'b'); g('add -A', w2.path); g('commit -q -m b', w2.path);
     writeFileSync(join(tmp, FDR_DIR, p.fdr, 'fdr.md'), rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')).replace(/^status:.*$/m, 'status: closed')); g('add -A'); g('commit -q -m close');
