@@ -21,7 +21,7 @@ function activeFdrs(root) {
     const head = rd(join(base, 'manifest.yaml')) || rd(join(base, 'fdr.md')) || rd(base);
     const status = yamlScalar(head, 'status') || '?';
     if (['closed', 'abandoned'].includes(status)) continue;
-    const resume = (rd(join(base, 'session-log.md')).match(/재개점[:：]\s*(.+)/g) || []).pop() || '';
+    const resume = ((rd(join(base, 'session-log.md')) || rd(join(base, 'fdr.md')).split(/^## 세션 로그[^\n]*$/m)[1] || '').match(/재개점[:：]\s*(.+)/g) || []).pop() || '';   // lite는 본문 안 표에서
     out.push({ id: n.replace(/\.md$/, ''), status, stage: yamlScalar(head, 'current_stage'), resume: resume.replace(/재개점[:：]\s*/, '').slice(0, 60) });
   }
   return out;
