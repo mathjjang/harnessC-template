@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findReference } from './lib/refs.mjs';
+import { findReference, refPath } from './lib/refs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -20,7 +20,7 @@ const field = (t, k) => ((fm(t).match(new RegExp(`^${k}:\\s*(.*)$`, 'm')) || [])
 const title = (t) => (t.match(/^# [^·\n]+· (.+)$/m) || [])[1] || '';
 const RES_STATES = ['taken', 'resolved', 'verified'];
 
-function mockupRef(root) { const r = findReference(rd(join(root, 'harness.yaml')), 'mockup'); if (!r) throw new Error('harness.yaml references에 role: mockup 저장소가 없다 — node .harness/scripts/mockup-diff.mjs init separate|embedded'); const p = resolve(root, r.path); if (!existsSync(p)) throw new Error(`목업 저장소 체크아웃 없음: ${r.path}`); return { ...r, abs: p }; }
+function mockupRef(root) { const r = findReference(rd(join(root, 'harness.yaml')), 'mockup'); if (!r) throw new Error('harness.yaml references에 role: mockup 저장소가 없다 — node .harness/scripts/mockup-diff.mjs init separate|embedded'); const p = refPath(root, r); if (!existsSync(p)) throw new Error(`목업 저장소 체크아웃 없음: ${r.path}`); return { ...r, abs: p }; }
 export function listIntake(root) {
   const ref = mockupRef(root); const d = join(ref.abs, 'qa');
   return (existsSync(d) ? readdirSync(d).filter((n) => /^QA-\d{6}-[a-z0-9-]+$/.test(n) && existsSync(join(d, n, 'report.md'))) : []).sort().map((id) => { const rep = rd(join(d, id, 'report.md')); const res = rd(join(d, id, 'resolution.md')); return { id, ref, path: join(d, id), state: field(rep, 'state'), type: field(rep, 'type'), screen: field(rep, 'screen'), title: title(rep), expected: (rep.split(/^## 되어야 할 모습[^\n]*$/m)[1] || '').split(/^## /m)[0].trim(), resState: field(res, 'state'), resBy: field(res, 'by'), queued: existsSync(join(root, 'docs', 'queue', `${id}.md`)) }; });

@@ -12,7 +12,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseReferences } from '../../.harness/scripts/lib/refs.mjs';
+import { parseReferences, refPath } from '../../.harness/scripts/lib/refs.mjs';
 import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 
 const DEV_MARK_RE = /docs\/(decisions|research|features|handoffs|records|queue|specs|requirements)\/|\b(FDR|ADR|RFC|PLAN|PG|QA|HR|BL|INC|HO|RETRO)-\d{6}-[a-z0-9-]+/;
@@ -24,7 +24,7 @@ export function judge(path, content, { root, cwd, refs }) {
   if (!path) return null;
   const abs = isAbsolute(norm(path)) ? norm(path) : resolve(cwd || root, norm(path));
   for (const ref of refs) {
-    const refAbs = resolve(root, norm(ref.path));
+    const refAbs = refPath(root, { ...ref, path: norm(ref.path) });
     const rel = relative(refAbs, abs);
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) continue;
     const mode = ref.mode || 'read-only';

@@ -6,7 +6,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseReferences } from './lib/refs.mjs';
+import { parseReferences, refPath } from './lib/refs.mjs';
 import { listRecords, recordDir } from './lib/records.mjs';
 
 const ROOT = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -41,7 +41,7 @@ function queueLine(root) {
 }
 function collabLines(root, hy) {
   return parseReferences(hy).filter((r) => r.role === 'collab').map((r) => {
-    const p = resolve(root, r.path);
+    const p = refPath(root, r);
     if (!existsSync(p)) return `협업: ${r.path} (체크아웃 없음 — clone 필요)`;
     const mt = join(p, 'meetings');
     const last = existsSync(mt) ? readdirSync(mt).filter((f) => /^MTG-/.test(f)).sort().pop() : undefined;
@@ -54,7 +54,7 @@ function collabLines(root, hy) {
 }
 function mockupLines(root, hy) {
   return parseReferences(hy).filter((r) => r.role === 'mockup').map((r) => {
-    const p = resolve(root, r.path);
+    const p = refPath(root, r);
     if (!existsSync(p)) return `목업: ${r.path} (체크아웃 없음 — clone 필요)`;
     const base = join(p, 'screens'); const st = { confirmed: 0, ready: 0, draft: 0, reopened: 0 };
     if (existsSync(base)) for (const m of readdirSync(base, { withFileTypes: true })) { if (!m.isDirectory() || m.name.startsWith('_')) continue; for (const s of readdirSync(join(base, m.name))) { const v = yamlScalar(rd(join(base, m.name, s, 'rev.yaml')), 'visual_status'); if (v in st) st[v]++; } }

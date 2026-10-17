@@ -7,7 +7,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findReference } from './lib/refs.mjs';
+import { findReference, refPath } from './lib/refs.mjs';
 import { RECORD_DIRS, DOCS_DIRS, recordDir } from './lib/records.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -177,7 +177,7 @@ if (IS_MAIN && !process.argv.includes('--self-test')) {
   if (opt('--ref')) {
     const ref = findReference(existsSync(join(DEFAULT_ROOT, 'harness.yaml')) ? readFileSync(join(DEFAULT_ROOT, 'harness.yaml'), 'utf8') : '', opt('--ref'));
     if (!ref) { console.error(`harness.yaml references에 role: ${opt('--ref')} 항목이 없다`); process.exit(2); }
-    target = resolve(DEFAULT_ROOT, ref.path);
+    target = refPath(DEFAULT_ROOT, ref);
   }
   let r;
   try { r = create(DEFAULT_ROOT, kind, slug, title, { agent, profile: opt('--profile'), target }); } catch (e) { console.error(e.message); process.exit(2); }

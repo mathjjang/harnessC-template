@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { RECORD_DIRS, recordDir } from './lib/records.mjs';
-import { findReference } from './lib/refs.mjs';
+import { findReference, refPath } from './lib/refs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -81,7 +81,7 @@ export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {})
   if (!existsSync(dir)) throw new Error(`FDR이 없다: ${posix(relative(root, dir))} — 먼저 node .harness/scripts/new-doc.mjs fdr`);
   const ref = findReference(rd(join(root, 'harness.yaml')), 'mockup');
   let src = resolve(root, srcDir);
-  if (!existsSync(src) && ref) src = resolve(root, ref.path, 'screens', srcDir);
+  if (!existsSync(src) && ref) src = join(refPath(root, ref), 'screens', srcDir);
   if (!existsSync(src) || !readdirSync(src).some((f) => f.endsWith('.html'))) throw new Error(`목업 폴더에 .html이 없다: ${srcDir}${ref ? ` (references role: mockup → ${ref.path}/screens/${srcDir} 도 없음)` : ' (harness.yaml references에 role: mockup 저장소를 등록하면 <모듈>/<화면>으로 지정할 수 있다)'}`);
   const srcRev = readSourceRev(src);
   const htmls = readdirSync(src).filter((f) => f.endsWith('.html')).sort();
