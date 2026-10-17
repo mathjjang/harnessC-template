@@ -129,7 +129,14 @@ export function markShipped(wt, id) {
   const paths = [rel];
   const bi = join(wt, '.harness', 'scripts', 'build-index.mjs');   // 상태가 인덱스에 찍힌다 — 같이 갱신하지 않으면 pre-commit(build-index --check)이 거부한다
   if (existsSync(bi)) { execSync(`"${process.execPath}" "${bi}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of ['docs/INDEX.generated.md', 'docs/specs/index.md', 'docs/queue/INDEX.generated.md']) if (existsSync(join(wt, g2))) paths.push(g2); }
-  git(wt, `add -- ${paths.map((p) => `"${p}"`).join(' ')}`); git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- ${paths.map((p) => `"${p}"`).join(' ')}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true });
+  const q = paths.map((p) => `"${p}"`).join(' ');
+  git(wt, `add -- ${q}`);
+  try { git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- ${q}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true }); }
+  catch (e) {   // shipped의 조건(예: 목업 대조 기록 — lint ⑯)을 못 채웠다 — 되돌리고 무엇이 막았는지 그대로
+    try { git(wt, `reset -q -- ${q}`); git(wt, `checkout -- ${q}`); } catch { /* */ }
+    const why = `${e.stdout || ''}${e.stderr || ''}`.split('\n').filter((l) => /위반|- |거부|낡은/.test(l)).slice(0, 6).join('\n  ');
+    throw new Error(`${id}를 shipped로 올릴 수 없다 — 병합 전에 채울 것:\n  ${why || e.message}\n(목업이 있는 FDR은 worktree에서 mockup-diff.mjs run → 기록 커밋 → finish)`);
+  }
   return true;
 }
 
