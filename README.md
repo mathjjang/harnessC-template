@@ -12,8 +12,9 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대
 ```bash
 # 1. 템플릿에서 저장소 생성 — GitHub "Use this template" 또는
 gh repo create <owner>/<project> --template mathjjang/harnessC-template --private --clone && cd <project>
-# 2. 티어를 정해 적용 (결정론 복사 · {{VAR}} 치환 · 코어 해시 manifest) — --prune 으로 템플릿 전용 파일 제거
-node init.mjs --name my-project --tier M --prune
+# 2. 질문으로 설정 — 동시 구현자·화면과 목업 담당·기간·규모·외부 조직·사인오프·공개 여부 → 티어·병합·게이트 + 근거 ADR
+node init.mjs --interactive --prune          # 에이전트는 런북 .harness/runbooks/init.md(/harness-init)대로 물어 --answers <json>
+#    (질문 없이: node init.mjs --name my-project --tier M --prune)
 git config core.hooksPath .harness/scripts/git-hooks
 # 3. rules/product.md(제품 불변)와 docs/requirements/ 채우기. 도메인 규칙이 필요하면 rules/domain/<이름>.md (예시: HarnessC 저장소 docs/research/methodology/domain-rules/)
 # 4. 첫 기록은 생성기로
@@ -60,6 +61,7 @@ src/ tests/    코드                                                           
 
 | 동작 | 상태 |
 |---|---|
+| 질문으로 프로젝트 설정(티어·병합·게이트 판정 · 근거 주석 · ADR project-setup · 재설정) | `init.mjs --interactive` · `setup.mjs` active |
 | 티어 적용, {{VAR}} 치환, 코어 해시 manifest · 템플릿 갱신 내려받기 | `init.mjs` · `sync-core.mjs` active |
 | 날짜형 ID 생성(충돌 시 -2), 귀속 머리, FDR manifest·세션 로그·evidence, 핸드오프 응답 채번 | `new-doc.mjs` active |
 | 세션 시작 카드, 세션 로그 경고, 모바일 모드 자동 전환 | 훅 active |

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // init.mjs — 하네스C 템플릿을 새 프로젝트에 적용한다 (결정론 복사 · {{VAR}} 치환 · 코어 해시 매니페스트).
 //
-// 사용:  node init.mjs --name <프로젝트명> [--tier S|M|L] [--dry-run] [--prune]
+// 사용:  node init.mjs --interactive [--prune] [--remote]                질문으로 정한다(권장) — 사람이 터미널에서
+//        node init.mjs --answers <answers.json> [--prune] [--remote]     질문으로 정한다 — 에이전트가 자기 런타임의 질문 도구로 물은 답을 파일로
+//        node init.mjs --name <프로젝트명> [--tier S|M|L] [--dry-run] [--prune]   티어를 직접(질문 없이)
 //        node init.mjs --self-test
+//        질문 모드는 답에서 티어를 판정해 적용한 뒤 .harness/scripts/setup.mjs가 harness.yaml 근거 주석·setup 블록·첫 ADR(project-setup)·후속 동작을 맡는다
 // 동작:  ① .harness/tiers/<T>/ 오버레이를 루트에 복사(오버레이는 덮어쓴다 — 저작된 변형이므로)
 //        ② 루트 텍스트 파일의 {{PROJECT_NAME}} {{DATE}} {{TIER}} 치환 (템플릿 원본인 .harness/templates/·tiers/는 제외)
 //        ③ harness.yaml의 tier·project 갱신
@@ -12,7 +15,7 @@
 // 원칙:  의존성 0 · 루트 밖 쓰기 금지 · 비파괴(오버레이 외 기존 파일 보존) · 같은 입력 → 같은 출력.
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hashCore } from './.harness/scripts/lib/core-files.mjs';
 import { DOCS_DIRS } from './.harness/scripts/lib/records.mjs';
 
@@ -29,6 +32,11 @@ function parseArgs(argv) {
     else if (k === '--dry-run') a.dryRun = true;
     else if (k === '--prune') a.prune = true;
     else if (k === '--self-test') a.selfTest = true;
+    else if (k === '--interactive') a.interactive = true;
+    else if (k === '--answers') a.answers = argv[++i];
+    else if (k === '--remote') a.remote = true;
+    else if (k === '--no-actions') a.noActions = true;
+    else if (k === '--agent') a.agent = argv[++i];
   }
   return a;
 }
@@ -90,7 +98,7 @@ export function run(opts, root = ROOT) {
   return { dryRun: false, vars, log, manifest };
 }
 
-function selfTest() {
+async function selfTest() {
   const tmp = join(ROOT, '.init-selftest');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp);
@@ -108,17 +116,44 @@ function selfTest() {
     const docsTop = readdirSync(join(tmp, 'docs')).filter((n) => !n.includes('.')).sort().join(',');
     if (docsTop !== [...DOCS_DIRS].sort().join(',')) fails.push(`docs/ 폴더 고정 위반: ${docsTop}`);
     try { run({ name: 'x', tier: 'Q', dryRun: true }, tmp); fails.push('잘못된 tier 통과'); } catch { /* 기대: 거부 */ }
+    // 질문 모드 — 답 파일로 init: 답에서 티어 판정(동시 3 → M · pr) · 근거 주석 · 첫 ADR · prune
+    const tmp2 = join(ROOT, '.init-selftest-q'); rmSync(tmp2, { recursive: true, force: true }); mkdirSync(tmp2);
+    for (const name of readdirSync(ROOT)) if (!['.git', 'node_modules', '.init-selftest', '.init-selftest-q', '.scratch', 'mockup-template'].includes(name)) cpSync(join(ROOT, name), join(tmp2, name), { recursive: true });
+    writeFileSync(join(tmp2, '.scratch-answers.json'), JSON.stringify({ name: 'qa-proj', concurrent: 3, ui: 'none', duration_months: 4 }));
+    try {
+      const { execSync } = await import('node:child_process');
+      execSync(`"${process.execPath}" init.mjs --answers .scratch-answers.json --prune --no-actions --agent init-selftest`, { cwd: tmp2, stdio: 'ignore' });
+      const y = readFileSync(join(tmp2, 'harness.yaml'), 'utf8');
+      if (!/^tier: M\s+# 근거:/m.test(y) || !/^  merge: pr\s+# 근거: Q2/m.test(y) || !/^project: "qa-proj"$/m.test(y)) fails.push('질문 모드 harness.yaml');
+      if (!readdirSync(join(tmp2, 'docs', 'decisions')).some((f) => /^ADR-\d{6}-project-setup\.md$/.test(f))) fails.push('질문 모드 ADR');
+      if (existsSync(join(tmp2, 'init.mjs'))) fails.push('질문 모드 prune');
+    } catch (e) { fails.push('질문 모드 실행: ' + e.message.split('\n')[0]); }
+    rmSync(tmp2, { recursive: true, force: true });
   } catch (e) { fails.push(`예외: ${e.message}`); }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? `self-test FAIL: ${fails.join(' · ')}` : 'self-test OK (적용·치환·템플릿 원본 보존·core 해시·prune·docs 고정·거부)');
+  console.log(fails.length ? `self-test FAIL: ${fails.join(' · ')}` : 'self-test OK (적용·치환·템플릿 원본 보존·core 해시·prune·docs 고정·거부 · 질문 모드(답→티어·근거·ADR))');
   process.exit(fails.length ? 1 : 0);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const opts = parseArgs(process.argv.slice(2));
-  if (opts.selfTest) selfTest();
+  if (opts.selfTest) await selfTest();
+  else if (opts.interactive || opts.answers) {
+    // 질문 모드 — 답 → 티어 판정 → 템플릿 적용 → setup.mjs(설정·근거·ADR·후속 동작)
+    const S = await import(pathToFileURL(join(ROOT, '.harness', 'scripts', 'setup.mjs')).href);
+    const raw = opts.answers ? JSON.parse(readFileSync(resolve(opts.answers), 'utf8')) : await S.ask(opts.name ? { name: opts.name } : {});
+    const { answers, problems } = S.normalize(raw);
+    if (problems.length) { console.error('답이 올바르지 않다:\n- ' + problems.join('\n- ')); process.exit(2); }
+    const d = S.derive(answers);
+    const r = run({ name: answers.name, tier: d.tier, prune: opts.prune, dryRun: false });
+    const s = await S.setup(ROOT, raw, { agent: opts.agent || process.env.HARNESS_AGENT || '(모델 미확인)', remote: opts.remote, actions: !opts.noActions });
+    console.log(`적용 완료 — ${answers.name} · tier ${d.tier}(FDR ${d.profile}) · merge ${d.merge} · 필수 승인 ${d.reviews} · gate ${d.gate_mode} · 규칙 상한 ${d.always_on_kb}KB · 코어 ${Object.keys(r.manifest.core).length}파일 해시`);
+    for (const w of d.warnings) console.log(`주의: ${w}`);
+    for (const x of d.actions) console.log(`후속: ${x.why} — ${x.done || (x.remote ? `사람이: ${x.cmd} (또는 --remote)` : x.cmd)}`);
+    console.log(`기록: ${s.adr.id} · harness.yaml 「# 근거」·setup 블록 · 조건이 바뀌면 node .harness/scripts/setup.mjs --interactive --reconfigure`);
+  }
   else {
-    if (!opts.name) { console.error('사용: node init.mjs --name <프로젝트명> [--tier S|M|L] [--dry-run] [--prune]'); process.exit(2); }
+    if (!opts.name) { console.error('사용: node init.mjs --interactive [--prune] | --answers <answers.json> [--prune] | --name <프로젝트명> [--tier S|M|L] [--dry-run] [--prune]'); process.exit(2); }
     const r = run(opts);
     if (r.dryRun) { console.log(`[dry-run] tier=${opts.tier}`); for (const l of r.plan) console.log('  ' + l); }
     else { const c = r.log.reduce((m, l) => ((m[l.status] = (m[l.status] || 0) + 1), m), {}); console.log(`적용 완료 tier=${opts.tier} · ${Object.entries(c).map(([k, v]) => `${k} ${v}`).join(' · ')} · 코어 ${Object.keys(r.manifest.core).length}파일 해시 → .harness/init-manifest.json`); }
