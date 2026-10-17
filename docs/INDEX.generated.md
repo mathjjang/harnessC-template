@@ -1,13 +1,14 @@
 <!-- 생성물: node .harness/scripts/build-index.mjs · 2026-10-17 · 손으로 편집하지 않는다 -->
 # 기록 카탈로그
 
-## ADR — 결정 (6)
+## ADR — 결정 (7)
 
 - [ADR-261016-enforcement-alignment](docs/decisions/ADR-261016-enforcement-alignment.md) — ADR-261016-enforcement-alignment: 하네스C 보장 범위 정렬 — 규칙 문구와 집행기 일치(RFC 재판정 P0) · Accepted
 - [ADR-261016-external-collab](docs/decisions/ADR-261016-external-collab.md) — ADR-261016-external-collab: 외부 조직과의 협업 저장소 — 형제 체크아웃·DEC/MTG·guard-reference · Accepted
 - [ADR-261016-layout-and-handoff](docs/decisions/ADR-261016-layout-and-handoff.md) — ADR-261016-layout-and-handoff: 폴더 재배치(rules·docs·.harness)와 에이전트 간 핸드오프(HO) · Superseded
 - [ADR-261017-core-only-and-fixed-folders](docs/decisions/ADR-261017-core-only-and-fixed-folders.md) — ADR-261017-core-only-and-fixed-folders: 템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만 — 고정 폴더·팩 폐 · Accepted
 - [ADR-261017-record-folders](docs/decisions/ADR-261017-record-folders.md) — ADR-261017-record-folders: 자주 여는 기록 넷(ADR·RFC·FDR·HO)을 docs/ 바로 아래 자기 폴더로 · Accepted
+- [ADR-261017-s-tier-budget](docs/decisions/ADR-261017-s-tier-budget.md) — ADR-261017-s-tier-budget: 티어 S 상시 규칙 상한 15KB → 18KB · Accepted
 - [ADR-261017-work-isolation](docs/decisions/ADR-261017-work-isolation.md) — ADR-261017-work-isolation: 동시 작업 — 기록 하나 = 브랜치 하나 = worktree 하나, spike는 RFC 브랜치 · Accepted
 
 ## RFC — 탐구 (2)

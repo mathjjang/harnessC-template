@@ -1,7 +1,7 @@
-# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.2.0)
+# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.2.1)
 # init.mjs가 읽고, .harness/scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
 
-harness: 0.2.0
+harness: 0.2.1
 project: "{{PROJECT_NAME}}"
 tier: L                      # S | M | L  — FDR 기본 프로파일·게이트 수·상시 규칙 상한
 gate_mode: strict            # fast | standard | strict (FDR별 오버라이드 가능)
@@ -15,7 +15,7 @@ requirements:
   path: docs/requirements
 
 budgets:
-  always_on_kb: 40           # 규칙 파일 합계 상한 (S 15 · M 25 · L 40)
+  always_on_kb: 40           # 규칙 파일 합계 상한 (S 18 · M 25 · L 40)
   core_kb: 10
 
 review:

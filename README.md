@@ -2,7 +2,7 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 코어 버전: **0.2.0** (기술 검토 단계 · 하네스B의 다음 세대)
+- 코어 버전: **0.2.1** (기술 검토 단계 · 하네스B의 다음 세대)
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
 - 근거와 진화 기록: [`docs/methodology/`](docs/methodology/) · 결정: [`docs/decisions/`](docs/decisions/) · 탐구: [`docs/research/`](docs/research/)
 
@@ -22,7 +22,7 @@ node .harness/scripts/sync-core.mjs --from ../harnessC-template
 
 | 티어 | 대상 | FDR 프로파일 | 상시 규칙 상한 |
 |---|---|---|---|
-| S | 1~2명 · ≤3개월 | lite (`fdr.md` 한 장 + evidence/) | 15KB |
+| S | 1~2명 · ≤3개월 | lite (`fdr.md` 한 장 + evidence/) | 18KB |
 | M (기본) | 2~5명 · 3~9개월 | standard (폴더 7단계) | 25KB |
 | L | 5명↑ · 다플랫폼 · 외부 팀 | full (9단계) · strict · 리뷰어 다른 모델 | 40KB |
 
