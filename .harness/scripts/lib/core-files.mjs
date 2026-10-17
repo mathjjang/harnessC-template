@@ -6,9 +6,9 @@ import { join, relative, sep } from 'node:path';
 
 export const CORE_PATHS = [
   '.harness/HARNESS.md', '.harness/README.md', '.harness/catalog.yaml', '.harness/runbooks', '.harness/scripts', '.harness/templates',
-  '.claude/settings.json', '.claude/hooks', '.claude/agents', '.claude/skills', '.claude/rules',
-  '.agents/skills', '.gemini/commands',
+  '.claude/settings.json', '.claude/hooks', '.claude/agents', '.claude/rules',
   'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
+  // .claude/skills · .agents/skills · .gemini/commands 는 코어가 아니다 — 런북(코어·프로젝트·embedded 목업)에서 harness-build가 만드는 생성물. 정본인 .harness/runbooks 가 해시된다
 ];
 export const CORE_EXCLUDE = /(^|\/)(init-manifest\.json|tiers\/|node_modules\/|\.gitkeep$)/;
 

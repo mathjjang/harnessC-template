@@ -4,6 +4,7 @@
 //   CORE_PATHS(lib/core-files.mjs)를 복사하고 {{PROJECT_NAME}}·{{TIER}}를 harness.yaml 값으로 치환한 뒤 .harness/init-manifest.json의 core 해시를 갱신한다.
 //   프로젝트 고유 파일(rules/ · docs/ · harness.yaml · README.md)은 건드리지 않는다. --self-test: 임시 모형에서 복사·치환·해시 갱신 확인.
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CORE_PATHS, hashCore, sha } from './lib/core-files.mjs';
@@ -35,6 +36,9 @@ export function sync(root, from, { dryRun = false } = {}) {
     const m = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : { schema: 'harnessC.init-manifest', version: 2 };
     m.core = after; m.coreVersion = yamlScalar(readFileSync(join(from, 'harness.yaml'), 'utf8'), 'harness'); m.syncedAt = new Date().toISOString().slice(0, 10);
     writeFileSync(mp, JSON.stringify(m, null, 2) + '\n');
+    // 런타임 입구(.claude/skills 등)는 코어가 아니라 생성물 — 내려받은 런북으로 다시 만든다
+    const hb = join(root, '.harness', 'scripts', 'harness-build.mjs');
+    if (existsSync(hb)) { try { execSync(`"${process.execPath}" "${hb}"`, { cwd: root, stdio: 'ignore' }); } catch { /* pre-commit --check가 알린다 */ } }
   }
   return { changed, vars };
 }
