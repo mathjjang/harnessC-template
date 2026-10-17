@@ -16,18 +16,19 @@ args: "<FDR-ID> [--state <이름>] | promote <FDR-ID> <목업 폴더> | --all"
 
 ## 0. 전제
 
-- 확정 목업 = 사람이 확정한 상태별 HTML(+CSS·자산) 폴더. 확정 절차·개정은 프로젝트 몫(`rules/domain/`에 적는다). 코어는 "확정된 폴더가 있다"에서 시작한다.
+- 확정 목업 = **목업 저장소**(harnessC-mockup-template 뼈대)에서 사람이 `confirm`한 화면 폴더(`screens/<모듈>/<화면>/` — 상태별 HTML + policy.md + rev.yaml). 확정 절차·개정(rev+1)은 그 저장소의 런북 `design-mockup.md`. 코어는 confirmed 화면만 받는다.
+- 목업 저장소의 자리는 둘 중 하나 — `node .harness/scripts/mockup-diff.mjs init separate`(별도 GitHub 저장소를 형제 폴더에 — 기획·디자인이 다른 사람·조직일 때, 기본) / `init embedded`(개발 저장소 안 `mockups/` — 혼자 개발할 때). 둘 다 `harness.yaml references role: mockup`에 등록되고 이후 절차는 같다. embedded는 기획 담당이 생기면 폴더째 새 저장소로 옮기고 path만 바꾼다.
 - 목업 데이터는 결정적이어야 한다(오늘 날짜·상대 시각·랜덤값 금지). 목업의 예시 데이터가 곧 시드 명세다 — 구현 화면에 같은 데이터를 **실경로로** 넣는다. 목업 데이터를 주입하는 테스트 모드는 금지(실경로가 아닌 렌더를 검증하게 된다).
 - `harness.yaml mockup:` — `origin_env`(구현 오리진을 담은 환경변수 이름 · 값은 적지 않는다) · `viewport` · `threshold`(기본 0.01%) · `wait` · `login`(캡처 전 로그인 모듈, 프로젝트 소유).
 
 ## 1. 승격 — 코드보다 먼저 (순서 불변)
 
 ```bash
-node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <확정 목업 폴더> --by "<에이전트(모델)>"
+node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <모듈>/<화면> --by "<에이전트(모델)>"     # 목업 저장소의 confirmed 화면 · 폴더 경로도 가능
 ```
 
-- `docs/features/<FDR-ID>/mockup/`에 사본 + `rev.yaml`(rev·날짜·원본 경로·상태 파일별 sha256). 재확정이면 다시 promote → rev+1. **사본은 고치지 않는다** — 고칠 곳은 원본이고 재승격이 먼저다.
-- 승격 직후 사본 1장을 브라우저로 열어 스타일이 입혀지는지 본다. 무스타일이면 승격 실패다 — 경로를 고치지 말고 자산을 참조가 열리는 자리에 둔다.
+- `docs/features/<FDR-ID>/mockup/<화면>/`에 사본, 공용 자산은 FDR 루트 `_assets/`(html의 `../../_assets/` 참조가 그대로 열리는 자리), `mockup/rev.yaml`에 rev·원본 화면·원본 rev·확정자·상태 파일별 sha256. 원본이 confirmed가 아니거나 확정본 해시와 다르면(reopen 중·몰래 수정) 승격이 거부된다. 재확정(원본 rev+1)이면 다시 promote → 사본 rev+1. **사본은 고치지 않는다.**
+- 승격이 사본의 자산 참조를 검사한다 — 열리지 않으면(무스타일) 승격 자체가 실패한다. 그래도 사본 1장은 브라우저로 열어 본다.
 - 승격을 건너뛰면 게이트 전부가 "대상 아님"으로 침묵한다. 기존 구현이 있어도 출발점은 목업이다.
 
 ## 2. 시나리오 — `mockup/diff-scenarios.json`

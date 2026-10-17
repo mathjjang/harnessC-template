@@ -1,7 +1,7 @@
-# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.3.0)
+# harness.yaml — 프로젝트 설정 단일 파일 (하네스C 코어 v0.3.1)
 # init.mjs가 읽고, .harness/scripts/*가 읽는다. 티어를 바꾸면 문서를 고치지 않고 이 값을 바꾼다.
 
-harness: 0.3.0
+harness: 0.3.1
 project: "{{PROJECT_NAME}}"
 tier: L                      # S | M | L  — FDR 기본 프로파일·게이트 수·상시 규칙 상한
 gate_mode: strict            # fast | standard | strict (FDR별 오버라이드 가능)
@@ -23,6 +23,8 @@ review:
   model: opus                # 리뷰어는 구현자와 다른 모델 (L 기본)
 
 references: []               # 체크아웃 저장소 (submodule 아님). 훅 guard-reference가 쓰기를 판정한다 — 협업 저장소는 .harness/runbooks/collab.md
+#  - { path: ../<proj>-mockups, role: mockup, mode: read-only }                   # 목업 저장소 — 별도 GitHub 저장소(기획·디자인 분리). mockup-diff.mjs init separate
+#  - { path: mockups, role: mockup, mode: read-write, embedded: true }             # 목업을 개발 저장소 안에(혼자 개발). mockup-diff.mjs init embedded — 기획 담당이 생기면 폴더째 분리
 
 human_only: rules/human-only.yaml  # 사람만 할 수 있는 검증 등록부
 

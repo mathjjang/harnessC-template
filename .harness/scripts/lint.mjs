@@ -9,6 +9,7 @@
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
 //       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가
 //       ⑯ 확정 목업(mockup/)이 있는 FDR이 shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시가 맞는가 (mockup-diff.mjs checkMockup)
+//       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
 // --self-test: 위반 표본에서 각 검사가 실제로 잡히는지 확인.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -72,6 +73,7 @@ export function lint(root) {
   const git = (cmd) => execSync(`git ${cmd}`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   let isGit = false; try { git('rev-parse --show-toplevel'); isGit = true; } catch { /* git 밖 */ }
   if (isGit) for (const r of parseReferences(rd(join(root, 'harness.yaml')))) {
+    if (String(r.embedded) === 'true') continue;   // 개발 저장소 안에 두기로 한 참조(목업 embedded) — 추적이 정상
     const rel = relative(root, resolve(root, r.path));
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) continue;
     try { git(`check-ignore -q -- "${rel}"`); } catch { problems.push(`참조 저장소 ${r.path}가 .gitignore에 없다 — 중첩 체크아웃은 개발 저장소가 추적하면 안 된다`); }
@@ -129,6 +131,13 @@ export function lint(root) {
     const sa = stem(a), sb = stem(b);
     if (sa === sb || sa.startsWith(sb + '/') || sb.startsWith(sa + '/')) problems.push(`scope 겹침: ${liveFdrs[i].id}(${a}) ↔ ${liveFdrs[j].id}(${b}) — 같은 경로를 두 FDR이 동시에 고치지 않는다. 공유 변경은 별도 lite FDR로 먼저 병합`);
   }
+  // ⑰ embedded 목업 저장소(references role: mockup, embedded: true)의 자체 게이트를 대신 돈다 — 그 폴더의 scripts/validate.mjs
+  for (const r of parseReferences(rd(join(root, 'harness.yaml')))) {
+    if (r.role !== 'mockup' || String(r.embedded) !== 'true') continue;
+    const v = join(root, r.path, 'scripts', 'validate.mjs');
+    if (!existsSync(v)) { problems.push(`목업 게이트 없음: ${r.path}/scripts/validate.mjs — embedded 목업은 harnessC-mockup-template 뼈대여야 한다`); continue; }
+    try { execSync(`"${process.execPath}" "${v}"`, { cwd: join(root, r.path), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { problems.push(`목업 게이트(${r.path}) 위반: ${String(e.stdout || e.message).trim().split('\n').slice(0, 6).join(' | ')}`); }
+  }
   // ⑯ 목업 대조 완료 게이트 — mockup/이 있는 FDR만. 작업 중엔 형식(미커버·유령·전 상태 excluded), shipped·closed면 산출물까지
   for (const r of records.filter((r) => /^FDR-/.test(r.name) && statSync(r.path).isDirectory())) for (const p of checkMockup(root, r.path)) problems.push(`목업 대조 ${r.name}: ${p}`);
   // ⑮ 닫힌 기록에 브랜치·worktree가 남아 있으면 위반 — 수명은 work.mjs finish/gc가 닫는다
@@ -150,7 +159,9 @@ export function lint(root) {
 if (process.argv.includes('--self-test')) {
   const tmp = join(HERE, '..', '.lint-selftest'); rmSync(tmp, { recursive: true, force: true });
   for (const d of ['.harness', 'rules', 'docs/decisions', 'docs/features', 'docs/handoffs', 'docs/records', 'docs/queue', 'docs/specs/cap', 'docs/extra', 'rules/packs']) mkdirSync(join(tmp, d), { recursive: true });
-  writeFileSync(join(tmp, 'harness.yaml'), 'budgets:\n  always_on_kb: 1\n');
+  writeFileSync(join(tmp, 'harness.yaml'), 'budgets:\n  always_on_kb: 1\nreferences:\n  - { path: mockups, role: mockup, mode: read-write, embedded: true }\n');
+  // ⑰ 부정: embedded 목업 게이트가 실패(exit 1) — ⑧은 embedded를 건너뛴다(gitignore 요구 없음)
+  mkdirSync(join(tmp, 'mockups', 'scripts'), { recursive: true }); writeFileSync(join(tmp, 'mockups', 'scripts', 'validate.mjs'), 'console.log("목업 검사 위반 1건: m/x: 확정본과 다르다"); process.exit(1);\n');
   writeFileSync(join(tmp, '.harness', 'HARNESS.md'), '﻿규칙 본문. node .harness/scripts/ghost.mjs 를 돌린다.\n이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n' + 'x'.repeat(1500));
   writeFileSync(join(tmp, 'AGENTS.md'), '이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n');
   writeFileSync(join(tmp, '.harness', 'catalog.yaml'), 'tools:\n  - name: ghost.mjs\n    status: planned\n');
@@ -175,9 +186,9 @@ if (process.argv.includes('--self-test')) {
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다'];
+  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-c/.test(x));
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-c/.test(x) || /참조 저장소 mockups/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 3건 · 기록 자리 3곳)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }

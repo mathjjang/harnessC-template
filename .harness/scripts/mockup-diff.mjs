@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // mockup-diff.mjs — 확정 목업 ↔ 구현 화면 승인본 픽셀 대조 (.harness/HARNESS.md §6 · ADR-261017-mockup-diff). V2 ADR-0097 · backstop.mockup.config · record-mockup-diff의 코어 이식.
 //
-//   promote <FDR-ID> <목업 폴더> [--by "<에이전트>"]   확정 목업을 docs/features/<FDR>/mockup/ 으로 승격(사본 + rev.yaml 스탬프 — rev+1). 코드보다 먼저.
+//   promote <FDR-ID> <모듈>/<화면>|<폴더> [--by …]     확정 목업을 docs/features/<FDR>/mockup/<화면>/ 으로 승격(사본 + rev.yaml 스탬프 — rev+1 · 공용 자산은 FDR 루트 _assets/). 코드보다 먼저.
+//                                                    <모듈>/<화면>은 harness.yaml references role: mockup 저장소(harnessC-mockup-template)의 screens/ 아래 — confirmed만, 해시가 확정본과 같아야 한다.
 //   run     <FDR-ID>|--all [--state <이름>]          상태마다 목업(file://)을 기준본으로 다시 찍고 구현(<origin_env> + path)을 찍어 BackstopJS로 비교
 //                                                    → evidence/mockup-diff/rev<N>/results.json + 캡처(구현 전건 · 기준본·diff는 초과 건만)
 //   engine  [--install]                              엔진 위치 확인 · PC당 1회 설치(~/.harness/tools — 프로젝트마다 설치하지 않는다)
@@ -21,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { RECORD_DIRS, recordDir } from './lib/records.mjs';
+import { findReference } from './lib/refs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -56,23 +58,53 @@ const resultsPath = (dir, rev) => join(evidenceDir(dir, rev), 'results.json');
 function listFdrs(root) { const d = join(root, RECORD_DIRS.FDR); return existsSync(d) ? readdirSync(d).filter((n) => /^FDR-\d{6}-/.test(n) && statSync(join(d, n)).isDirectory()).map((n) => join(d, n)) : []; }
 
 // ---------- promote ----------
+/** 목업 저장소(harnessC-mockup-template)의 rev.yaml — visual_status·rev·confirmed_by·files. 없으면 null(일반 폴더) */
+function readSourceRev(src) {
+  const t = rd(join(src, 'rev.yaml')); if (!t) return null;
+  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];
+  return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), files };
+}
+/** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다(V2 2026-08-05) */
+function unresolvedAssets(htmlPath) {
+  const html = rd(htmlPath); const refs = new Set();
+  for (const m of html.matchAll(/<(?:link|script|img|source)\b[^>]*?\b(?:href|src)=["']([^"']+)["']/gi)) refs.add(m[1]);
+  for (const m of html.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gi)) refs.add(m[1]);
+  return [...refs].map((r) => r.split('#')[0].split('?')[0]).filter((r) => r && !/^(https?:|data:|\/\/|mailto:)/i.test(r) && !existsSync(resolve(dirname(htmlPath), r)));
+}
+/**
+ * 승격. 원본은 ① 경로 ② `<모듈>/<화면>` — harness.yaml references role: mockup 저장소의 screens/ 아래.
+ * 사본 자리: docs/features/<FDR>/mockup/<화면>/ (html이 `../../_assets/`로 참조하는 공용 자산은 FDR 루트 `_assets/`로 — 참조가 열리는 자리에 둔다).
+ * 원본에 rev.yaml이 있으면 confirmed만 받고, 파일 해시가 확정본과 같아야 한다(reopen 중인 목업 거부).
+ */
 export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {}) {
   const dir = fdrDirOf(root, fdrId);
   if (!existsSync(dir)) throw new Error(`FDR이 없다: ${posix(relative(root, dir))} — 먼저 node .harness/scripts/new-doc.mjs fdr`);
-  const src = resolve(root, srcDir);
-  if (!existsSync(src) || !readdirSync(src).some((f) => f.endsWith('.html'))) throw new Error(`목업 폴더에 .html이 없다: ${srcDir}`);
-  const dst = join(dir, 'mockup');
+  const ref = findReference(rd(join(root, 'harness.yaml')), 'mockup');
+  let src = resolve(root, srcDir);
+  if (!existsSync(src) && ref) src = resolve(root, ref.path, 'screens', srcDir);
+  if (!existsSync(src) || !readdirSync(src).some((f) => f.endsWith('.html'))) throw new Error(`목업 폴더에 .html이 없다: ${srcDir}${ref ? ` (references role: mockup → ${ref.path}/screens/${srcDir} 도 없음)` : ' (harness.yaml references에 role: mockup 저장소를 등록하면 <모듈>/<화면>으로 지정할 수 있다)'}`);
+  const srcRev = readSourceRev(src);
+  const htmls = readdirSync(src).filter((f) => f.endsWith('.html')).sort();
+  if (srcRev) {
+    if (srcRev.visual_status !== 'confirmed') throw new Error(`${srcDir}: visual_status가 ${srcRev.visual_status || '없음'} — confirmed 목업만 승격한다 (목업 저장소에서 confirm.mjs)`);
+    for (const f of htmls) if (sha(readFileSync(join(src, f))) !== srcRev.files[f]) throw new Error(`${srcDir}/${f}: 확정본(rev ${srcRev.rev}) 해시와 다르다 — 원본이 reopen 중이거나 몰래 고쳐졌다. 재확정 뒤 승격`);
+  }
+  const screen = basename(src); const dst = join(dir, 'mockup'); const dstScreen = join(dst, screen);
   const prev = readRev(dir); const rev = (prev ? prev.rev : 0) + 1;
   const keep = ['diff-scenarios.json', 'deviations.json'].filter((f) => existsSync(join(dst, f))).map((f) => [f, readFileSync(join(dst, f))]);
-  rmSync(dst, { recursive: true, force: true }); mkdirSync(dst, { recursive: true });
-  cpSync(src, dst, { recursive: true, filter: (s) => !/node_modules|\.git($|[\\/])/.test(s) });
+  rmSync(dst, { recursive: true, force: true }); mkdirSync(dstScreen, { recursive: true });
+  cpSync(src, dstScreen, { recursive: true, filter: (s) => !/node_modules|\.git($|[\\/])|rev\.yaml$/.test(s) });
+  const assets = join(src, '..', '..', '_assets');
+  if (existsSync(assets)) { rmSync(join(dir, '_assets'), { recursive: true, force: true }); cpSync(assets, join(dir, '_assets'), { recursive: true }); }
   for (const [f, b] of keep) writeFileSync(join(dst, f), b);
-  const files = readdirSync(dst).filter((f) => f.endsWith('.html')).sort();
-  const lines = ['# 확정 목업 승격 스탬프 — node .harness/scripts/mockup-diff.mjs promote 가 쓴다. 손 편집 금지. 목업을 고치려면 원본에서 고치고 다시 promote(rev+1).', `rev: ${rev}`, `promoted: ${today()}`, `source: ${posix(relative(root, src)) || '.'}`, `by: "${by}"`, 'files:'];
-  for (const f of files) lines.push(`  ${f}: ${sha(readFileSync(join(dst, f)))}`);
+  const files = htmls.map((f) => `${screen}/${f}`);
+  for (const f of files) { const miss = unresolvedAssets(join(dst, f)); if (miss.length) { rmSync(dst, { recursive: true, force: true }); throw new Error(`승격 실패 — ${f}의 자산 참조가 열리지 않는다(무스타일 기준본): ${miss.join(', ')}. 자산을 참조가 열리는 자리에 둔다`); } }
+  const lines = ['# 확정 목업 승격 스탬프 — node .harness/scripts/mockup-diff.mjs promote 가 쓴다. 손 편집 금지. 목업을 고치려면 원본에서 고치고 다시 promote(rev+1).', `rev: ${rev}`, `promoted: ${today()}`, `source: ${posix(relative(root, src)) || '.'}`, `by: "${by}"`];
+  if (srcRev) lines.push(`source_screen: ${srcRev.screen}`, `source_rev: ${srcRev.rev}`, `source_confirmed: ${srcRev.confirmed}`, `source_confirmed_by: "${srcRev.confirmed_by}"`);
+  lines.push('files:'); for (const f of files) lines.push(`  ${f}: ${sha(readFileSync(join(dst, f)))}`);
   writeFileSync(join(dst, 'rev.yaml'), lines.join('\n') + '\n');
   if (!existsSync(join(dst, 'diff-scenarios.json'))) writeFileSync(join(dst, 'diff-scenarios.json'), JSON.stringify([{ _comment: '상태 파일 전수를 적는다(rev.yaml files와 1:1). path는 구현 화면 경로(오리진 제외). 도달 불가는 excluded + 사유. 대조 범위는 selectors(화면이 소유한 영역).' }, ...files.map((f) => ({ state: f, path: '/' }))], null, 2) + '\n');
-  return { id: fdrId, rev, files, path: dst };
+  return { id: fdrId, rev, files, path: dst, source: srcRev ? { screen: srcRev.screen, rev: srcRev.rev, confirmed_by: srcRev.confirmed_by } : null };
 }
 
 // ---------- backstop 설정 생성 ----------
@@ -88,7 +120,7 @@ export function buildConfig(root, fdrId, { states = [], origin, cfg = mockupConf
     if (s.excluded) { excluded.push(s); continue; }
     if (!rev.files[s.state]) throw new Error(`${fdrId}: 유령 시나리오 ${s.state} — rev.yaml files에 없다`);
     scenarios.push({
-      label: `${fdrId}__${s.state.replace(/\.html$/, '')}`, state: s.state,
+      label: `${fdrId}__${s.state.replace(/\.html$/, '').replace(/\//g, '__')}`, state: s.state,
       referenceUrl: pathToFileURL(join(dir, 'mockup', s.state)).href,
       url: origin + (s.path || '/'),
       // 조작은 엔진 스크립트(lib/backstop-onReady.cjs)가 한다 — backstop playwright 엔진은 clickSelectors를 구현하지 않는다(V2 실측)
@@ -119,7 +151,7 @@ export function record(root, fdrId, { report, built, agent = '(모델 미확인)
   for (const s of built.excluded) { results.scenarios.push({ state: s.state, status: 'excluded', excluded: s.excluded }); results.summary.excluded++; }
   for (const s of built.config.scenarios) {
     const tests = (report.tests || []).filter((t) => t.pair && t.pair.label === s.label);
-    const base = s.state.replace(/\.html$/, '');
+    const base = s.state.replace(/\.html$/, '').replace(/\//g, '__');
     const entry = { state: s.state, stateSha256: revFiles[s.state], path: s.url.replace(/^[a-z]+:\/\/[^/]+/, ''), selectors: s.selectors, hide: s.hideSelectors, remove: s.removeSelectors, parts: [] };
     results.summary.run++;
     const fontFile = fontsDir ? join(fontsDir, `${s.label}.json`) : null; const fonts = fontFile && existsSync(fontFile) ? JSON.parse(rd(fontFile)) : null;
@@ -197,6 +229,45 @@ export async function run(root, fdrId, { states = [], agent = '(모델 미확인
   return results;
 }
 
+// ---------- init: 목업 저장소 자리 선택 ----------
+export const MOCKUP_TEMPLATE = 'https://github.com/mathjjang/harnessC-mockup-template';
+/** 템플릿 재료를 dst에 놓는다 — --from <로컬 경로>면 복사, 아니면 git clone(--depth 1) 후 .git 제거 */
+function fetchTemplate(dst, from) {
+  if (from) { const src = resolve(from); cpSync(src, dst, { recursive: true, filter: (s) => !/(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(relative(src, s)) }); return; }
+  execSync(`git clone --depth 1 -q "${MOCKUP_TEMPLATE}" "${dst}"`, { stdio: 'inherit' }); rmSync(join(dst, '.git'), { recursive: true, force: true });
+}
+/** harness.yaml references에 role: mockup 항목을 넣는다(이미 있으면 교체) */
+export function registerMockupRef(root, entry) {
+  const p = join(root, 'harness.yaml'); let hy = rd(p); if (!hy) throw new Error('harness.yaml이 없다 — 개발 저장소 루트에서 실행');
+  const line = `  - { path: ${entry.path}, role: mockup, mode: ${entry.mode}${entry.embedded ? ', embedded: true' : ''} }`;
+  hy = hy.split('\n').filter((l) => !/^\s*-\s*\{[^}]*role:\s*mockup\b/.test(l)).join('\n');
+  if (/^references:\s*\[\]/m.test(hy)) hy = hy.replace(/^references:\s*\[\][^\n]*/m, (m) => m.replace(/\[\][ \t]*/, '') + '\n' + line);
+  else if (/^references:/m.test(hy)) hy = hy.replace(/^(references:[^\n]*\n(?:[ \t]+-[^\n]*\n?)*)/m, (m) => m.replace(/\n?$/, '\n') + line + '\n');
+  else hy = hy.replace(/\n?$/, '\n') + `references:\n${line}\n`;
+  writeFileSync(p, hy); return line.trim();
+}
+/**
+ * separate: 별도 GitHub 저장소(기획·디자인 분리 — 기본). gh가 있으면 템플릿으로 생성·clone, 없으면 clone 후 origin 제거. 자리 ../<이름>-mockups, references read-only
+ * embedded: 개발 저장소 안 mockups/ (혼자 개발). 런타임 입구 폴더는 걷어낸다(개발 저장소의 harness-build가 mockups/runbooks에서 만든다). references read-write + embedded
+ */
+export function initMockup(root, mode, { name, from, gh = true, owner } = {}) {
+  if (!['separate', 'embedded'].includes(mode)) throw new Error('init separate|embedded — separate: 별도 GitHub 저장소(기획·디자인 분리, 기본) · embedded: 개발 저장소 안 mockups/(혼자 개발)');
+  name = name || yamlScalar(rd(join(root, 'harness.yaml')), 'project') || basename(root);
+  if (!name || /\{\{/.test(name)) throw new Error('--name <프로젝트> 필요 (harness.yaml project가 비어 있다)');
+  const rel = mode === 'embedded' ? 'mockups' : `../${name}-mockups`; const dst = resolve(root, rel);
+  if (existsSync(dst)) throw new Error(`이미 있다: ${rel}`);
+  let created = 'copy';
+  if (mode === 'separate' && !from && gh) {
+    try { execSync('gh auth status', { stdio: 'ignore' }); const repo = `${owner || execSync('gh api user -q .login', { encoding: 'utf8' }).trim()}/${name}-mockups`; execSync(`gh repo create ${repo} --template mathjjang/harnessC-mockup-template --private --clone`, { cwd: dirname(dst), stdio: 'inherit' }); created = `gh:${repo}`; } catch { /* gh 없음·실패 → clone 경로 */ }
+  }
+  if (!existsSync(dst)) { mkdirSync(dirname(dst), { recursive: true }); fetchTemplate(dst, from); if (mode === 'separate') { execSync('git init -q -b main', { cwd: dst }); created = 'clone(원격 없음 — GitHub에 비공개 저장소를 만들어 push)'; } }
+  if (existsSync(join(dst, 'init.mjs'))) execSync(`"${process.execPath}" init.mjs --name "${name}"`, { cwd: dst, stdio: 'ignore' });
+  if (mode === 'embedded') { for (const d of ['.claude', '.agents', '.gemini', 'CLAUDE.md', 'GEMINI.md', '.gitignore', '.gitattributes']) rmSync(join(dst, d), { recursive: true, force: true }); }
+  else execSync('git config core.hooksPath scripts/git-hooks', { cwd: dst, stdio: 'ignore' });
+  const ref = registerMockupRef(root, { path: rel, mode: mode === 'embedded' ? 'read-write' : 'read-only', embedded: mode === 'embedded' });
+  return { mode, path: rel, created, ref };
+}
+
 // ---------- check (완료 게이트) ----------
 /** 반환 [] = 통과. FDR 폴더에 mockup/이 없으면 대상 아님 */
 export function checkMockup(root, dir) {
@@ -242,43 +313,75 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     try { promote(tmp, 'FDR-000000-none', 'src-mock'); fails.push('없는 FDR 통과'); } catch { /* 기대 */ }
     const p1 = promote(tmp, 'FDR-000000-m', 'src-mock', { by: 't' });
     const r1 = readRev(fdr); if (p1.rev !== 1 || !r1 || Object.keys(r1.files).length !== 2 || !existsSync(join(fdr, 'mockup', 'diff-scenarios.json'))) fails.push('promote rev1');
-    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: '01-default.html', path: '/list', clicks: ['#a'], selectors: ['.pane'], hide: ['.clock'] }, { state: '02-empty.html', excluded: '빈 계정 필요' }]));
+    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: 'src-mock/01-default.html', path: '/list', clicks: ['#a'], selectors: ['.pane'], hide: ['.clock'] }, { state: 'src-mock/02-empty.html', excluded: '빈 계정 필요' }]));
     const p2 = promote(tmp, 'FDR-000000-m', 'src-mock', { by: 't' }); if (p2.rev !== 2 || !/excluded/.test(rd(join(fdr, 'mockup', 'diff-scenarios.json')))) fails.push('promote rev2 · 시나리오 보존');
     if (checkMockup(tmp, fdr).length) fails.push('in-progress 형식 통과여야: ' + checkMockup(tmp, fdr).join(' | '));
+    // 목업 저장소 원본(rev.yaml) — draft 거부 · 변조 거부 · confirmed 통과 + source_* 스탬프 + _assets 복사 · 무스타일 거부
+    const mk = join(tmp, 'mockups'); mkdirSync(join(mk, 'screens', 'ds', 'list'), { recursive: true }); mkdirSync(join(mk, 'screens', '_assets'), { recursive: true });
+    writeFileSync(join(mk, 'screens', '_assets', 'tokens.css'), ':root{}'); writeFileSync(join(mk, 'screens', 'ds', 'list', '_screen.css'), '');
+    const h1 = '<html><head><link rel="stylesheet" href="../../_assets/tokens.css"><link rel="stylesheet" href="./_screen.css"></head><body>x</body></html>'; writeFileSync(join(mk, 'screens', 'ds', 'list', '01-default.html'), h1);
+    const revY = (st, h) => `screen: ds/list\nrev: 3\nvisual_status: ${st}\nconfirmed: 2026-01-02\nconfirmed_by: "cto"\nfiles:\n  01-default.html: ${h}\n`;
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revY('draft', sha(h1)));
+    writeFileSync(join(tmp, 'harness.yaml'), 'scratch:\n  dir: .scratch\nmockup:\n  origin_env: T_ORIGIN\n  viewport: 800x600\n  threshold: 0.5\nreferences:\n  - { path: mockups, role: mockup, mode: read-only }\n');
+    const fdr2 = join(tmp, RECORD_DIRS.FDR, 'FDR-000000-n'); mkdirSync(fdr2, { recursive: true }); writeFileSync(join(fdr2, 'fdr.md'), '---\nid: FDR-000000-n\nstatus: in-progress\n---\n- 작성: t\n');
+    try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('draft 원본 통과'); } catch (e) { if (!/confirmed 목업만/.test(e.message)) fails.push('draft 거부 사유: ' + e.message); }
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revY('confirmed', 'f'.repeat(64)));
+    try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('변조 원본 통과'); } catch (e) { if (!/해시와 다르다/.test(e.message)) fails.push('변조 거부 사유: ' + e.message); }
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revY('confirmed', sha(h1)));
+    const pn = promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); const rn = rd(join(fdr2, 'mockup', 'rev.yaml'));
+    if (pn.files[0] !== 'list/01-default.html' || !/source_rev: 3/.test(rn) || !/source_confirmed_by: "cto"/.test(rn) || !/source_screen: ds\/list/.test(rn) || !existsSync(join(fdr2, '_assets', 'tokens.css')) || !existsSync(join(fdr2, 'mockup', 'list', '_screen.css')) || existsSync(join(fdr2, 'mockup', 'list', 'rev.yaml'))) fails.push('참조 승격: ' + JSON.stringify(pn) + rn);
+    writeFileSync(join(mk, 'screens', 'ds', 'list', '01-default.html'), h1.replace('./_screen.css', './nope.css')); writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revY('confirmed', sha(rd(join(mk, 'screens', 'ds', 'list', '01-default.html')))));
+    try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('무스타일 통과'); } catch (e) { if (!/자산 참조가 열리지 않는다/.test(e.message)) fails.push('무스타일 거부 사유: ' + e.message); }
+    if (existsSync(join(fdr2, 'mockup'))) fails.push('실패한 승격의 잔해가 남음');
+    // init — 가짜 템플릿으로 embedded·separate(clone 경로) 둘 다, references 등록·교체
+    const tpl = join(tmp, 'tpl'); mkdirSync(join(tpl, 'scripts'), { recursive: true }); mkdirSync(join(tpl, '.claude'), { recursive: true }); mkdirSync(join(tpl, 'runbooks'), { recursive: true });
+    writeFileSync(join(tpl, 'mockup.yaml'), 'project: "{{PROJECT_NAME}}"\n'); writeFileSync(join(tpl, 'AGENTS.md'), '# {{PROJECT_NAME}}\n'); writeFileSync(join(tpl, 'CLAUDE.md'), 'x'); writeFileSync(join(tpl, 'scripts', 'validate.mjs'), 'process.exit(0)');
+    writeFileSync(join(tpl, 'init.mjs'), "import{readFileSync,writeFileSync,unlinkSync}from'node:fs';const n=process.argv[process.argv.indexOf('--name')+1];for(const f of['mockup.yaml','AGENTS.md'])writeFileSync(f,readFileSync(f,'utf8').replace(/\\{\\{PROJECT_NAME\\}\\}/g,n));unlinkSync('init.mjs');");
+    const devA = join(tmp, 'dev-a'); mkdirSync(devA, { recursive: true }); writeFileSync(join(devA, 'harness.yaml'), 'project: "alpha"\nreferences: []               # 설명\nmetrics:\n  enabled: true\n');
+    const e1 = initMockup(devA, 'embedded', { from: tpl });
+    const hyA = rd(join(devA, 'harness.yaml'));
+    if (e1.path !== 'mockups' || !existsSync(join(devA, 'mockups', 'scripts', 'validate.mjs')) || existsSync(join(devA, 'mockups', '.claude')) || existsSync(join(devA, 'mockups', 'init.mjs')) || !/project: "alpha"/.test(rd(join(devA, 'mockups', 'mockup.yaml'))) || !/^references:[^\n]*\n  - \{ path: mockups, role: mockup, mode: read-write, embedded: true \}\n/m.test(hyA) || !/^metrics:/m.test(hyA)) fails.push('init embedded: ' + JSON.stringify(e1) + '\n' + hyA);
+    try { initMockup(devA, 'embedded', { from: tpl }); fails.push('init 중복 통과'); } catch { /* 기대 */ }
+    try { initMockup(devA, 'nowhere', { from: tpl }); fails.push('잘못된 mode 통과'); } catch { /* 기대 */ }
+    const devB = join(tmp, 'dev-b'); mkdirSync(devB, { recursive: true }); writeFileSync(join(devB, 'harness.yaml'), 'project: "beta"\nreferences:\n  - { path: ../ro, mode: read-only }\n');
+    const e2 = initMockup(devB, 'separate', { from: tpl, gh: false });
+    const hyB = rd(join(devB, 'harness.yaml'));
+    if (e2.path !== '../beta-mockups' || !existsSync(join(tmp, 'beta-mockups', '.git')) || !existsSync(join(tmp, 'beta-mockups', 'CLAUDE.md')) || !/^  - \{ path: \.\.\/ro, mode: read-only \}\n  - \{ path: \.\.\/beta-mockups, role: mockup, mode: read-only \}\n/m.test(hyB)) fails.push('init separate: ' + JSON.stringify(e2) + '\n' + hyB);
+    registerMockupRef(devB, { path: 'mockups', mode: 'read-write', embedded: true }); if ((rd(join(devB, 'harness.yaml')).match(/role: mockup/g) || []).length !== 1) fails.push('references 교체');
     const cfg = mockupConfig(tmp); if (cfg.originEnv !== 'T_ORIGIN' || cfg.viewport.width !== 800 || cfg.threshold !== 0.5) fails.push('config');
     // 설정 생성
     const built = buildConfig(tmp, 'FDR-000000-m', { origin: 'http://x:1', cfg });
     const s0 = built.config.scenarios[0];
     if (built.config.scenarios.length !== 1 || built.excluded.length !== 1 || s0.url !== 'http://x:1/list' || !/^file:/.test(s0.referenceUrl) || s0.selectors[0] !== '.pane' || s0.hideSelectors[0] !== '.clock' || s0.harnessClicks[0] !== '#a' || s0.misMatchThreshold !== 0.5 || built.config.viewports[0].width !== 800 || !existsSync(join(built.config.paths.engine_scripts, 'backstop-onReady.cjs'))) fails.push('buildConfig');
-    if (buildConfig(tmp, 'FDR-000000-m', { origin: 'http://x:1', cfg, states: ['02-empty'] }).config.scenarios.length !== 0) fails.push('--state 필터');
+    if (buildConfig(tmp, 'FDR-000000-m', { origin: 'http://x:1', cfg, states: ['src-mock/02-empty'] }).config.scenarios.length !== 0) fails.push('--state 필터');
     // 기록기 — 가짜 backstop 리포트 + 캡처
     const jr = join(built.config.paths.json_report); mkdirSync(join(built.config.paths.bitmaps_test, 'r1'), { recursive: true }); mkdirSync(jr, { recursive: true }); mkdirSync(join(built.config.paths.bitmaps_reference), { recursive: true });
     const cap = Buffer.from('PNGFAKE-target'); writeFileSync(join(built.config.paths.bitmaps_test, 'r1', 't.png'), cap); writeFileSync(join(built.config.paths.bitmaps_reference, 'r.png'), 'PNGFAKE-ref'); writeFileSync(join(built.config.paths.bitmaps_test, 'r1', 'd.png'), 'PNGFAKE-diff');
     const report = (status, pct) => ({ tests: [{ status, pair: { label: s0.label, reference: '../reference/r.png', test: '../test/r1/t.png', diffImage: status === 'fail' ? '../test/r1/d.png' : undefined, diff: { isSameDimensions: true, rawMisMatchPercentage: pct, misMatchPercentage: String(pct) } } }] });
     const res1 = record(tmp, 'FDR-000000-m', { report: report('pass', 0.0031), built, agent: 't', cfg });
-    const e = res1.scenarios.find((x) => x.state === '01-default.html');
-    if (res1.summary.pass !== 1 || res1.summary.excluded !== 1 || !e || e.status !== 'pass' || e.mismatchPct !== 0.0031 || e.captures.target !== '01-default.target.png' || e.captureSha256.target !== sha(cap) || !existsSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', '01-default.target.png')) || e.stateSha256 !== readRev(fdr).files['01-default.html']) fails.push('record pass: ' + JSON.stringify(e));
+    const e = res1.scenarios.find((x) => x.state === 'src-mock/01-default.html');
+    if (res1.summary.pass !== 1 || res1.summary.excluded !== 1 || !e || e.status !== 'pass' || e.mismatchPct !== 0.0031 || e.captures.target !== 'src-mock__01-default.target.png' || e.captureSha256.target !== sha(cap) || !existsSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', 'src-mock__01-default.target.png')) || e.stateSha256 !== readRev(fdr).files['src-mock/01-default.html']) fails.push('record pass: ' + JSON.stringify(e));
     const res2 = record(tmp, 'FDR-000000-m', { report: report('fail', 3.2), built, agent: 't', cfg });
-    const f = res2.scenarios.find((x) => x.state === '01-default.html'); if (f.status !== 'fail' || !f.captures.ref || !f.captures.diff || !existsSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', '01-default.diff.png'))) fails.push('record fail: ' + JSON.stringify(f));
+    const f = res2.scenarios.find((x) => x.state === 'src-mock/01-default.html'); if (f.status !== 'fail' || !f.captures.ref || !f.captures.diff || !existsSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', 'src-mock__01-default.diff.png'))) fails.push('record fail: ' + JSON.stringify(f));
     const res3 = record(tmp, 'FDR-000000-m', { report: { tests: [] }, built, agent: 't', cfg }); if (res3.summary.error !== 1) fails.push('record error');
     // check — 완료 게이트
     writeFileSync(join(fdr, 'fdr.md'), '---\nid: FDR-000000-m\nstatus: shipped\n---\n- 작성: t\n');
     if (!checkMockup(tmp, fdr).some((x) => /대조 오류/.test(x))) fails.push('error 기록 미검출');
     record(tmp, 'FDR-000000-m', { report: report('pass', 0), built, agent: 't', cfg }); let pr = checkMockup(tmp, fdr); if (pr.length) fails.push('양성 오탐: ' + pr.join(' | '));
     record(tmp, 'FDR-000000-m', { report: report('fail', 3.2), built, agent: 't', cfg }); if (!checkMockup(tmp, fdr).some((x) => /임계 초과 미등재/.test(x))) fails.push('초과 미등재 미검출');
-    writeFileSync(join(fdr, 'mockup', 'deviations.json'), JSON.stringify([{ state: '01-default.html', reason: '승인된 차이', approved_by: 'cto', date: '2026-01-01' }])); if (checkMockup(tmp, fdr).length) fails.push('등재된 초과가 통과여야');
+    writeFileSync(join(fdr, 'mockup', 'deviations.json'), JSON.stringify([{ state: 'src-mock/01-default.html', reason: '승인된 차이', approved_by: 'cto', date: '2026-01-01' }])); if (checkMockup(tmp, fdr).length) fails.push('등재된 초과가 통과여야');
     rmSync(join(fdr, 'mockup', 'deviations.json'));
     record(tmp, 'FDR-000000-m', { report: report('pass', 0), built, agent: 't', cfg });
-    writeFileSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', '01-default.target.png'), 'tampered'); if (!checkMockup(tmp, fdr).some((x) => /캡처 해시 불일치/.test(x))) fails.push('캡처 위조 미검출');
+    writeFileSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', 'src-mock__01-default.target.png'), 'tampered'); if (!checkMockup(tmp, fdr).some((x) => /캡처 해시 불일치/.test(x))) fails.push('캡처 위조 미검출');
     rmSync(join(fdr, 'evidence', 'mockup-diff', 'rev2', 'results.json')); if (!checkMockup(tmp, fdr).some((x) => /대조 기록이 없다/.test(x))) fails.push('기록 없음 미검출');
     promote(tmp, 'FDR-000000-m', 'src-mock', { by: 't' }); record(tmp, 'FDR-000000-m', { report: report('pass', 0), built, agent: 't', cfg });   // built는 rev2 — rev3 스탬프와 어긋남
     if (!checkMockup(tmp, fdr).some((x) => /대조 기록이 없다|옛 목업/.test(x))) fails.push('옛 rev 미검출');
-    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: '01-default.html', excluded: 'x' }, { state: '02-empty.html', excluded: 'y' }])); if (!checkMockup(tmp, fdr).some((x) => /전 상태 excluded/.test(x))) fails.push('전 상태 excluded 미검출');
-    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: '01-default.html', path: '/' }, { state: '99-ghost.html', path: '/' }])); const pr3 = checkMockup(tmp, fdr); if (!pr3.some((x) => /미커버: 02-empty/.test(x)) || !pr3.some((x) => /유령 시나리오: 99-ghost/.test(x))) fails.push('미커버·유령 미검출');
+    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: 'src-mock/01-default.html', excluded: 'x' }, { state: 'src-mock/02-empty.html', excluded: 'y' }])); if (!checkMockup(tmp, fdr).some((x) => /전 상태 excluded/.test(x))) fails.push('전 상태 excluded 미검출');
+    writeFileSync(join(fdr, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: 'src-mock/01-default.html', path: '/' }, { state: 'src-mock/99-ghost.html', path: '/' }])); const pr3 = checkMockup(tmp, fdr); if (!pr3.some((x) => /미커버: src-mock\/02-empty/.test(x)) || !pr3.some((x) => /유령 시나리오: src-mock\/99-ghost/.test(x))) fails.push('미커버·유령 미검출');
   } catch (e) { fails.push('예외: ' + e.stack.split('\n').slice(0, 2).join(' ')); }
   rmSync(tmp, { recursive: true, force: true });
   const eng = loadBackstop(DEFAULT_ROOT);
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
   process.exit(fails.length ? 1 : 0);
 }
 
@@ -289,10 +392,11 @@ if (IS_MAIN && !process.argv.includes('--self-test')) {
   const agent = opt('--agent') || opt('--by') || process.env.HARNESS_AGENT || '(모델 미확인)';
   const targets = (id) => (id === '--all' || argv.includes('--all') ? listFdrs(DEFAULT_ROOT).filter((d) => existsSync(join(d, 'mockup'))).map((d) => basename(d)) : id ? [id] : []);
   try {
-    if (cmd === 'promote') { if (!a || !b) throw new Error('사용: promote <FDR-ID> <목업 폴더> [--by "<에이전트>"]'); const r = promote(DEFAULT_ROOT, a, b, { by: agent }); console.log(`${r.id} mockup rev ${r.rev} ← ${b} (${r.files.length}개 상태) → ${posix(relative(DEFAULT_ROOT, r.path))}\n다음: mockup/diff-scenarios.json에 상태별 path·조작·범위를 적는다. 도달 불가는 excluded + 사유`); }
+    if (cmd === 'promote') { if (!a || !b) throw new Error('사용: promote <FDR-ID> <모듈>/<화면>|<폴더> [--by "<에이전트>"]'); const r = promote(DEFAULT_ROOT, a, b, { by: agent }); console.log(`${r.id} mockup rev ${r.rev} ← ${b}${r.source ? ` (목업 저장소 ${r.source.screen} rev ${r.source.rev} · 확정 ${r.source.confirmed_by})` : ''} (${r.files.length}개 상태) → ${posix(relative(DEFAULT_ROOT, r.path))}\n다음: mockup/diff-scenarios.json에 상태별 path·조작·범위를 적는다. 도달 불가는 excluded + 사유`); }
     else if (cmd === 'run') { const ids = targets(a); if (!ids.length) throw new Error('사용: run <FDR-ID>|--all [--state <이름>]'); let bad = 0; for (const id of ids) { console.log(`${id} (rev ${readRev(fdrDirOf(DEFAULT_ROOT, id))?.rev ?? '?'})`); const r = await run(DEFAULT_ROOT, id, { states: argv.filter((x, i) => argv[i - 1] === '--state'), agent }); const s = r.summary; console.log(`  → 실행 ${s.run} · 통과 ${s.pass} · 초과 ${s.fail} · 오류 ${s.error} · 제외 ${s.excluded} · 기록 ${posix(relative(DEFAULT_ROOT, resultsPath(fdrDirOf(DEFAULT_ROOT, id), r.rev)))}`); bad += s.fail + s.error; } process.exit(bad ? 1 : 0); }
     else if (cmd === 'check') { const ids = a ? targets(a) : targets('--all'); let n = 0; for (const id of ids) { const p = checkMockup(DEFAULT_ROOT, fdrDirOf(DEFAULT_ROOT, id)); if (p.length) { n += p.length; console.log(`${id}:\n- ` + p.join('\n- ')); } } console.log(n ? `목업 대조 위반 ${n}건` : `목업 대조 OK (${ids.length}개 FDR)`); process.exit(n ? 1 : 0); }
+    else if (cmd === 'init') { const r = initMockup(DEFAULT_ROOT, a, { name: opt('--name'), from: opt('--from'), owner: opt('--owner'), gh: !argv.includes('--no-gh') }); console.log(`목업 저장소(${r.mode}) → ${r.path} (${r.created})\nharness.yaml references: ${r.ref}\n다음: ${r.mode === 'embedded' ? 'node .harness/scripts/harness-build.mjs (design-mockup 입구 생성) → ' : ''}node ${r.path}/scripts/new-screen.mjs <모듈> <화면> "<제목>"`); }
     else if (cmd === 'engine') { if (argv.includes('--install')) { const d = installEngine(); console.log(`설치 완료 → ${d} (PC 공용 · 프로젝트는 이 경로를 자동으로 찾는다)`); } const e = loadBackstop(DEFAULT_ROOT); console.log(e ? `backstopjs ${e.version} @ ${e.from} (${e.dir})` : `backstopjs 없음 — 찾은 곳: ${engineCandidates(DEFAULT_ROOT).map((c) => `${c.from}=${c.dir}`).join(' · ')}\n설치(PC당 1회): node .harness/scripts/mockup-diff.mjs engine --install`); process.exit(e ? 0 : 1); }
-    else { console.error('사용: node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <목업 폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]'); process.exit(2); }
+    else { console.error('사용: node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <모듈>/<화면>|<폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]'); process.exit(2); }
   } catch (e) { console.error(e.message); process.exit(1); }
 }

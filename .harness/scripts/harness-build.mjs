@@ -8,8 +8,11 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseReferences } from './lib/refs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+/** 런북 자리: 코어 · 프로젝트 · 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 runbooks/ */
+const runbookDirs = (root) => ['.harness/runbooks', 'rules/runbooks', ...parseReferences(rd(join(root, 'harness.yaml'))).filter((r) => r.role === 'mockup' && String(r.embedded) === 'true').map((r) => `${r.path.replace(/\/$/, '')}/runbooks`)];
 const MARK = '생성물: node .harness/scripts/harness-build.mjs';
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const fm = (t) => { const b = (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || ''; const o = {}; for (const m of b.matchAll(/^([a-z_]+):\s*(.*)$/gm)) o[m[1]] = m[2].trim().replace(/^"(.*)"$/, '$1'); return o; };
@@ -19,7 +22,7 @@ const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 /** entry가 있는 런북 목록 [{ name, file, summary, args, title }] */
 export function entries(root) {
   const out = [];
-  for (const dir of ['.harness/runbooks', 'rules/runbooks']) {
+  for (const dir of runbookDirs(root)) {
     const d = join(root, dir); if (!existsSync(d)) continue;
     for (const f of readdirSync(d).filter((n) => n.endsWith('.md')).sort()) {
       const t = rd(join(d, f)); const h = fm(t);
@@ -76,9 +79,13 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, '.harness', 'runbooks', 'noentry.md'), '---\nid: RB-n\ntrigger: t\n---\n# 입구 없음\n');
   writeFileSync(join(tmp, 'rules', 'runbooks', 'p.md'), '---\nid: RB-p\ntrigger: t\nentry: proj-p\nsummary: 프로젝트 런북\n---\n# P\n');
   mkdirSync(join(tmp, '.claude', 'skills', 'hand'), { recursive: true }); writeFileSync(join(tmp, '.claude', 'skills', 'hand', 'SKILL.md'), '---\nname: hand\n---\n손으로 쓴 스킬\n');
+  // embedded 목업 저장소의 런북도 입구가 생긴다
+  writeFileSync(join(tmp, 'harness.yaml'), 'references:\n  - { path: mockups, role: mockup, mode: read-write, embedded: true }\n');
+  mkdirSync(join(tmp, 'mockups', 'runbooks'), { recursive: true }); writeFileSync(join(tmp, 'mockups', 'runbooks', 'design-mockup.md'), '---\nid: RB-dm\ntrigger: t\nentry: design-mockup\nsummary: 목업 절차\n---\n# 목업\n');
   const fails = [];
   try {
-    const r1 = build(tmp); if (r1.entries !== 2 || r1.changed.length !== 6) fails.push(`생성 (${r1.entries} · ${r1.changed.length})`);
+    const r1 = build(tmp); if (r1.entries !== 3 || r1.changed.length !== 9) fails.push(`생성 (${r1.entries} · ${r1.changed.length})`);
+    if (!/mockups\/runbooks\/design-mockup\.md/.test(rd(join(tmp, '.claude', 'skills', 'design-mockup', 'SKILL.md')))) fails.push('embedded 목업 런북 입구');
     const sk = rd(join(tmp, '.claude', 'skills', 'do-a', 'SKILL.md')); if (!/name: do-a/.test(sk) || !/argument-hint: "<x>"/.test(sk) || !/\.harness\/runbooks\/a\.md/.test(sk) || !/\$ARGUMENTS/.test(sk)) fails.push('claude 스킬 내용');
     if (!existsSync(join(tmp, '.agents', 'skills', 'proj-p', 'SKILL.md'))) fails.push('agents 스킬');
     const tm = rd(join(tmp, '.gemini', 'commands', 'do-a.toml')); if (!/description = "A를 한다"/.test(tm) || !/\{\{args\}\}/.test(tm)) fails.push('gemini toml');

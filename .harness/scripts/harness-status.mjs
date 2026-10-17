@@ -52,6 +52,16 @@ function collabLines(root, hy) {
     return `협업: ${r.path} · 최근 회의 ${last || '없음'}${last && !confirmed ? '(회의록 미확인)' : ''} · 미답 질문 ${open} · 미합의 DEC ${proposed}`;
   });
 }
+function mockupLines(root, hy) {
+  return parseReferences(hy).filter((r) => r.role === 'mockup').map((r) => {
+    const p = resolve(root, r.path);
+    if (!existsSync(p)) return `목업: ${r.path} (체크아웃 없음 — clone 필요)`;
+    const base = join(p, 'screens'); const st = { confirmed: 0, ready: 0, draft: 0, reopened: 0 };
+    if (existsSync(base)) for (const m of readdirSync(base, { withFileTypes: true })) { if (!m.isDirectory() || m.name.startsWith('_')) continue; for (const s of readdirSync(join(base, m.name))) { const v = yamlScalar(rd(join(base, m.name, s, 'rev.yaml')), 'visual_status'); if (v in st) st[v]++; } }
+    const qa = join(p, 'qa'); const open = existsSync(qa) ? readdirSync(qa).filter((n) => /^QA-/.test(n) && /^state:\s*(open|reopened)/m.test(rd(join(qa, n, 'report.md')))).length : 0;
+    return `목업: ${r.path} · 확정 ${st.confirmed} · 확정 대기 ${st.ready} · 초안 ${st.draft}${st.reopened ? ` · 재개 ${st.reopened}` : ''}${open ? ` · QA 열림 ${open}` : ''}`;
+  });
+}
 function alwaysOnKb(root) {
   let bytes = 0;
   for (const f of ['.harness/HARNESS.md', 'rules/product.md', 'AGENTS.md', 'CLAUDE.md']) if (existsSync(join(root, f))) bytes += statSync(join(root, f)).size;
@@ -71,6 +81,7 @@ function card(root) {
   lines.push(fdrs.length ? `활성 FDR ${fdrs.length}: ` + fdrs.slice(0, 5).map((f) => `${f.id}(${f.status}${f.stage ? ' s' + f.stage : ''})${f.resume ? ' 재개점: ' + f.resume : ''}`).join(' · ') : '활성 FDR 없음');
   lines.push(queueLine(root));
   lines.push(...collabLines(root, hy));
+  lines.push(...mockupLines(root, hy));
   const wtDir = ((hy.match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
   const wts = existsSync(join(root, wtDir)) ? readdirSync(join(root, wtDir)).filter((n) => existsSync(join(root, wtDir, n, '.git'))) : [];
   if (wts.length) { const stale = wts.filter((n) => { const h = rd(join(root, recordDir(n), n, 'manifest.yaml')) || rd(join(root, recordDir(n), n, 'fdr.md')) || rd(join(root, recordDir(n), n, 'rfc.md')); return /^(closed|abandoned|concluded)$/i.test(yamlScalar(h, 'status') || (h.match(/^- 상태:\s*(\S+)/m) || [])[1] || ''); }); lines.push(`worktree ${wts.length}: ${wts.join(' · ')}${stale.length ? ` ⚠ 닫힌 기록 ${stale.length} → work.mjs gc --apply` : ''}`); }

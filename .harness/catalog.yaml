@@ -117,10 +117,10 @@ tools:
     rule: check-branch-record · check-clutter · lint · build-index --check
   - name: mockup-diff.mjs
     status: active
-    command: node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <목업 폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]
+    command: node .harness/scripts/mockup-diff.mjs init separate|embedded | promote <FDR-ID> <모듈>/<화면>|<폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]
     enforcement: gate
     self_test: node .harness/scripts/mockup-diff.mjs --self-test
-    rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 확정 목업 승격(rev 스탬프)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
+    rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 목업 저장소 자리 선택(init separate|embedded → references role: mockup) · confirmed 화면 승격(원본 rev.yaml 해시 검증 · 자산 참조 검사 · rev 스탬프)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
   - name: harness-build.mjs
     status: active
     command: node .harness/scripts/harness-build.mjs [--check]
