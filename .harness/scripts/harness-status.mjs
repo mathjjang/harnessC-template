@@ -71,6 +71,9 @@ function card(root) {
   lines.push(fdrs.length ? `활성 FDR ${fdrs.length}: ` + fdrs.slice(0, 5).map((f) => `${f.id}(${f.status}${f.stage ? ' s' + f.stage : ''})${f.resume ? ' 재개점: ' + f.resume : ''}`).join(' · ') : '활성 FDR 없음');
   lines.push(queueLine(root));
   lines.push(...collabLines(root, hy));
+  const wtDir = ((hy.match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
+  const wts = existsSync(join(root, wtDir)) ? readdirSync(join(root, wtDir)).filter((n) => existsSync(join(root, wtDir, n, '.git'))) : [];
+  if (wts.length) { const stale = wts.filter((n) => { const h = rd(join(root, REC, n, 'manifest.yaml')) || rd(join(root, REC, n, 'fdr.md')) || rd(join(root, REC, n, 'rfc.md')); return /^(closed|abandoned|concluded)$/i.test(yamlScalar(h, 'status') || (h.match(/^- 상태:\s*(\S+)/m) || [])[1] || ''); }); lines.push(`worktree ${wts.length}: ${wts.join(' · ')}${stale.length ? ` ⚠ 닫힌 기록 ${stale.length} → work.mjs gc --apply` : ''}`); }
   try { lines.push(execSync('node .harness/scripts/check-clutter.mjs --report', { cwd: root, encoding: 'utf8' }).trim()); } catch { lines.push('잡동사니: (check-clutter 없음)'); }
   lines.push(`새 ID <TYPE>-${today}-<slug> (node .harness/scripts/new-doc.mjs) · 기록 docs/records · 스펙 docs/specs/index.md · 규칙 .harness/HARNESS.md`);
   return lines.join('\n');
@@ -79,7 +82,7 @@ function card(root) {
 if (process.argv.includes('--self-test')) {
   const out = card(ROOT);
   const n = out.split('\n').length;
-  const ok = /harnessC/.test(out) && n >= 5 && n <= 7;
+  const ok = /harnessC/.test(out) && n >= 5 && n <= 8;
   console.log(ok ? `self-test OK (카드 ${n}줄)` : 'self-test FAIL\n' + out);
   process.exit(ok ? 0 : 1);
 }

@@ -48,8 +48,9 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 
 - `manifest.yaml`(lite는 `fdr.md` 머리말)이 상태 정본. 상태: `draft → in-progress → shipped → closed` (`abandoned` 사유 필수).
 - **shipped** = 구현이 main에 있고 사람 대기만 남음. **closed** = `01-spec` 델타가 `docs/specs/`에 병합됨. 병합 없이 closed 불가(lint ⑩).
-- `gate_mode: fast | standard | strict`. fast는 AC 출처가 승인된 REQ/FDR이고 새 정책 0건일 때만. 새 PG가 생기면 standard로.
+- `gate_mode: fast | standard | strict`. fast는 AC 출처가 승인된 REQ/FDR(또는 Concluded RFC)이고 새 정책 0건일 때만. 새 PG가 생기면 standard로.
 - `risk: low | medium | high`. 보안·스키마·공개 API·저장 형식·결제에 닿으면 high.
+- `scope: [glob]` — 이 FDR이 고치는 제품 경로. 커밋 게이트가 그 밖을 거부하고 lint ⑭가 활성 FDR 간 겹침을 알린다. 공유 변경은 별도 lite FDR로 먼저 병합.
 
 ## 5. 사람 게이트
 
@@ -96,6 +97,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 
 1 규칙은 파일이 정본 · 2 절차/산출물 분리 · 3 사람 2접점 · 4 통과는 원문 인용 · 5 규칙은 기계가 강제, 게이트는 self-test · 6 방법론은 REP로 자기 개정 · 7 사본에는 대조가 딸린다 · 8 **템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만** — 도메인·제품 규칙은 프로젝트 `rules/` · 9 코어는 도메인을 모른다 · 10 규칙 정본 하나, 하네스별 파일은 생성물 · 11 등재·증명은 생성기가 · 12 큐는 한 스키마 · 13 기록은 역사, 스펙은 현재 · 14 다른 조직이 쓰는 저장소는 분리(gitignore된 중첩 또는 형제 체크아웃 · 의존은 개발→협업 한 방향 · 합의는 DEC, 내부 결정은 ADR) · 15 폴더는 고정, 종류는 이름이 말한다.
 
-## 11. 핸드오프 (에이전트 간)
+## 11. 동시 작업 · 핸드오프
 
-다른 세션·다른 회사 에이전트와는 `docs/records/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪, 규칙을 바꾸는 결론은 ADR. 받는 쪽 규칙은 AGENTS.md, 절차는 `.harness/runbooks/handoff.md`.
+- **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`, 브랜치 `<type>/<ID>`. main에 제품 코드 직접 커밋 금지(게이트). `rfc/*`는 spike — 코드는 병합되지 않고 기록만 반입. 승격은 `promote`(squash 1커밋). S는 ff 병합, M·L은 PR. 잔존 브랜치·worktree는 lint ⑮. 절차 `.harness/runbooks/work.md`.
+- 다른 세션·다른 회사 에이전트와는 `docs/records/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.

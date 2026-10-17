@@ -44,6 +44,7 @@ src/ tests/    코드                                                           
 
 - **폴더는 늘지 않는다.** `docs/`는 넷으로 고정. 기록 종류(ADR·RFC·FDR·HO·MTG·INC·RETRO)는 `docs/records/`의 ID 접두가 말하고, 인덱스가 종류별로 모아 준다. 데이터 소스 조건·프롬프트 계약 같은 도메인 자료는 `docs/specs/<name>.md` **파일**이다.
 - **증거는 기록 옆.** `docs/records/<ID>/evidence/`. 완료보고서용 모아 보기는 `docs/INDEX.generated.md` 증거 절.
+- **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`(gitignore). main에 제품 코드 직접 커밋 금지. spike는 `rfc/*` 브랜치에서 바로 — 코드는 병합되지 않고 `promote`로 FDR에 재기반. `.harness/runbooks/work.md`.
 - 템플릿에만 있는 것: `init.mjs` · `.harness/tiers/` · `docs/methodology/` — `--prune`이 지운다.
 
 ## 지금 동작하는 것과 아직 아닌 것
@@ -53,7 +54,8 @@ src/ tests/    코드                                                           
 | 티어 적용, {{VAR}} 치환, 코어 해시 manifest · 템플릿 갱신 내려받기 | `init.mjs` · `sync-core.mjs` active |
 | 날짜형 ID 생성(충돌 시 -2), 귀속 머리, FDR manifest·세션 로그·evidence, 핸드오프 응답 채번 | `new-doc.mjs` active |
 | 세션 시작 카드, 세션 로그 경고, 모바일 모드 자동 전환 | 훅 active |
-| 린트 13종: BOM·도구 참조·예산·중복·귀속·생성물·카탈로그·중첩 참조·HR axis·closed FDR·HO 상태·코어 무결성·고정 폴더 | `lint.mjs` active |
+| 린트 15종: BOM·도구 참조·예산·중복·귀속·생성물·카탈로그·중첩 참조·HR axis·closed FDR·HO 상태·코어 무결성·고정 폴더·scope 겹침·잔존 브랜치 | `lint.mjs` active |
+| 동시 작업: 기록별 worktree·브랜치(`work.mjs`), main 제품 코드 직접 커밋 거부·FDR scope 게이트(`check-branch-record`), spike 승격(squash) | active |
 | 쓰기 전 거부: 임시 파일·새 폴더(guard-scratch) · 협업 저장소 경계(guard-reference) · 리뷰어/테스터 경로(guard-role-write) | 훅 active (Claude Code) |
 | 기록(종류별)·스펙·큐·증거 인덱스 생성 | `build-index.mjs` active |
 | RUN 원장, FDR close 스펙 병합, AGENTS/CLAUDE 생성(`harness build`), metrics | **planned** — `.harness/catalog.yaml` |

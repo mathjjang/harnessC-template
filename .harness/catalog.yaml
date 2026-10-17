@@ -36,7 +36,7 @@ tools:
     command: node .harness/scripts/lint.mjs
     enforcement: gate
     self_test: node .harness/scripts/lint.mjs --self-test
-    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR) §11(HO 상태) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
+    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR·scope 겹침) §11(HO 상태·잔존 브랜치) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
   - name: build-index.mjs
     status: active
     command: node .harness/scripts/build-index.mjs [--check]
@@ -79,6 +79,18 @@ tools:
     enforcement: none
     self_test: node .harness/scripts/lib/refs.mjs --self-test
     rule: harness.yaml references 파서 — new-doc·harness-status·guard-reference·lint 공유 (사유 — 판정은 호출자가 한다)
+  - name: work.mjs
+    status: active
+    command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | list | gc [--apply]
+    enforcement: generate
+    self_test: node .harness/scripts/work.mjs --self-test
+    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반
+  - name: check-branch-record.mjs
+    status: active
+    command: (pre-commit) node .harness/scripts/check-branch-record.mjs
+    enforcement: gate
+    self_test: node .harness/scripts/check-branch-record.mjs --self-test
+    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 선언 없음(브랜치 이름이 기록)
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]
@@ -90,7 +102,7 @@ tools:
     command: git config core.hooksPath .harness/scripts/git-hooks
     enforcement: gate
     self_test: (각 게이트의 self-test)
-    rule: check-clutter · lint · build-index --check
+    rule: check-branch-record · check-clutter · lint · build-index --check
   # planned (규칙 본문에서 참조 금지 — 도입 시 active로)
   - name: harness-run.mjs
     status: planned

@@ -7,6 +7,7 @@
 //       ⑪ 핸드오프(HO-)의 상태가 open|taken|answered|closed이고 closed면 result.md가 있는가
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
+//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
 // --self-test: 위반 표본에서 각 검사가 실제로 잡히는지 확인.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -115,6 +116,32 @@ export function lint(root) {
   if (existsSync(ddir)) for (const e of readdirSync(ddir, { withFileTypes: true })) if (e.isDirectory() && !DOCS_ALLOW.includes(e.name)) problems.push(`docs/${e.name}/ — docs/ 폴더는 ${DOCS_ALLOW.slice(0, 4).join('·')}뿐이다. 종류는 ID 접두로, 도메인 자료는 specs/ 파일로`);
   const rl = join(root, 'rules');
   if (existsSync(rl)) for (const n of readdirSync(rl)) if (!RULES_ALLOW.includes(n)) problems.push(`rules/${n} — rules/는 ${RULES_ALLOW.slice(0, 4).join('·')}뿐이다. 방법론은 .harness/`);
+  // ⑭ 활성 FDR끼리 scope 겹침 — 같은 제품 경로를 두 FDR이 동시에 고치면 덮어쓴다(V2 2026-07-30·08-18). 생성·린트 시점에 알린다
+  const liveFdrs = [];
+  for (const n of records.filter((n) => /^FDR-/.test(n) && statSync(join(rdir, n)).isDirectory())) {
+    const head = rd(join(rdir, n, 'manifest.yaml')) || frontmatter(rd(join(rdir, n, 'fdr.md')));
+    if (/^(closed|abandoned)$/.test(yamlScalar(head, 'status'))) continue;
+    const m = head.match(/^scope:\s*\[([^\]]*)\]/m);
+    liveFdrs.push({ id: n, scope: m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : [] });
+  }
+  const stem = (g) => g.replace(/\/?\*+.*$/, '').replace(/\/$/, '');
+  for (let i = 0; i < liveFdrs.length; i++) for (let j = i + 1; j < liveFdrs.length; j++) for (const a of liveFdrs[i].scope) for (const b of liveFdrs[j].scope) {
+    const sa = stem(a), sb = stem(b);
+    if (sa === sb || sa.startsWith(sb + '/') || sb.startsWith(sa + '/')) problems.push(`scope 겹침: ${liveFdrs[i].id}(${a}) ↔ ${liveFdrs[j].id}(${b}) — 같은 경로를 두 FDR이 동시에 고치지 않는다. 공유 변경은 별도 lite FDR로 먼저 병합`);
+  }
+  // ⑮ 닫힌 기록에 브랜치·worktree가 남아 있으면 위반 — 수명은 work.mjs finish/gc가 닫는다
+  if (isGit) {
+    const branches = new Set(git('branch --list "fdr/*" "rfc/*" "ho/*" "mtg/*" "plan/*" "inc/*" "retro/*"').split('\n').map((s) => s.replace(/^\*?\s*/, '')).filter(Boolean));
+    const wtDir = ((rd(join(root, 'harness.yaml')).match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
+    for (const n of records) {
+      const main = recordMain(rdir, n); const t = main ? rd(main) : '';
+      const st = yamlScalar(t, 'status') || mdStatus(t);
+      if (!/^(closed|abandoned|concluded)$/i.test(st)) continue;
+      const id = n.replace(/\.md$/, ''); const b = `${id.split('-')[0].toLowerCase()}/${id}`;
+      if (branches.has(b)) problems.push(`${id}는 ${st}인데 브랜치 ${b}가 남아 있다 — node .harness/scripts/work.mjs gc --apply`);
+      if (existsSync(join(root, wtDir, id))) problems.push(`${id}는 ${st}인데 worktree ${wtDir}/${id}가 남아 있다 — work.mjs finish 또는 gc --apply`);
+    }
+  }
   return problems;
 }
 
@@ -135,15 +162,17 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, 'docs', 'records', 'FDR-000000-std', 'manifest.yaml'), 'id: FDR-000000-std\nstatus: closed\ncapability: cap\n작성: t\n');
   writeFileSync(join(tmp, 'docs', 'records', 'FDR-000000-ok', 'manifest.yaml'), 'id: FDR-000000-ok\nstatus: closed\ncapability: cap\n작성: t\n');
   writeFileSync(join(tmp, 'docs', 'records', 'FDR-000000-ok', 'evidence', 'runs', 'unit.out'), 'exit 0\n');
+  // ⑭ 부정: 활성 FDR 둘의 scope가 겹침 / 양성: 서로소
+  for (const [id, sc] of [['FDR-000000-a', 'src/customs/**'], ['FDR-000000-b', 'src/customs/api/*'], ['FDR-000000-c', 'src/report/**']]) { mkdirSync(join(tmp, 'docs', 'records', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'records', id, 'fdr.md'), `---\nid: ${id}\nstatus: in-progress\nscope: [${sc}]\n---\n- 작성: t\n`); }
   writeFileSync(join(tmp, 'docs', 'specs', 'cap', 'spec.md'), '# cap\n병합: FDR-000000-std · FDR-000000-ok\n');
   // ⑪ 부정: 상태 오기 · closed인데 result 없음 / 양성: answered
   for (const [id, st] of [['HO-000000-bad', 'done'], ['HO-000000-noresult', 'closed'], ['HO-000000-ok', 'answered']]) { mkdirSync(join(tmp, 'docs', 'records', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'records', id, 'request.md'), `# ${id}\n\n- 상태: ${st}\n- 작성: test · 2026-01-01\n`); }
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs'];
+  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok'));
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || /scope 겹침.*FDR-000000-c/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 2건)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }

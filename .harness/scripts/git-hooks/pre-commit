@@ -2,7 +2,8 @@
 # 하네스C 코어 pre-commit — 활성화: git config core.hooksPath .harness/scripts/git-hooks  (1회)
 # 각 게이트는 --self-test를 가진다. 우회 플래그는 두지 않는다 — 막히면 갈 곳을 바꾸는 것이 시정이다.
 ROOT="$(git rev-parse --show-toplevel)"
-node "$ROOT/.harness/scripts/check-clutter.mjs" || exit 1          # 임시 파일 커밋 차단 (rules/HARNESS.md §8)
+node "$ROOT/.harness/scripts/check-branch-record.mjs" || exit 1    # 브랜치=기록 · main에 제품 코드 직접 커밋 금지 · FDR scope (HARNESS §4·§11)
+node "$ROOT/.harness/scripts/check-clutter.mjs" || exit 1          # 임시 파일 커밋 차단 (HARNESS §8)
 node "$ROOT/.harness/scripts/lint.mjs" || exit 1                   # BOM·도구 참조·예산·중복·귀속·생성물·스크립트 카탈로그·참조 저장소·사람 큐·closed FDR·핸드오프
 node "$ROOT/.harness/scripts/build-index.mjs" --check || {         # 생성물 신선도
   echo "[pre-commit] 생성 인덱스가 낡았다 — node .harness/scripts/build-index.mjs 후 다시 커밋"; exit 1; }

@@ -16,12 +16,11 @@
 3. "통과"는 근거를 확인한 뒤에만. 빌드는 로그가 아니라 산출물로 묻는다.
 4. 기록은 원인만. 과정 서사와 코드에 이미 있는 내용을 되풀이하지 않는다.
 
-## Git
+## Git — 기록 하나 = 브랜치 하나 = worktree 하나 (`.harness/runbooks/work.md`)
 
-- 작업은 worktree 또는 작업 브랜치에서. `main`은 안정화 브랜치. 새 브랜치·PR은 사용자 지시로만.
-- 커밋은 pathspec으로(`git commit -m "..." -- <경로>`). 인덱스 전체 커밋 금지.
-- 커밋 메시지는 원인·결과만. 트레일러 `Co-Authored-By:`는 실행 환경이 명시한 모델 표기로.
-- force-push·히스토리 재작성 금지. push 실패 시 pull 후 재시도 또는 보고.
+- 파일을 고치는 작업은 `node .harness/scripts/work.mjs start <ID>`가 연 `.worktrees/<ID>/`에서. `main`에 제품 코드를 직접 커밋하지 않는다(게이트). 브랜치는 직접 만들지 않는다.
+- 끝나면 `work.mjs finish <ID>` — rfc는 기록만 반입, fdr은 게이트 후 병합. 잔존 브랜치·worktree는 `gc`.
+- 커밋은 pathspec(`git commit -m "..." -- <경로>`), 메시지는 원인·결과만, `Co-Authored-By:`는 실행 환경의 모델. force-push·히스토리 재작성 금지. 검색은 `rg`(`.worktrees/`가 안 잡힌다).
 
 ## 파일
 

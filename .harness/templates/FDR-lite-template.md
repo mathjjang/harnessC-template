@@ -6,6 +6,8 @@ status: draft             # draft | in-progress | shipped | closed | abandoned
 gate_mode: standard       # fast | standard | strict
 risk: low                 # low | medium | high
 source_req: []            # REQ-… (confirmed만)
+source_rfc:               # spike에서 승격됐으면 RFC-… (work.mjs promote가 채움)
+scope: []                 # 이 FDR이 고치는 제품 경로 glob — 커밋 게이트가 이 밖을 거부, 활성 FDR끼리 겹치면 lint ⑭. 예: [src/customs/**, src/config/weights.yaml]
 capability:               # docs/specs/<capability> — close 시 §1 델타 병합 대상
 created: {{DATE}}
 updated: {{DATE}}

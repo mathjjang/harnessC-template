@@ -112,7 +112,9 @@ export function reply(root, hoId, { agent = '(모델 미확인)', result = false
   return { id: `${hoId}/${nn}-${who}`, path: out };
 }
 
-if (process.argv.includes('--self-test')) {
+// 라이브러리로 import될 때(work.mjs promote 등)는 CLI·self-test를 돌리지 않는다
+const IS_MAIN = Boolean(process.argv[1]) && /new-doc\.mjs$/.test(process.argv[1]);
+if (IS_MAIN && process.argv.includes('--self-test')) {
   const tmp = join(HERE, '..', '.newdoc-selftest');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(join(tmp, 'docs'), { recursive: true });
@@ -161,21 +163,23 @@ if (process.argv.includes('--self-test')) {
   process.exit(fails.length ? 1 : 0);
 }
 
-const argv = process.argv.slice(2);
-const [kind, slug, title] = argv;
-const opt = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
-const agent = opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)';
-if (kind === 'reply') {
-  try { const r = reply(DEFAULT_ROOT, slug, { agent, result: argv.includes('--result') }); console.log(`${r.id} → ${r.path}`); } catch (e) { console.error(e.message); process.exit(2); }
-  process.exit(0);
+if (IS_MAIN && !process.argv.includes('--self-test')) {
+  const argv = process.argv.slice(2);
+  const [kind, slug, title] = argv;
+  const opt = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
+  const agent = opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)';
+  if (kind === 'reply') {
+    try { const r = reply(DEFAULT_ROOT, slug, { agent, result: argv.includes('--result') }); console.log(`${r.id} → ${r.path}`); } catch (e) { console.error(e.message); process.exit(2); }
+    process.exit(0);
+  }
+  if (!kind || !slug || !title) { console.error(`사용: node .harness/scripts/new-doc.mjs <${Object.keys(KINDS).join('|')}> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--profile lite|standard|full] [--ref <role>|--root <경로>]\n     node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--result]`); process.exit(2); }
+  let target = opt('--root') ? resolve(DEFAULT_ROOT, opt('--root')) : undefined;
+  if (opt('--ref')) {
+    const ref = findReference(existsSync(join(DEFAULT_ROOT, 'harness.yaml')) ? readFileSync(join(DEFAULT_ROOT, 'harness.yaml'), 'utf8') : '', opt('--ref'));
+    if (!ref) { console.error(`harness.yaml references에 role: ${opt('--ref')} 항목이 없다`); process.exit(2); }
+    target = resolve(DEFAULT_ROOT, ref.path);
+  }
+  let r;
+  try { r = create(DEFAULT_ROOT, kind, slug, title, { agent, profile: opt('--profile'), target }); } catch (e) { console.error(e.message); process.exit(2); }
+  console.log(`${r.id} → ${r.path}${r.collided ? '  ⚠ 같은 날 같은 슬러그가 있어 -2 부여 (같은 일을 둘이 시작했는지 확인)' : ''}`);
 }
-if (!kind || !slug || !title) { console.error(`사용: node .harness/scripts/new-doc.mjs <${Object.keys(KINDS).join('|')}> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--profile lite|standard|full] [--ref <role>|--root <경로>]\n     node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--result]`); process.exit(2); }
-let target = opt('--root') ? resolve(DEFAULT_ROOT, opt('--root')) : undefined;
-if (opt('--ref')) {
-  const ref = findReference(existsSync(join(DEFAULT_ROOT, 'harness.yaml')) ? readFileSync(join(DEFAULT_ROOT, 'harness.yaml'), 'utf8') : '', opt('--ref'));
-  if (!ref) { console.error(`harness.yaml references에 role: ${opt('--ref')} 항목이 없다`); process.exit(2); }
-  target = resolve(DEFAULT_ROOT, ref.path);
-}
-let r;
-try { r = create(DEFAULT_ROOT, kind, slug, title, { agent, profile: opt('--profile'), target }); } catch (e) { console.error(e.message); process.exit(2); }
-console.log(`${r.id} → ${r.path}${r.collided ? '  ⚠ 같은 날 같은 슬러그가 있어 -2 부여 (같은 일을 둘이 시작했는지 확인)' : ''}`);

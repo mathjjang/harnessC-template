@@ -14,6 +14,8 @@ created: {{DATE}}
 updated: {{DATE}}
 
 source_req: []                # confirmed REQ만
+source_rfc: null              # spike에서 승격됐으면 RFC-… (work.mjs promote가 채움)
+scope: []                     # 이 FDR이 고치는 제품 경로 glob — 커밋 게이트가 이 밖을 거부, 활성 FDR끼리 겹치면 lint ⑭
 capability: null              # docs/specs/<capability> — close 시 01-spec 델타 병합
 plan_ref: null
 depends_on: []
