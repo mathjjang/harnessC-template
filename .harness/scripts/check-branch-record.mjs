@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { RECORD_PATH_RE, recordDir, recordRel } from './lib/records.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const NON_PRODUCT = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemini|\.scratch|\.worktrees|collab)\/|^[^/]+$/;   // 문서·규칙·목업(embedded)·장치(런타임 입구 포함)·루트 파일은 제품 경로가 아니다
+const NON_PRODUCT = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemini|\.github|\.scratch|\.worktrees|collab)\/|^[^/]+$/;   // 문서·규칙·목업(embedded)·장치(런타임 입구 포함)·루트 파일은 제품 경로가 아니다
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
 const globRe = (g) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '(?:/.*)?$');
 
@@ -47,6 +47,8 @@ export function judge({ branch, base = 'main', staged, scope = [], finishing = f
   return problems;
 }
 
+const IS_MAIN = Boolean(process.argv[1]) && /check-branch-record\.mjs$/.test(process.argv[1]);
+if (IS_MAIN) {
 if (process.argv.includes('--self-test')) {
   const cases = [
     [{ branch: 'main', staged: ['docs/decisions/ADR-260101-x.md', 'rules/product.md'] }, 0],
@@ -84,3 +86,4 @@ const base = ((hy.match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').ma
 const id = (branch.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
 const problems = judge({ branch, base, staged, scope: id ? fdrScope(ROOT, id) : [], finishing: process.env.HARNESS_WORK_FINISH === '1' });
 if (problems.length) { console.log('[check-branch-record] ' + problems.join('\n[check-branch-record] ')); process.exit(1); }
+}

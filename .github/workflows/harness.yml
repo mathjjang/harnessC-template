@@ -1,0 +1,23 @@
+# harness — 서버 쪽 게이트 (하네스C 코어 · 손으로 고치지 않는다: 템플릿에서 고치고 sync-core)
+# pre-commit은 우회될 수 있다(--no-verify · 훅 미설정 · 다른 런타임). PR과 main push에서 같은 게이트를 다시 돈다.
+# PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(fdr/*·plan/*)까지. 결과는 잡 요약에. 브랜치 보호의 필수 검사 이름은 이 잡 이름 "harness".
+name: harness
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: harness CI
+        run: node .harness/scripts/ci.mjs
+        env:
+          HARNESS_CI_BASE: ${{ github.base_ref }}
+          HARNESS_CI_HEAD: ${{ github.head_ref }}

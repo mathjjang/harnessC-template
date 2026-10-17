@@ -99,7 +99,7 @@ tools:
     rule: .harness/HARNESS.md §1 기록 자리(ADR→docs/decisions · RFC→research · FDR→features · HO→handoffs · 그 밖→records) — new-doc·lint·build-index·harness-status·work·check-branch-record·check-session-log·guard-scratch·guard-role-write 공유 (사유 — 판정은 호출자가 한다)
   - name: work.mjs
     status: active
-    command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | list | gc [--apply]
+    command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]
     enforcement: generate
     self_test: node .harness/scripts/work.mjs --self-test
     rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반
@@ -109,6 +109,12 @@ tools:
     enforcement: gate
     self_test: node .harness/scripts/check-branch-record.mjs --self-test
     rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 선언 없음(브랜치 이름이 기록)
+  - name: ci.mjs
+    status: active
+    command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)
+    enforcement: gate
+    self_test: node .harness/scripts/ci.mjs --self-test
+    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · risk high 사인오프). pre-commit 우회를 막는다
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]

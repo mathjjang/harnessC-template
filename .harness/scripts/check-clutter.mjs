@@ -34,6 +34,8 @@ export function scan(root) {
   return { items, scratch: { total, old } };
 }
 
+const IS_MAIN = Boolean(process.argv[1]) && /check-clutter\.mjs$/.test(process.argv[1]);
+if (IS_MAIN) {
 if (has('--self-test')) {
   const tmp = join(HERE, '..', '.clutter-selftest'); rmSync(tmp, { recursive: true, force: true });
   mkdirSync(join(tmp, 'scripts'), { recursive: true }); mkdirSync(join(tmp, '.harness', 'scripts'), { recursive: true }); mkdirSync(join(tmp, '.scratch'), { recursive: true });
@@ -82,3 +84,4 @@ if (bad.length) { console.log('[check-clutter] 임시 파일을 커밋하지 않
 const r = scan(ROOT); const fresh = r.items.filter((i) => !i.known);
 if (fresh.length) console.log(`[check-clutter] (경고) 미추적 잡동사니 ${fresh.length}건: ${fresh.slice(0, 5).map((i) => i.path).join(', ')}${fresh.length > 5 ? ' …' : ''} → node .harness/scripts/check-clutter.mjs --archive --apply`);
 process.exit(0);
+}
