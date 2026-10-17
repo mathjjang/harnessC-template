@@ -119,6 +119,17 @@ export function openPr(root, id, { branch, base, gh = true } = {}) {
   catch (e) { return { note: `PR 생성 실패(${String(e.stderr || e.message).trim().split('\n').pop()}) — GitHub에서 연다: ${branch} → ${base}`, body }; }
 }
 
+/** 브랜치(worktree)의 FDR 기록을 draft|in-progress → shipped로 올리고 커밋한다(이미 shipped·closed면 그대로) */
+export function markShipped(wt, id) {
+  if (!/^FDR-/.test(id)) return false;
+  const r = record(wt, id); if (!r || !/^(draft|in-progress)$/.test(r.status)) return false;
+  const f = existsSync(join(r.path, 'manifest.yaml')) ? join(r.path, 'manifest.yaml') : join(r.path, 'fdr.md');
+  writeFileSync(f, rd(f).replace(/^status:\s*(draft|in-progress)\b/m, 'status: shipped').replace(/^updated:.*$/m, `updated: ${new Date().toISOString().slice(0, 10)}`));
+  const rel = relative(wt, f).split(sep).join('/');
+  git(wt, `add -- "${rel}"`); git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- "${rel}"`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true });
+  return true;
+}
+
 export function finish(root, id, { gates = true, gh = true } = {}) {
   const c = config(root);
   const r = record(root, id) || { id, type: id.split('-')[0] };
@@ -131,6 +142,7 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
   const env = { HARNESS_WORK_FINISH: '1' };
   let merged = 'none';
   if (['FDR', 'PLAN'].includes(r.type)) {
+    markShipped(wt, id);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
     if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
     if (c.merge === 'pr') {
       try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
@@ -237,6 +249,7 @@ if (process.argv.includes('--self-test')) {
     if (g('branch --list rfc/RFC-260101-spike')) fails.push('finish: rfc 브랜치 잔존');
     const f2 = finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
+    if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
     if (existsSync(join(tmp, '.worktrees', p.fdr))) fails.push('finish: worktree 잔존');
     const w2 = start(tmp, p.fdr); writeFileSync(join(w2.path, 'src', 'b.ts'), 'b'); g('add -A', w2.path); g('commit -q -m b', w2.path);
     writeFileSync(join(tmp, FDR_DIR, p.fdr, 'fdr.md'), rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')).replace(/^status:.*$/m, 'status: closed')); g('add -A'); g('commit -q -m close');
@@ -256,6 +269,8 @@ if (process.argv.includes('--self-test')) {
     if (f4.merged !== 'pr' || !execSync(`git --git-dir="${bare}" branch --list "fdr/${f3.id}"`, { encoding: 'utf8' }).trim()) fails.push(`finish(pr): 원격 push (${f4.merged})`);
     const body = rd(join(tmp, '.git', `PR_BODY_${f3.id}.md`)); if (!/AC-1 목록이 보인다/.test(body) || !/scope: `src\/\*\*`/.test(body) || !/미기입/.test(body) || !/\| AC-1 \| unit \|/.test(body)) fails.push('PR 본문(브랜치의 시험 행 포함):\n' + body);
     if (!existsSync(join(tmp, '.worktrees', f3.id))) fails.push('finish(pr): worktree는 병합 전까지 남아야');
+    if (!/status: shipped/.test(execSync(`git --git-dir="${bare}" show "fdr/${f3.id}:${relative(tmp, f3.path).split(sep).join('/')}/fdr.md"`, { encoding: 'utf8' }))) fails.push('finish(pr): push된 브랜치의 기록이 shipped가 아니다');
+    if (/^status: shipped/m.test(rd(join(f3.path, 'fdr.md')))) fails.push('finish(pr): 병합 전인데 main 기록이 shipped');
     if (gc(tmp, { merged: new Set() }).some((x) => x.id === f3.id)) fails.push('gc: 병합 전 PR 브랜치를 지우려 함');
     gc(tmp, { apply: true, merged: new Set([`fdr/${f3.id}`]) }); if (existsSync(join(tmp, '.worktrees', f3.id)) || g(`branch --list "fdr/${f3.id}"`)) fails.push('gc: 병합된 PR 미정리');
     const pr = protect(tmp, { dryRun: true }); if (pr.rule.required_pull_request_reviews.required_approving_review_count !== 1 || pr.rule.required_status_checks.contexts[0] !== 'harness') fails.push('protect(M) 규칙');
