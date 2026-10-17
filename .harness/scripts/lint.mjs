@@ -126,7 +126,7 @@ export function lint(root) {
   const liveFdrs = [];
   for (const r of records.filter((r) => /^FDR-/.test(r.name) && statSync(r.path).isDirectory())) {
     const n = r.name; const head = rd(join(r.path, 'manifest.yaml')) || frontmatter(rd(join(r.path, 'fdr.md')));
-    if (/^(closed|abandoned)$/.test(yamlScalar(head, 'status'))) continue;
+    if (/^(shipped|closed|abandoned)$/.test(yamlScalar(head, 'status'))) continue;   // shipped = 이미 main에 병합 — 동시 편집 위험이 없다. 겹침은 병합 전(draft·in-progress)끼리만
     const m = head.match(/^scope:\s*\[([^\]]*)\]/m);
     liveFdrs.push({ id: n, scope: m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : [] });
   }
@@ -183,7 +183,7 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'manifest.yaml'), 'id: FDR-000000-ok\nstatus: closed\ncapability: cap\n작성: t\n');
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs', 'unit.out'), 'exit 0\n');
   // ⑭ 부정: 활성 FDR 둘의 scope가 겹침 / 양성: 서로소
-  for (const [id, sc] of [['FDR-000000-a', 'src/customs/**'], ['FDR-000000-b', 'src/customs/api/*'], ['FDR-000000-c', 'src/report/**']]) { mkdirSync(join(tmp, 'docs', 'features', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: in-progress\nscope: [${sc}]\n---\n- 작성: t\n`); }
+  for (const [id, sc, st = 'in-progress'] of [['FDR-000000-a', 'src/customs/**'], ['FDR-000000-b', 'src/customs/api/*'], ['FDR-000000-c', 'src/report/**'], ['FDR-000000-d', 'src/report/**', 'shipped']]) { mkdirSync(join(tmp, 'docs', 'features', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: ${st}\nscope: [${sc}]\n---\n- 작성: t\n`); }   // d: shipped는 c와 같은 경로여도 겹침 아님
   writeFileSync(join(tmp, 'docs', 'specs', 'cap', 'spec.md'), '# cap\n병합: FDR-000000-std · FDR-000000-ok\n');
   // ⑯ 부정: 확정 목업이 있는 shipped FDR에 대조 기록 없음 / 양성: in-progress는 형식만
   for (const [id, st] of [['FDR-000000-mock', 'shipped'], ['FDR-000000-mockwip', 'in-progress']]) { mkdirSync(join(tmp, 'docs', 'features', id, 'mockup'), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: ${st}\n---\n- 작성: t\n`); writeFileSync(join(tmp, 'docs', 'features', id, 'mockup', 'rev.yaml'), 'rev: 1\nfiles:\n  01-a.html: ' + 'a'.repeat(64) + '\n'); writeFileSync(join(tmp, 'docs', 'features', id, 'mockup', 'diff-scenarios.json'), '[{"state":"01-a.html","path":"/"}]'); }
@@ -194,7 +194,7 @@ if (process.argv.includes('--self-test')) {
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
   const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-c/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 4건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
