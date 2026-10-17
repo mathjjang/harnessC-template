@@ -86,7 +86,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 - 같은 사실은 한 곳에. 다른 곳은 링크. 사본을 만들면 같은 작업에서 대조 기계를 만든다.
 - 사고는 `INC-*`에. 규칙 본문에는 `(INC-…)` 링크만. 방법론 회고는 `RETRO-*` — 결론은 템플릿 REP 제안으로.
 - 세션 종료 시 활성 기록의 `session-log.md`에 4줄(완료·가설·미결·재개점). Stop 훅이 경고한다.
-- **임시 파일은 저장소를 어지럽히지 않는다.** 프로브·로그·중간 산출물은 세션 scratchpad 또는 `.scratch/<YYMMDD>-<topic>/`에만. 루트·`docs/`·`rules/`의 신규 폴더와 임시 패턴 이름(`.tmp*`·`*.log`·`probe-*`·`*.bak`…)은 훅이 쓰기 전에 막고(`guard-scratch`), 게이트가 커밋을 막는다(`check-clutter`). 증거는 기록 폴더의 `evidence/`, 영구 스크립트는 `.harness/scripts/` + 카탈로그 등재. `.scratch/`는 14일 후 gc.
+- **임시 파일은 저장소를 어지럽히지 않는다.** 프로브·로그·중간 산출물은 세션 scratchpad 또는 `.scratch/<YYMMDD>-<topic>/`에만(14일 후 gc). 루트·`docs/`·`rules/`의 신규 폴더와 임시 패턴 이름(`.tmp*`·`*.log`·`probe-*`…)은 훅이 쓰기 전에 막고(`guard-scratch`) 게이트가 커밋을 막는다(`check-clutter`). 증거는 기록 폴더의 `evidence/`, 영구 스크립트는 `.harness/scripts/` + 카탈로그 등재.
 
 ## 9. REP (규칙 변경)
 
