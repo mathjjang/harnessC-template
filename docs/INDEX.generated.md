@@ -8,9 +8,10 @@
 - [ADR-261016-layout-and-handoff](docs/records/ADR-261016-layout-and-handoff.md) — ADR-261016-layout-and-handoff: 폴더 재배치(rules·docs·.harness)와 에이전트 간 핸드오프(HO) · Superseded
 - [ADR-261017-core-only-and-fixed-folders](docs/records/ADR-261017-core-only-and-fixed-folders.md) — ADR-261017-core-only-and-fixed-folders: 템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만 — 고정 폴더·팩 폐 · Accepted
 
-## RFC — 탐구 (1)
+## RFC — 탐구 (2)
 
 - [RFC-261016-harness-c-methodology-review](docs/records/RFC-261016-harness-c-methodology-review) — RFC-261016-harness-c-methodology-review: 하네스C 방법론의 약점과 개선 우선순위 · Concluded
+- [RFC-261017-concurrent-work](docs/records/RFC-261017-concurrent-work) — RFC-261017-concurrent-work: 여러 에이전트·여러 개발자의 동시 작업 — V2 운영 분석과 하네스C 설계 · Concluded
 
 ## runbook (2)
 
