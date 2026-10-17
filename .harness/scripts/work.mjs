@@ -57,12 +57,23 @@ function linkMaterials(root, wt, items) {
   }
 }
 
+/** 빌드 도구가 .worktrees/ 안으로 들어가지 않게 ignore 설정에 등재한다 (.gitignore를 읽지 않는 도구들 — tsc·eslint·prettier). 바꾼 파일 목록을 돌려준다 */
+export function ensureToolIgnores(root, dir) {
+  const changed = [];
+  const ts = join(root, 'tsconfig.json');
+  if (existsSync(ts)) { try { const j = JSON.parse(rd(ts)); const ex = Array.isArray(j.exclude) ? j.exclude : []; if (!ex.some((e) => e.includes(dir))) { j.exclude = [...ex, dir]; writeFileSync(ts, JSON.stringify(j, null, 2) + '\n'); changed.push('tsconfig.json'); } } catch { /* JSON 아님(주석 포함) — 손으로 */ } }
+  for (const f of ['.eslintignore', '.prettierignore', '.dockerignore']) { const p = join(root, f); if (existsSync(p) && !rd(p).split('\n').some((l) => l.trim().replace(/^\//, '').replace(/\/$/, '') === dir)) { appendFileSync(p, `${rd(p).endsWith('\n') ? '' : '\n'}${dir}/\n`); changed.push(f); } }
+  return changed;
+}
+
 export function start(root, id, { base } = {}) {
   const r = record(root, id);
   if (!r) throw new Error(`기록이 없다: ${REC}/${id} — 먼저 node .harness/scripts/new-doc.mjs로 만든다`);
   if (r.closed) throw new Error(`${id}는 ${r.status} — 닫힌 기록은 열지 않는다`);
   const c = config(root);
   ensureIgnored(root, c.dir);
+  const ign = ensureToolIgnores(root, c.dir);
+  if (ign.length) { try { git(root, `add -- ${ign.join(' ')}`); git(root, `commit -q -m "${c.dir}/ 를 빌드 도구 ignore에 등재 (work.mjs: ${ign.join(', ')})" -- ${ign.join(' ')}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true }); } catch { /* 작업 트리 변경으로 남긴다 */ } }
   const wt = join(root, c.dir, id);
   if (existsSync(wt)) throw new Error(`이미 열려 있다: ${relative(root, wt)}`);
   const branch = branchOf(id);
@@ -146,6 +157,7 @@ if (process.argv.includes('--self-test')) {
   execSync(`xcopy /E /I /Q "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}" >nul 2>&1 || cp -r "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}"`, { shell: true, stdio: 'ignore' });
   writeFileSync(join(tmp, 'harness.yaml'), 'tier: S\nwork:\n  dir: .worktrees\n  base: main\n  merge: ff\n  link: [.env.local]\n');
   writeFileSync(join(tmp, '.env.local'), 'SECRET=1\n'); writeFileSync(join(tmp, '.gitignore'), '.env.local\n');
+  writeFileSync(join(tmp, 'tsconfig.json'), '{ "compilerOptions": {}, "exclude": ["node_modules"] }\n'); writeFileSync(join(tmp, '.eslintignore'), 'dist/\n');
   mkdirSync(join(tmp, REC, 'RFC-260101-spike'), { recursive: true }); writeFileSync(join(tmp, REC, 'RFC-260101-spike', 'rfc.md'), '# RFC\n\n- 상태: Open\n- 작성: t\n');
   const g = (c, cwd = tmp) => execSync(`git ${c}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   g('init -q -b main'); g('config user.email t@t'); g('config user.name t'); g('config core.autocrlf false'); g('add -A'); g('commit -q -m init');
@@ -155,6 +167,8 @@ if (process.argv.includes('--self-test')) {
     if (!existsSync(join(w.path, '.git')) || w.branch !== 'rfc/RFC-260101-spike') fails.push('start: worktree/브랜치');
     if (!existsSync(join(w.path, '.env.local'))) fails.push('start: 로컬 재료 링크');
     if (!/\.worktrees\//.test(rd(join(tmp, '.gitignore')))) fails.push('start: gitignore');
+    if (!JSON.parse(rd(join(tmp, 'tsconfig.json'))).exclude.includes('.worktrees') || !/\.worktrees\//.test(rd(join(tmp, '.eslintignore')))) fails.push('start: 빌드 도구 ignore 등재');
+    if (!clean(tmp)) fails.push('start: ignore 등재가 커밋되지 않음');
     try { start(tmp, 'FDR-000000-none'); fails.push('없는 기록 통과'); } catch { /* 기대 */ }
     mkdirSync(join(w.path, 'src'), { recursive: true }); writeFileSync(join(w.path, 'src', 'spike.ts'), 'export const x = 1;\n');
     writeFileSync(join(w.path, REC, 'RFC-260101-spike', 'rfc.md'), '# RFC\n\n- 상태: Concluded\n- 작성: t\n결론: 된다\n');
@@ -176,7 +190,7 @@ if (process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.message); }
   try { for (const w of (g('worktree list --porcelain').match(/^worktree (.+)$/gm) || []).slice(1)) g(`worktree remove --force "${w.slice(9)}"`); } catch { /* */ }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·promote squash·finish rfc 기록만·finish fdr ff·gc)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·finish fdr ff·gc)');
   process.exit(fails.length ? 1 : 0);
 }
 

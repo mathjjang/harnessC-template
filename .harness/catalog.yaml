@@ -61,6 +61,12 @@ tools:
     enforcement: gate
     self_test: node .claude/hooks/guard-reference.mjs --self-test
     rule: AGENTS.md 참조 저장소 · .harness/runbooks/collab.md — writable 밖·개발 ID·ask_words 판정. 런타임은 Claude Code만
+  - name: guard-search.mjs
+    status: active
+    command: (PreToolUse 훅 Bash) node .claude/hooks/guard-search.mjs
+    enforcement: generate
+    self_test: node .claude/hooks/guard-search.mjs --self-test
+    rule: .harness/HARNESS.md §11 — 셸 grep -r / find 에 .worktrees·.scratch·node_modules 제외를 자동 추가(updatedInput). 거부가 아니라 재작성
   - name: guard-role-write.mjs
     status: active
     command: (에이전트 frontmatter PreToolUse 훅 Bash) node .claude/hooks/guard-role-write.mjs --role reviewer|tester

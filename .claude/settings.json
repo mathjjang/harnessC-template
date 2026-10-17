@@ -60,6 +60,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node .claude/hooks/guard-search.mjs",
+            "timeout": 5,
+            "statusMessage": "셸 검색에서 .worktrees/·.scratch/ 제외"
+          },
+          {
+            "type": "command",
             "command": "node .claude/hooks/guard-scratch.mjs",
             "timeout": 10,
             "statusMessage": "임시 파일 자리 검사"

@@ -20,7 +20,7 @@
 
 - 파일을 고치는 작업은 `node .harness/scripts/work.mjs start <ID>`가 연 `.worktrees/<ID>/`에서. `main`에 제품 코드를 직접 커밋하지 않는다(게이트). 브랜치는 직접 만들지 않는다.
 - 끝나면 `work.mjs finish <ID>` — rfc는 기록만 반입, fdr은 게이트 후 병합. 잔존 브랜치·worktree는 `gc`.
-- 커밋은 pathspec(`git commit -m "..." -- <경로>`), 메시지는 원인·결과만, `Co-Authored-By:`는 실행 환경의 모델. force-push·히스토리 재작성 금지. 검색은 `rg`(`.worktrees/`가 안 잡힌다).
+- 커밋은 pathspec(`git commit -m "..." -- <경로>`), 메시지는 원인·결과만, `Co-Authored-By:`는 실행 환경의 모델. force-push·히스토리 재작성 금지. 셸 `grep -r`·`find`는 훅이 `.worktrees/`·`.scratch/`를 제외한다.
 
 ## 파일
 

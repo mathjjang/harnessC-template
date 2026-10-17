@@ -15,7 +15,7 @@ pack: 코어
 
 ```
 <repo>/                 본 트리 — 항상 main. 에이전트는 읽기·병합만
-<repo>/.worktrees/<ID>/ 기록별 worktree (gitignore · rg·VS Code·Claude Grep에 안 잡힘 · 셸 grep -r은 잡히니 rg를 쓴다)
+<repo>/.worktrees/<ID>/ 기록별 worktree (gitignore · rg·VS Code·Claude Grep에 안 잡힘 · 셸 grep -r/find는 guard-search 훅이 제외를 붙임 · tsc·eslint·prettier ignore는 start가 등재)
 브랜치 <type>/<ID>       fdr/FDR-… · rfc/RFC-… · plan/PLAN-… · ho/HO-… (이름은 ID에서 — 직접 만들지 않는다)
 ```
 
