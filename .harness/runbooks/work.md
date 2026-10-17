@@ -7,9 +7,7 @@ pack: 코어
 
 # 동시 작업 — 기록 하나 = 브랜치 하나 = worktree 하나
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 · 근거 `RFC-261017-concurrent-work` · 결정 `ADR-261017-work-isolation`
-
-> V2가 석 달간 겪은 사고(남의 브랜치에 커밋·미커밋 문맥 전환·같은 파일 hunk 섞임·verify 인질)의 공통 원인은 **작업 트리 공유**였다. 하네스C는 처음부터 격리한다. 선언(`COMMIT_BRANCH`)도 중앙 점유 대장(`work-claims.json`)도 없다 — 브랜치 이름이 기록이고, 점유는 FDR 자신의 `scope:`다.
+> 여러 사람·여러 에이전트가 한 작업 트리를 같이 쓰면 남의 브랜치에 커밋하거나, 미커밋 변경이 섞이거나, 남의 검증 실패에 묶인다. 그래서 처음부터 작업마다 격리한다. 따로 선언하거나 점유 대장을 두지 않는다 — 브랜치 이름이 곧 기록이고, 점유 범위는 FDR 자신의 `scope:`다.
 
 ## 자리
 
@@ -45,14 +43,14 @@ node .harness/scripts/work.mjs promote RFC-… <fdr-slug> "<제목>"   # (승격
 node .harness/scripts/work.mjs finish RFC-…                   # 기록 폴더(rfc.md·evidence)만 main에 반입. spike 코드는 병합되지 않는다
 ```
 
-- `rfc/*`는 main에 병합되지 않는다 — spike 코드는 결론의 증거이지 제품이 아니다. 이것이 "spike를 ADR/FDR로 머지할 때 생기던 문제"(이전 프로젝트: 3,200줄 수작업 반입)를 없애는 선이다.
+- `rfc/*`는 main에 병합되지 않는다 — spike 코드는 결론의 증거이지 제품이 아니다. spike를 그대로 병합하면 검증 안 된 코드가 대량으로 들어오므로, 필요한 부분만 `promote`로 기능 기록에 옮긴다.
 - 승격 FDR은 보통 FDR이다 — 스펙 델타·테스트가 붙어야 병합된다. spike에서 돌린 실측은 FDR 브랜치에서 **다시 돌려** `evidence/runs/`에 둘 때만 RUN이다. AC 출처가 Concluded RFC이고 risk low면 `gate_mode: fast`.
 - 트리와 무관한 벤치·프로토콜 실측은 `docs/research/RFC-…/evidence/spike/`에(기록과 같이 다닌다).
 - 순서: 보통 `finish RFC`(기록 반입) → `promote`. promote가 먼저여도 된다(RFC 폴더 변경은 squash에서 제외된다).
 
 ## 3. 큰 요청 (PLAN)
 
-`plan/PLAN-…`이 통합 브랜치다. FDR 브랜치는 `work.mjs start FDR-… --base plan/PLAN-…`으로 거기서 갈라지고 finish가 거기로 ff 병합한다. 마지막에 PLAN을 finish하면 main으로 한 번 간다(V2 integration 브랜치 C방식의 후계).
+`plan/PLAN-…`이 통합 브랜치다. FDR 브랜치는 `work.mjs start FDR-… --base plan/PLAN-…`으로 거기서 갈라지고 finish가 거기로 ff 병합한다. 마지막에 PLAN을 finish하면 main으로 한 번 간다.
 
 ## 4. 여러 사람
 

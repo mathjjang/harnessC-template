@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// guard-search.mjs — PreToolUse 훅 (Bash). 셸 검색이 worktree·임시 폴더로 들어가지 않게 **명령을 고쳐 준다** (ADR-261017-work-isolation).
+// guard-search.mjs — PreToolUse 훅 (Bash). 셸 검색이 worktree·임시 폴더로 들어가지 않게 **명령을 고쳐 준다**.
 //   rg · Claude Grep · VS Code는 .gitignore를 존중하지만 GNU grep -r / find 는 아니다 — 규칙 문장("rg를 써라") 대신 기계가 받는다.
 //   grep -r|-R …  →  --exclude-dir=.worktrees --exclude-dir=.scratch --exclude-dir=node_modules --exclude-dir=.git 를 붙인다 (이미 있으면 그대로)
 //   find <dir> …  →  <dir> 바로 뒤에 \( -path '*/.worktrees' -o -path '*/.scratch' -o -path '*/node_modules' -o -path '*/.git' \) -prune -o 를 붙이고 끝에 -print (이미 -prune이 있으면 그대로)

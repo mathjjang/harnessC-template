@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// check-branch-record.mjs — pre-commit 게이트. 브랜치 이름(<type>/<ID>)과 스테이징된 경로를 대조한다 (ADR-261017-work-isolation).
+// check-branch-record.mjs — pre-commit 게이트. 브랜치 이름(<type>/<ID>)과 스테이징된 경로를 대조한다.
 //   main(base)       : 제품 경로(src app tests lib packages tools …)를 직접 커밋하지 않는다 — work.mjs finish(HARNESS_WORK_FINISH=1)의 병합만 통과. 문서·규칙은 허용
 //   fdr/<ID>         : 제품 경로는 그 FDR의 scope: glob 안에서만. scope가 비어 있으면 제품 경로 거부(먼저 선언). 다른 기록(docs/<자리>/<다른 ID>) 거부
 //   rfc/<ID>         : spike — 제품 경로 자유. 다른 기록 거부 (이 브랜치는 main에 병합되지 않으므로 코드가 새지 않는다)

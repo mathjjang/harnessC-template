@@ -51,7 +51,7 @@ work:                        # 동시 작업 (HARNESS §11 · runbooks/work.md) 
 mockup:                      # 확정 목업 대조 (.harness/runbooks/mockup.md) — mockup-diff.mjs가 읽는다. 목업이 없는 프로젝트는 그대로 둔다(mockup/ 없는 FDR은 대상 아님)
   origin_env: APP_ORIGIN     # 구현 화면 오리진을 담은 환경변수 이름 — 값은 적지 않는다(사람마다 다르다 · 폴백 없음)
   viewport: 1440x900
-  threshold: 0.01            # 불일치 % 상한 (V2 ADR-0037)
+  threshold: 0.01            # 불일치 % 상한
   wait: 1000                 # 캡처 전 정착 ms
   login: ""                  # 캡처 전 로그인 모듈(프로젝트 소유 · 예 rules/runbooks/mockup-login.mjs — export default async (page, env, { origin }))
 

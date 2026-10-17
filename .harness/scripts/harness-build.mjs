@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// harness-build.mjs — 런타임별 입구 생성 (.harness/HARNESS.md 원칙 10 "규칙 정본 하나, 하네스별 파일은 생성물" · ADR-261017-entry-generation).
+// harness-build.mjs — 런타임별 입구 생성 (.harness/HARNESS.md 원칙 10 "규칙 정본 하나, 하네스별 파일은 생성물").
 // 정본은 런북(.harness/runbooks/*.md 코어 · rules/runbooks/*.md 프로젝트)이다. 머리말에 `entry: <이름>`이 있는 런북마다 세 런타임의 입구를 만든다:
 //   .claude/skills/<이름>/SKILL.md   Claude Code 스킬      ·  .agents/skills/<이름>/SKILL.md   Codex 등 Agent Skills 표준  ·  .gemini/commands/<이름>.toml   Gemini CLI 커맨드
 // 입구는 포인터다 — 절차 본문을 복사하지 않고 "런북을 읽고 따르라"만 담는다(한 정본·이중 기재 없음). 런북이 사라지면 그 입구도 지운다(생성물 표식이 있는 것만).

@@ -4,7 +4,7 @@
 //   사용: node .claude/hooks/guard-role-write.mjs --role reviewer|tester   (에이전트 정의 frontmatter hooks)
 //   허용: 역할의 산출 경로만 — reviewer: FDR 파일(lite)·06-review.md·session-log·evidence/·docs/queue/ · tester: FDR 파일(lite)·evidence/·docs/queue/ · 둘 다 .scratch/·저장소 밖(scratchpad)
 //   거부: 그 밖의 저장소 안 경로로 향하는 리다이렉션·tee·touch·mkdir·cp·mv·rm·sed -i, 그리고 git 커밋·히스토리·의존성 변경(FORBIDDEN_RE)
-//   한계: 변수 전개·프로그램 내부 쓰기(node -e)는 잡지 않는다. 문자열 패턴 차단(옛 reviewer 정규식)을 대체한다 — ADR-261016-enforcement-alignment
+//   한계: 변수 전개·프로그램 내부 쓰기(node -e)는 잡지 않는다.
 // 자기 검사: node .claude/hooks/guard-role-write.mjs --self-test
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -57,11 +57,11 @@ if (process.argv.includes('--self-test')) {
     ['reviewer', 'Bash', 'node x.mjs > /tmp/sp/out.txt', null],
     ['reviewer', 'Bash', 'echo x > docs/features/FDR-1/03-impl.md', 'deny'],
     ['tester', 'Bash', 'npm test > docs/features/FDR-1/evidence/runs/unit.out', null],
-    ['tester', 'Bash', 'node r.mjs > docs/handoffs/HO-261016-x/evidence/r.json', null],
-    ['reviewer', 'Bash', 'cat > docs/handoffs/HO-261016-x/02-claude.md <<EOF', null],
-    ['reviewer', 'Bash', 'echo x > docs/handoffs/HO-261016-x/request.md', 'deny'],
-    ['reviewer', 'Bash', 'echo x > docs/decisions/ADR-261016-x.md', 'deny'],
-    ['reviewer', 'Bash', 'echo x > docs/research/RFC-261016-x/rfc.md', 'deny'],
+    ['tester', 'Bash', 'node r.mjs > docs/handoffs/HO-260101-x/evidence/r.json', null],
+    ['reviewer', 'Bash', 'cat > docs/handoffs/HO-260101-x/02-claude.md <<EOF', null],
+    ['reviewer', 'Bash', 'echo x > docs/handoffs/HO-260101-x/request.md', 'deny'],
+    ['reviewer', 'Bash', 'echo x > docs/decisions/ADR-260101-x.md', 'deny'],
+    ['reviewer', 'Bash', 'echo x > docs/research/RFC-260101-x/rfc.md', 'deny'],
     ['tester', 'Bash', 'echo x > docs/features/FDR-1/06-review.md', 'deny'],
     ['tester', 'Bash', 'npm install lodash', 'deny'],
     ['tester', 'Bash', 'npm install', null],

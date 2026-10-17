@@ -10,8 +10,6 @@ args: "<slug> \"<제목>\" [--profile lite|standard|full]"
 
 # FDR 착수 (Stage spec)
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 (옛 `.claude/skills/fdr-start` 본문을 정본으로 이관 — ADR-261017-entry-generation)
-
 1. **생성**: `node .harness/scripts/new-doc.mjs fdr <slug> "<제목>"` — 티어가 프로파일을 정한다. 손 복사 금지. spike(RFC)에서 승격이면 대신 `node .harness/scripts/work.mjs promote <RFC-ID> <slug> "<제목>"`.
 2. **출처·범위**: `manifest.yaml`(lite는 `fdr.md` 머리말) `source_req`에 confirmed REQ만. 없으면 요구사항 층에 먼저(`docs/requirements/`). `scope:`에 이 FDR이 고칠 제품 경로 glob을 적는다 — 린트가 다른 활성 FDR과의 겹침을 알린다. 겹치면 공유 변경을 별도 lite FDR로 먼저 병합.
 2a. **브랜치**: 기록을 커밋한 뒤 `node .harness/scripts/work.mjs start <FDR-ID>` → `.worktrees/<FDR-ID>/`에서 작업한다. 끝나면 `work.mjs finish <FDR-ID>`(게이트→병합→정리). 검색은 `rg`(gitignore 존중)로.

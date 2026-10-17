@@ -10,8 +10,6 @@ args: "<slug> \"<회의 제목>\""
 
 # 회의 준비 (협업 저장소에 안건 작성)
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 (옛 `.claude/skills/meeting-prep` 본문을 정본으로 이관 — ADR-261017-entry-generation)
-
 1. **대상 확인**: `harness.yaml references`에서 `role: collab` 항목. 체크아웃이 없으면 중단하고 경로를 보고한다.
 2. **생성**: `node .harness/scripts/new-doc.mjs mtg <slug> "<제목>" --ref collab` → `meetings/MTG-<날짜>-<slug>/{agenda.md,minutes.md}`.
 3. **안건 수집** (이 순서로, 각 항목에 출처 한 줄):

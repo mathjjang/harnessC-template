@@ -1,4 +1,4 @@
-// records.mjs — 기록 종류별 자리 (ADR-261017-record-folders). 자주 여는 네 종류는 docs/ 바로 아래 자기 폴더, 나머지는 docs/records.
+// records.mjs — 기록 종류별 자리. 자주 여는 네 종류는 docs/ 바로 아래 자기 폴더, 나머지는 docs/records.
 // new-doc · lint · build-index · harness-status · work · check-branch-record · check-session-log · 훅(guard-scratch·guard-role-write)이 공유한다 (사유 — 판정은 호출자가 한다).
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

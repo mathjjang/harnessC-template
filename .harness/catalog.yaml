@@ -138,13 +138,13 @@ tools:
     command: node .harness/scripts/qa-intake.mjs pull | reply <ID> --state taken|resolved|verified [--commit <sha>] [--steps "<확인 절차>"] [--by …] | status
     enforcement: gate
     self_test: node .harness/scripts/qa-intake.mjs --self-test
-    rule: runbooks/qa.md · ADR-261017-qa-flow — 목업 저장소 qa/의 오류 건만 docs/queue로(pull) · resolution.md 회신(resolved는 커밋+확인 절차 필수 · verified는 수정자와 다른 by만)
+    rule: runbooks/qa.md — 목업 저장소 qa/의 오류 건만 docs/queue로(pull) · resolution.md 회신(resolved는 커밋+확인 절차 필수 · verified는 수정자와 다른 by만)
   - name: setup.mjs
     status: active
     command: node .harness/scripts/setup.mjs --interactive | --answers <answers.json> [--reconfigure] [--no-actions] [--remote] | --show
     enforcement: generate
     self_test: node .harness/scripts/setup.mjs --self-test
-    rule: runbooks/init.md · ADR-261017-init-questions — 프로젝트 조건(동시 구현자·화면·기간·규모·외부·사인오프·공개)을 물어 티어·병합·게이트를 정하고 harness.yaml 근거 주석·setup 블록·ADR project-setup을 남긴다. 처음은 init.mjs --interactive|--answers
+    rule: runbooks/init.md — 프로젝트 조건(동시 구현자·화면·기간·규모·외부·사인오프·공개)을 물어 티어·병합·게이트를 정하고 harness.yaml 근거 주석·setup 블록·ADR project-setup을 남긴다. 처음은 init.mjs --interactive|--answers
   - name: harness-build.mjs
     status: active
     command: node .harness/scripts/harness-build.mjs [--check]

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // check-session-log.mjs — Stop 훅. 오늘 커밋·수정이 닿은 기록 폴더(docs/<자리>/<ID>/ — lib/records.mjs)의 세션 로그에 오늘자 행이 없으면 경고한다.
 // 로그 자리: 폴더의 session-log.md(standard FDR) 또는 본문 안 "## 세션 로그" 표(lite fdr.md · rfc.md). 둘 다 없는 기록(HO·MTG)은 검사하지 않는다.
-// 차단하지 않는다(exit 0 + systemMessage). 강제 등급: report. HO-261016-codex-rebuttal F09 — 단일 파일 로그 누락 보정.
+// 차단하지 않는다(exit 0 + systemMessage). 강제 등급: report.
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';

@@ -10,8 +10,6 @@ args: "<FDR-ID> [--state <이름>] | promote <FDR-ID> <목업 폴더> | --all"
 
 # 목업 대조 — 확정 목업이 시각 정본이다
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 · 근거 ADR-261017-mockup-diff (V2 ADR-0097·런북 mockup-rev-and-screen-policy 이식)
-
 > 왜 있나: "에이전트가 목업대로 만들지 못한다"의 실측 원인은 두 가지였다 — 목업대로인지 **기계로 묻는 단계가 없었고**, 이미지 판독으로 "일치"를 단정하는 것은 금지라 결국 아무도 검증하지 않았다. 이 절차는 그 단계를 FDR 완료 게이트로 둔다. 도구는 `node .harness/scripts/mockup-diff.mjs`(엔진 BackstopJS는 PC에 한 번 설치 — `engine --install`).
 
 ## 0. 전제
@@ -77,7 +75,7 @@ node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <모듈>/<화면> --by "<
 
 공유 CSS·토큰 변경 뒤, 큰 리팩터링 뒤, 릴리스 전. 결과를 각 FDR의 기록과 대조해 **나빠진 것**이 시각 회귀 결함이다 — 구현 유래면 QA 큐(`new-doc.mjs qa`), 목업 재확정 유래면 재승격(rev+1). 완료 기록을 이 실행이 덮어쓰지는 않는다(같은 rev면 덮어쓰이므로, 회귀 점검은 `--state`가 아닌 `--all`로 돌리고 나빠진 FDR만 다시 연다).
 
-## 함정 (V2 실사고)
+## 함정
 
 - 로그인 오리진 ≠ 캡처 오리진 → 비로그인 화면이 조용히 찍힌다. 로그인 모듈은 `{ origin }`을 받아 그 오리진으로 간다.
 - 목업 승격본이 원본보다 낡은 채 기준본으로 쓰임 → 재승격 전에는 돌리지 않는다(`rev.yaml`의 `source`가 원본 경로).

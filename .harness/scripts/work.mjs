@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// work.mjs — 기록 하나 = 브랜치 하나 = worktree 하나 (ADR-261017-work-isolation · RFC-261017-concurrent-work).
+// work.mjs — 기록 하나 = 브랜치 하나 = worktree 하나.
 //
 //   start   <ID> [--base <ref>]            기록(docs/<자리>/<ID> — lib/records.mjs)이 있어야 한다. 브랜치 <type>/<ID> + .worktrees/<ID> 생성, 로컬 재료 링크, setup 실행
 //   finish  <ID>                           worktree가 깨끗하면: rfc·ho·mtg → 기록 폴더만 main에 반입(코드는 병합 안 함) · fdr·plan → 게이트 통과 후 ff 병합(work.merge=ff) 또는 PR 안내(pr). 그 뒤 worktree·브랜치 제거
@@ -11,7 +11,7 @@
 // merge: pr 이면 finish가 base 위로 rebase → push → gh pr create(있으면 본문 갱신). 리뷰 판정·scope는 CI(.harness/scripts/ci.mjs)가 PR에서 다시 묻는다.
 //
 // 자리: harness.yaml work: { dir: .worktrees, base: main, merge: ff|pr, link: [.env.local …], setup: "pnpm install" }
-// 브랜치 이름은 ID에서 나온다 — 선언이 없다(V2 COMMIT_BRANCH의 교훈). main에는 제품 코드를 직접 커밋하지 않는다(check-branch-record).
+// 브랜치 이름은 ID에서 나온다 — 따로 선언하지 않는다. main에는 제품 코드를 직접 커밋하지 않는다(check-branch-record).
 // --self-test: 임시 git 저장소에서 start→finish(rfc 기록만 반입)→promote(squash)→finish(ff)→gc 를 끝까지 돈다.
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, linkSync, symlinkSync, appendFileSync } from 'node:fs';

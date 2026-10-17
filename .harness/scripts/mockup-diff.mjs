@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// mockup-diff.mjs — 확정 목업 ↔ 구현 화면 승인본 픽셀 대조 (.harness/HARNESS.md §6 · ADR-261017-mockup-diff). V2 ADR-0097 · backstop.mockup.config · record-mockup-diff의 코어 이식.
+// mockup-diff.mjs — 확정 목업 ↔ 구현 화면 승인본 픽셀 대조 (.harness/HARNESS.md §6 · .harness/runbooks/mockup.md).
 //
 //   promote <FDR-ID> <모듈>/<화면>|<폴더> [--by …]     확정 목업을 docs/features/<FDR>/mockup/<화면>/ 으로 승격(사본 + rev.yaml 스탬프 — rev+1 · 공용 자산은 FDR 루트 _assets/). 코드보다 먼저.
 //                                                    <모듈>/<화면>은 harness.yaml references role: mockup 저장소(harnessC-mockup-template)의 screens/ 아래 — confirmed만, 해시가 확정본과 같아야 한다.
@@ -10,7 +10,7 @@
 //
 // 설정 harness.yaml `mockup:` — origin_env(구현 오리진을 담은 환경변수 **이름** · 값은 적지 않는다, 폴백 없음) · viewport · threshold(%) · wait(ms) · login(캡처 전 로그인 모듈 경로, 프로젝트 소유).
 // 엔진 backstopjs(+playwright)는 PC에 한 번 설치해 전 프로젝트가 빌려 쓴다(HARNESS_BACKSTOP → 프로젝트 → ~/.harness/tools → npm -g 순으로 찾는다) — 코어·프로젝트에는 설치하지 않는다. promote·check·self-test는 엔진이 필요 없다.
-// 기준본은 매 실행 목업에서 다시 찍는다(backstop reference → test). 저장된 기준본·approve는 없다: 낡은 기준본과 비교한 거짓 수치(V2 2026-08-06)를 구조로 막는다.
+// 기준본은 매 실행 목업에서 다시 찍는다(backstop reference → test). 저장된 기준본·approve는 없다: 낡은 기준본과 비교한 거짓 수치를 구조로 막는다.
 // 판정은 숫자다 — 에이전트의 이미지 판독 "일치" 단정은 판정이 아니다.
 // 시나리오 정본 mockup/diff-scenarios.json — [{ state, path, clicks[], keypress[{selector,text}], clicksAfter[], selectors[](대조 범위), hide[], remove[], excluded:"사유" }]
 //   도달 불가 상태는 excluded + 사유(침묵 축소 금지). 전 상태 excluded는 통과가 아니다. 승인된 차이는 mockup/deviations.json [{ state, reason, approved_by, date }].
@@ -65,7 +65,7 @@ function readSourceRev(src) {
   const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];
   return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), files };
 }
-/** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다(V2 2026-08-05) */
+/** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다 */
 function unresolvedAssets(htmlPath) {
   const html = rd(htmlPath); const refs = new Set();
   for (const m of html.matchAll(/<(?:link|script|img|source)\b[^>]*?\b(?:href|src)=["']([^"']+)["']/gi)) refs.add(m[1]);
@@ -125,7 +125,7 @@ export function buildConfig(root, fdrId, { states = [], origin, cfg = mockupConf
       label: `${fdrId}__${s.state.replace(/\.html$/, '').replace(/\//g, '__')}`, state: s.state,
       referenceUrl: pathToFileURL(join(dir, 'mockup', s.state)).href,
       url: origin + (s.path || '/'),
-      // 조작은 엔진 스크립트(lib/backstop-onReady.cjs)가 한다 — backstop playwright 엔진은 clickSelectors를 구현하지 않는다(V2 실측)
+      // 조작은 엔진 스크립트(lib/backstop-onReady.cjs)가 한다 — backstop playwright 엔진은 clickSelectors를 구현하지 않는다
       harnessClicks: s.clicks || [], harnessKeypress: s.keypress || [], harnessClicksAfter: s.clicksAfter || [], harnessWait: cfg.wait,
       selectors: s.selectors && s.selectors.length ? s.selectors : ['document'],
       hideSelectors: s.hide || [], removeSelectors: s.remove || [],

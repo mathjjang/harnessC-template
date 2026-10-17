@@ -10,8 +10,6 @@ args: "<MTG-ID>"
 
 # 회의록 반영
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 (옛 `.claude/skills/meeting-ingest` 본문을 정본으로 이관 — ADR-261017-entry-generation)
-
 1. **읽기**: `meetings/<MTG-ID>/minutes.md`. 없으면 사용자가 준 메모로 먼저 회의록을 채우고(결정·답변·액션·논의 분리) 양측 확인 체크박스는 비워 둔다.
 2. **질문 갱신**: `questions/open-questions.md` 답·상태(`answered`) · 출처 `<MTG-ID>`.
 3. **DEC 승격**: 범위·비용·일정·책임을 바꾸는 결정마다 `node .harness/scripts/new-doc.mjs dec <slug> "<제목>" --ref collab` → 상태 `proposed`, 출처 `<MTG-ID>`. 회의록 결정 표에는 DEC 링크만.

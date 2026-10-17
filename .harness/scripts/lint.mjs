@@ -122,7 +122,7 @@ export function lint(root) {
   if (existsSync(ddir)) for (const e of readdirSync(ddir, { withFileTypes: true })) if (e.isDirectory() && !DOCS_ALLOW.includes(e.name)) problems.push(`docs/${e.name}/ — docs/ 폴더는 ${DOCS_DIRS.join('·')}뿐이다. 기록은 자기 자리에, 도메인 자료는 specs/ 파일로`);
   const rl = join(root, 'rules');
   if (existsSync(rl)) for (const n of readdirSync(rl)) if (!RULES_ALLOW.includes(n)) problems.push(`rules/${n} — rules/는 ${RULES_ALLOW.slice(0, 4).join('·')}뿐이다. 방법론은 .harness/`);
-  // ⑭ 활성 FDR끼리 scope 겹침 — 같은 제품 경로를 두 FDR이 동시에 고치면 덮어쓴다(V2 2026-07-30·08-18). 생성·린트 시점에 알린다
+  // ⑭ 활성 FDR끼리 scope 겹침 — 같은 제품 경로를 두 FDR이 동시에 고치면 서로 덮어쓴다. 생성·린트 시점에 알린다
   const liveFdrs = [];
   for (const r of records.filter((r) => /^FDR-/.test(r.name) && statSync(r.path).isDirectory())) {
     const n = r.name; const head = rd(join(r.path, 'manifest.yaml')) || frontmatter(rd(join(r.path, 'fdr.md')));

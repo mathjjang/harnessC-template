@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// qa-intake.mjs — 목업 저장소(references role: mockup)의 검수 접수(qa/QA-…)를 개발 쪽에서 다룬다 (.harness/runbooks/qa.md · ADR-261017-qa-flow). V2 ADR-0134 QA 체계의 두 저장소판.
+// qa-intake.mjs — 목업 저장소(references role: mockup)의 검수 접수(qa/QA-…)를 개발 쪽에서 다룬다 (.harness/runbooks/qa.md).
 //
 //   pull                                          유형 `오류`이고 open·reopened인 접수 건을 docs/queue/<같은 ID>.md 로 가져온다(sync: 원본 ID). 미정·기획수정·정책공백은 가져오지 않고 보여만 준다
 //   reply  <ID> --state taken|resolved|verified [--commit <sha>] [--server <주소>] [--steps "<확인 절차>"] [--by "<에이전트(모델)>"]
@@ -46,7 +46,7 @@ export function reply(root, id, { state, commit = '', server = '', steps = '', b
   const p = join(q.path, 'resolution.md'); const prev = rd(p);
   const prevBy = field(prev, 'by'), prevState = field(prev, 'state');
   if (state === 'verified') { if (prevState !== 'resolved') throw new Error(`verified는 resolved 뒤에만 (지금 ${prevState || '없음'})`); if (!prevBy || prevBy === by) throw new Error(`고친 쪽(${prevBy || '?'})은 자기 검증자가 될 수 없다 — 리뷰어 세션에서 --by "<다른 에이전트(모델)>"`); }
-  if (state === 'resolved' && (!commit || !steps)) throw new Error('resolved에는 --commit <수정 커밋> --steps "<리뷰어가 밟을 확인 절차 한 줄>"이 필요하다 (원인 한 줄 · 커밋 · 확인 절차 — V2 QA §6)');
+  if (state === 'resolved' && (!commit || !steps)) throw new Error('resolved에는 --commit <수정 커밋> --steps "<리뷰어가 밟을 확인 절차 한 줄>"이 필요하다 (원인 한 줄 · 커밋 · 확인 절차)');
   const keep = (k, v) => v || field(prev, k);
   const head = `---\nid: ${id}\nstate: ${state}\nby: "${state === 'verified' ? prevBy : by}"\nupdated: ${today()}\ncommit: ${keep('commit', commit)}\nserver: "${keep('server', server)}"\nverify_steps: "${keep('verify_steps', steps).replace(/"/g, '\\"')}"\nverified_by: "${state === 'verified' ? by : field(prev, 'verified_by')}"\n---\n`;
   const body = prev ? prev.replace(/^---[\s\S]*?---\n/, '') : `\n# ${id} · 개발 처리 기록 (개발 저장소 소유 — qa-intake.mjs reply가 쓴다)\n\n> 리뷰어가 재조사 없이 「고쳐졌다」를 확인할 수 있게: 원인 한 줄 · 커밋 · 확인 절차. 붙이지 않은 증적은 뺐다고 적는다.\n\n## 기록\n\n| 날짜 | 상태 | 누가 | 내용 |\n|---|---|---|---|\n`;

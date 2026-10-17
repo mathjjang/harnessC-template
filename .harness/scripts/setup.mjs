@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// setup.mjs — 프로젝트 설정을 질문으로 정한다 (.harness/runbooks/init.md · ADR-261017-init-questions). 티어는 고르는 것이 아니라 답에서 나오는 요약이다.
+// setup.mjs — 프로젝트 설정을 질문으로 정한다 (.harness/runbooks/init.md). 티어는 고르는 것이 아니라 답에서 나오는 요약이다.
 //
 //   node .harness/scripts/setup.mjs --interactive [--reconfigure] [--no-actions] [--remote] [--agent "<이름>"]   사람 — 터미널에서 묻는다
 //   node .harness/scripts/setup.mjs --answers <answers.json> [--reconfigure] …                                   에이전트 — 자기 런타임의 질문 도구로 물은 답을 파일로

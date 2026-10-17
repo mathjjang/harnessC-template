@@ -10,8 +10,6 @@ args: "pull | reply <ID> --state taken|resolved|verified [--commit <sha>] [--ste
 
 # 검수 처리 — 접수는 기획, 수정은 개발, 닫기는 다시 기획
 
-- 작성: Claude Code (claude-fable-5-1) · 2026-10-17 (V2 ADR-0134 QA 체계의 두 저장소판 — ADR-261017-qa-flow)
-
 > 접수처는 목업 저장소 `qa/`(런북 `qa-intake.md`)다. 유형이 경로를 정한다 — **오류만 개발이 가져간다.** 기획수정(UI·정책)은 목업 rev+1·policy 개정이 먼저이고, 그 뒤 개발이 재승격·구현한다(런북 `mockup.md`). 정책공백은 사람 결정 뒤 다시 분류된다. 도구 `node .harness/scripts/qa-intake.mjs`.
 
 ## 0. 누가 발견했나가 자리를 정한다
@@ -38,7 +36,7 @@ node .harness/scripts/build-index.mjs
 - 귀속 재확인: 분류가 틀렸으면 고치지 말고 목업 저장소에서 다시 classify(에이전트)하게 한다 — 기획수정을 오류로 가장해 코드로 바꾸지 않는다.
 - 수정은 그 화면을 소유한 FDR의 worktree에서(`work.mjs start`), scope 안에서. 한 줄 수정이면 lite FDR 또는 기존 FDR 안에서.
 - 착수 표시: `qa-intake.mjs reply <ID> --state taken --by "<에이전트(모델)>"`
-- 고쳤으면 **증적은 둘만** — 원인 한 줄 + 수정 커밋 + 리뷰어가 밟을 확인 절차(한 줄이면 한 줄). 증상 성격에 맞는 증거 하나(기계로 잡히면 재발 방지 테스트 + 출력 원문, 눈에 보이면 수정 후 캡처). 과한 증적은 속도를 죽인다(V2 QA §6 — 한 줄 수정이 절차에 26분 묶인 사고).
+- 고쳤으면 **증적은 둘만** — 원인 한 줄 + 수정 커밋 + 리뷰어가 밟을 확인 절차(한 줄이면 한 줄). 증상 성격에 맞는 증거 하나(기계로 잡히면 재발 방지 테스트 + 출력 원문, 눈에 보이면 수정 후 캡처). 과한 증적은 속도를 죽인다 — 한 줄 수정에 긴 절차를 붙이지 않는다.
 
 ```bash
 node .harness/scripts/qa-intake.mjs reply <ID> --state resolved --commit <sha> --steps "<확인 절차>" [--server <반영된 테스트 서버>] --by "<에이전트(모델)>"

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // guard-reference.mjs — PreToolUse 훅 (Write|Edit|NotebookEdit · Bash). 참조 저장소(harness.yaml `references`)에 대한 쓰기를 쓰기 전에 판정한다.
-// Bash는 리다이렉션·tee·cp·mv 대상 경로를 뽑아 같은 규칙으로 판정하고, 내용 검사(②③)는 명령 문자열 전체에 적용한다 — ADR-261016-enforcement-alignment(F08).
+// Bash는 리다이렉션·tee·cp·mv 대상 경로를 뽑아 같은 규칙으로 판정하고, 내용 검사(②③)는 명령 문자열 전체에 적용한다.
 //
 //   mode: read-only(기본)  → 모든 쓰기 거부 (AGENTS.md "참조 저장소는 읽되 고치지 않는다")
 //   trust: external        → ① writable 폴더 밖 거부
