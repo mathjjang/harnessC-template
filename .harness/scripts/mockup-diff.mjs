@@ -23,6 +23,7 @@ import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { RECORD_DIRS, recordDir } from './lib/records.mjs';
 import { findReference, refPath } from './lib/refs.mjs';
+import { fetchSource, readUpstream } from './lib/upstream.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -36,10 +37,10 @@ const posix = (p) => p.split('\\').join('/');
 // ---------- 설정 ----------
 export function mockupConfig(root) {
   const hy = rd(join(root, 'harness.yaml'));
-  const block = (hy.match(/^mockup:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
+  const block = (hy.match(/^mockup:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
   const v = (k, d) => { const m = block.match(new RegExp(`^\\s*${k}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')); const x = m ? m[1].trim().replace(/^["']|["']$/g, '') : ''; return x || d; };
   const [w, h] = v('viewport', '1440x900').split('x').map(Number);
-  const scratch = ((hy.match(/^scratch:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.scratch';
+  const scratch = ((hy.match(/^scratch:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.scratch';
   return { originEnv: v('origin_env', 'APP_ORIGIN'), viewport: { width: w || 1440, height: h || 900 }, threshold: Number(v('threshold', '0.01')), wait: Number(v('wait', '1000')), login: v('login', ''), scratch };
 }
 
@@ -231,10 +232,13 @@ export async function run(root, fdrId, { states = [], agent = '(모델 미확인
 
 // ---------- init: 목업 저장소 자리 선택 ----------
 export const MOCKUP_TEMPLATE = 'https://github.com/mathjjang/harnessC-mockup-template';
-/** 템플릿 재료를 dst에 놓는다 — --from <로컬 경로>면 복사, 아니면 git clone(--depth 1) 후 .git 제거 */
-function fetchTemplate(dst, from) {
-  if (from) { const src = resolve(from); cpSync(src, dst, { recursive: true, filter: (s) => !/(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(relative(src, s)) }); return; }
-  execSync(`git clone --depth 1 -q "${MOCKUP_TEMPLATE}" "${dst}"`, { stdio: 'inherit' }); rmSync(join(dst, '.git'), { recursive: true, force: true });
+/** 템플릿 재료를 dst에 놓는다 — 출처는 --from <경로|주소@태그> → harness.yaml upstream.mockup_repo@mockup_ref → 기본 저장소. .git은 두지 않는다 */
+function fetchTemplate(root, dst, from) {
+  const up = readUpstream(root);
+  const spec = from || (up.mockup_repo ? `${up.mockup_repo}${up.mockup_ref ? '@' + up.mockup_ref : ''}` : MOCKUP_TEMPLATE);
+  const s = fetchSource(spec, { cwd: root });
+  try { cpSync(s.dir, dst, { recursive: true, filter: (p) => !/(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(relative(s.dir, p)) }); } finally { s.cleanup(); }
+  return s.label;
 }
 /** harness.yaml references에 role: mockup 항목을 넣는다(이미 있으면 교체) */
 export function registerMockupRef(root, entry) {
@@ -260,7 +264,7 @@ export function initMockup(root, mode, { name, from, gh = true, owner } = {}) {
   if (mode === 'separate' && !from && gh) {
     try { execSync('gh auth status', { stdio: 'ignore' }); const repo = `${owner || execSync('gh api user -q .login', { encoding: 'utf8' }).trim()}/${name}-mockups`; execSync(`gh repo create ${repo} --template mathjjang/harnessC-mockup-template --private --clone`, { cwd: dirname(dst), stdio: 'inherit' }); created = `gh:${repo}`; } catch { /* gh 없음·실패 → clone 경로 */ }
   }
-  if (!existsSync(dst)) { mkdirSync(dirname(dst), { recursive: true }); fetchTemplate(dst, from); if (mode === 'separate') { execSync('git init -q -b main', { cwd: dst }); created = 'clone(원격 없음 — GitHub에 비공개 저장소를 만들어 push)'; } }
+  if (!existsSync(dst)) { mkdirSync(dirname(dst), { recursive: true }); const label = fetchTemplate(root, dst, from); if (mode === 'separate') { execSync('git init -q -b main', { cwd: dst }); created = `clone ${label} (원격 없음 — GitHub에 비공개 저장소를 만들어 push)`; } else created = `copy ${label}`; }
   if (existsSync(join(dst, 'init.mjs'))) execSync(`"${process.execPath}" init.mjs --name "${name}"`, { cwd: dst, stdio: 'ignore' });
   if (mode === 'embedded') { for (const d of ['.claude', '.agents', '.gemini', 'CLAUDE.md', 'GEMINI.md', '.gitignore', '.gitattributes']) rmSync(join(dst, d), { recursive: true, force: true }); }
   else execSync('git config core.hooksPath scripts/git-hooks', { cwd: dst, stdio: 'ignore' });
@@ -309,7 +313,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   const fdr = join(tmp, RECORD_DIRS.FDR, 'FDR-000000-m'); mkdirSync(fdr, { recursive: true }); mkdirSync(join(tmp, 'src-mock'), { recursive: true });
   writeFileSync(join(fdr, 'fdr.md'), '---\nid: FDR-000000-m\nstatus: in-progress\n---\n- 작성: t\n');
   writeFileSync(join(tmp, 'src-mock', '01-default.html'), '<html><body>a</body></html>'); writeFileSync(join(tmp, 'src-mock', '02-empty.html'), '<html><body>b</body></html>');
-  writeFileSync(join(tmp, 'harness.yaml'), 'scratch:\n  dir: .scratch\nmockup:\n  origin_env: T_ORIGIN\n  viewport: 800x600\n  threshold: 0.5\n');
+  writeFileSync(join(tmp, 'harness.yaml'), 'scratch:   # 주석\n  dir: .scratch\nmockup:   # 주석\n  origin_env: T_ORIGIN\n  viewport: 800x600\n  threshold: 0.5\n');
   try {
     try { promote(tmp, 'FDR-000000-none', 'src-mock'); fails.push('없는 FDR 통과'); } catch { /* 기대 */ }
     const p1 = promote(tmp, 'FDR-000000-m', 'src-mock', { by: 't' });

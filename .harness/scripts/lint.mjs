@@ -143,7 +143,7 @@ export function lint(root) {
   // ⑮ 닫힌 기록에 브랜치·worktree가 남아 있으면 위반 — 수명은 work.mjs finish/gc가 닫는다
   if (isGit) {
     const branches = new Set(git('branch --list "fdr/*" "rfc/*" "ho/*" "mtg/*" "plan/*" "inc/*" "retro/*"').split('\n').map((s) => s.replace(/^\*?\s*/, '')).filter(Boolean));
-    const wtDir = ((rd(join(root, 'harness.yaml')).match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
+    const wtDir = ((rd(join(root, 'harness.yaml')).match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*dir:\s*(\S+)/m)?.[1] || '.worktrees';
     for (const r of records) {
       const n = r.name; const main = recordMain(r.path); const t = main ? rd(main) : '';
       const st = yamlScalar(t, 'status') || mdStatus(t);

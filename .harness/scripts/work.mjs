@@ -23,7 +23,7 @@ const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 
 export function config(root) {
   const hy = rd(join(root, 'harness.yaml'));
-  const block = (hy.match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
+  const block = (hy.match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
   const v = (k, d) => { const m = block.match(new RegExp(`^\\s*${k}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')); return m ? m[1].trim().replace(/^["']|["']$/g, '') : d; };
   const list = (k) => { const m = block.match(new RegExp(`^\\s*${k}:\\s*\\[([^\\]]*)\\]`, 'm')); return m ? m[1].split(',').map((s) => s.trim()).filter(Boolean) : []; };
   return { dir: v('dir', '.worktrees'), base: v('base', 'main'), merge: v('merge', 'ff'), link: list('link'), setup: v('setup', '') };
@@ -156,7 +156,7 @@ if (process.argv.includes('--self-test')) {
   mkdirSync(join(tmp, RFC_DIR), { recursive: true }); mkdirSync(join(tmp, '.harness', 'scripts'), { recursive: true });
   for (const f of ['new-doc.mjs', 'lib/refs.mjs', 'lib/records.mjs']) { mkdirSync(dirname(join(tmp, '.harness', 'scripts', f)), { recursive: true }); writeFileSync(join(tmp, '.harness', 'scripts', f), readFileSync(join(HERE, f))); }
   execSync(`xcopy /E /I /Q "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}" >nul 2>&1 || cp -r "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}"`, { shell: true, stdio: 'ignore' });
-  writeFileSync(join(tmp, 'harness.yaml'), 'tier: S\nwork:\n  dir: .worktrees\n  base: main\n  merge: ff\n  link: [.env.local]\n');
+  writeFileSync(join(tmp, 'harness.yaml'), 'tier: S\nwork:   # 머리 줄 주석도 허용\n  dir: .worktrees\n  base: main\n  merge: ff\n  link: [.env.local]\n');
   writeFileSync(join(tmp, '.env.local'), 'SECRET=1\n'); writeFileSync(join(tmp, '.gitignore'), '.env.local\n');
   writeFileSync(join(tmp, 'tsconfig.json'), '{ "compilerOptions": {}, "exclude": ["node_modules"] }\n'); writeFileSync(join(tmp, '.eslintignore'), 'dist/\n');
   mkdirSync(join(tmp, RFC_DIR, 'RFC-260101-spike'), { recursive: true }); writeFileSync(join(tmp, RFC_DIR, 'RFC-260101-spike', 'rfc.md'), '# RFC\n\n- 상태: Open\n- 작성: t\n');

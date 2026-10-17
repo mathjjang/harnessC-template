@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // sync-core.mjs — 템플릿의 코어(모든 프로젝트 동일 부분)를 이 프로젝트에 내려받는다. lint ⑫가 막은 차이를 푸는 유일한 길.
-// 사용: node .harness/scripts/sync-core.mjs --from <템플릿 체크아웃 경로> [--dry-run]
+// 사용: node .harness/scripts/sync-core.mjs [--from <경로 | 주소@태그 | owner/repo@태그>] [--dry-run]
+//   --from이 없으면 harness.yaml `upstream.repo`@`upstream.ref`(릴리스 태그)에서 받는다 — 로컬 clone 없이 정해진 버전을 내려받는 길. 받은 출처·SHA는 manifest에 남는다.
 //   CORE_PATHS(lib/core-files.mjs)를 복사하고 {{PROJECT_NAME}}·{{TIER}}를 harness.yaml 값으로 치환한 뒤 .harness/init-manifest.json의 core 해시를 갱신한다.
 //   프로젝트 고유 파일(rules/ · docs/ · harness.yaml · README.md)은 건드리지 않는다. --self-test: 임시 모형에서 복사·치환·해시 갱신 확인.
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -8,11 +9,12 @@ import { execSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CORE_PATHS, hashCore, sha } from './lib/core-files.mjs';
+import { fetchSource, readUpstream } from './lib/upstream.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
 
-export function sync(root, from, { dryRun = false } = {}) {
+export function sync(root, from, { dryRun = false, source = null } = {}) {
   if (!existsSync(join(from, '.harness', 'HARNESS.md'))) throw new Error(`템플릿이 아니다: ${from}`);
   const hy = readFileSync(join(root, 'harness.yaml'), 'utf8');
   const vars = { PROJECT_NAME: yamlScalar(hy, 'project').replace(/^"|"$/g, ''), TIER: yamlScalar(hy, 'tier') };
@@ -35,6 +37,7 @@ export function sync(root, from, { dryRun = false } = {}) {
     const mp = join(root, '.harness', 'init-manifest.json');
     const m = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : { schema: 'harnessC.init-manifest', version: 2 };
     m.core = after; m.coreVersion = yamlScalar(readFileSync(join(from, 'harness.yaml'), 'utf8'), 'harness'); m.syncedAt = new Date().toISOString().slice(0, 10);
+    if (source) m.upstream = { source: source.label, sha: source.sha };   // 어디서 어떤 커밋을 받았나 — 재현 근거
     writeFileSync(mp, JSON.stringify(m, null, 2) + '\n');
     // 런타임 입구(.claude/skills 등)는 코어가 아니라 생성물 — 내려받은 런북으로 다시 만든다
     const hb = join(root, '.harness', 'scripts', 'harness-build.mjs');
@@ -69,7 +72,14 @@ if (process.argv.includes('--self-test')) {
   process.exit(fails.length ? 1 : 0);
 }
 
+const ROOT = join(HERE, '..', '..');
 const i = process.argv.indexOf('--from');
-if (i < 0) { console.error('사용: node .harness/scripts/sync-core.mjs --from <템플릿 경로> [--dry-run]'); process.exit(2); }
-const r = sync(join(HERE, '..', '..'), resolve(process.argv[i + 1]), { dryRun: process.argv.includes('--dry-run') });
-console.log(`${process.argv.includes('--dry-run') ? '[dry-run] ' : ''}코어 ${r.changed.length}개 파일 갱신${r.changed.length ? ':\n  ' + r.changed.join('\n  ') : ''}`);
+const up = readUpstream(ROOT);
+const spec = i >= 0 ? process.argv[i + 1] : up.repo ? `${up.repo}${up.ref ? '@' + up.ref : ''}` : '';
+if (!spec) { console.error('사용: node .harness/scripts/sync-core.mjs [--from <경로 | 주소@태그 | owner/repo@태그>] [--dry-run]\n--from이 없으면 harness.yaml upstream.repo / upstream.ref 를 쓴다 — 둘 다 비어 있다'); process.exit(2); }
+let src;
+try { src = fetchSource(spec, { cwd: ROOT }); } catch (e) { console.error(e.message); process.exit(1); }
+try {
+  const r = sync(ROOT, src.dir, { dryRun: process.argv.includes('--dry-run'), source: src });
+  console.log(`${process.argv.includes('--dry-run') ? '[dry-run] ' : ''}출처 ${src.label}${src.sha ? ` (${src.sha.slice(0, 7)})` : ''} · 코어 ${r.changed.length}개 파일 갱신${r.changed.length ? ':\n  ' + r.changed.join('\n  ') : ''}`);
+} catch (e) { console.error(e.message); process.exit(1); } finally { src.cleanup(); }

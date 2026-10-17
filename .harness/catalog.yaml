@@ -9,10 +9,10 @@ tools:
     rule: 템플릿 적용은 결정론 복사·치환·코어 해시 manifest (템플릿 저장소에만 있음)
   - name: sync-core.mjs
     status: active
-    command: node .harness/scripts/sync-core.mjs --from <템플릿 경로> [--dry-run]
+    command: node .harness/scripts/sync-core.mjs [--from <경로 | 주소@태그 | owner/repo@태그>] [--dry-run]   # 기본은 harness.yaml upstream.repo@ref
     enforcement: generate
     self_test: node .harness/scripts/sync-core.mjs --self-test
-    rule: .harness/HARNESS.md §9 ⑦ — 코어는 템플릿에서만 고치고 프로젝트는 내려받는다. manifest core 해시 갱신
+    rule: .harness/HARNESS.md §9 ⑦ — 코어는 템플릿에서만 고치고 프로젝트는 내려받는다(릴리스 태그 고정 · 출처·SHA를 manifest에). manifest core 해시 갱신
   - name: core-files.mjs
     status: active
     command: (라이브러리) .harness/scripts/lib/core-files.mjs
@@ -85,6 +85,12 @@ tools:
     enforcement: none
     self_test: node .harness/scripts/lib/refs.mjs --self-test
     rule: harness.yaml references 파서 — new-doc·harness-status·guard-reference·lint 공유 (사유 — 판정은 호출자가 한다)
+  - name: upstream.mjs
+    status: active
+    command: (라이브러리) .harness/scripts/lib/upstream.mjs
+    enforcement: none
+    self_test: node .harness/scripts/lib/upstream.mjs --self-test
+    rule: 템플릿 출처 해석(경로 · 주소@태그 · owner/repo@태그) · 태그 clone · harness.yaml upstream — sync-core·mockup-diff init 공유 (사유 — 판정은 호출자가 한다)
   - name: records.mjs
     status: active
     command: (라이브러리) .harness/scripts/lib/records.mjs

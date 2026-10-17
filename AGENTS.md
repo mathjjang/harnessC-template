@@ -1,6 +1,6 @@
 # AGENTS.md — {{PROJECT_NAME}} 에이전트 운영 규칙
 
-> 하네스C 코어 v0.3.2 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
+> 하네스C 코어 v0.3.3 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
@@ -25,7 +25,7 @@
 ## 파일
 
 - 모든 텍스트 파일은 UTF-8(BOM 없음). 한글→ASCII 치환으로 "수리"하지 않는다. 깨져 보이면 읽는 쪽 인코딩부터 의심.
-- `.harness/`·`.claude/`·이 파일은 템플릿 사본 — 여기서 고치지 않는다(lint ⑫). 템플릿에서 고치고 `node .harness/scripts/sync-core.mjs --from <템플릿>`.
+- `.harness/`·`.claude/`·이 파일은 템플릿 사본 — 여기서 고치지 않는다(lint ⑫). 템플릿에서 고치고 `node .harness/scripts/sync-core.mjs`(harness.yaml `upstream` 태그에서 내려받는다 · `--from <경로|주소@태그>`로 바꿀 수 있다).
 - 생성물(`*.generated.md`, `.harness/init-manifest.json`)은 손으로 고치지 않는다.
 - 참조 저장소(`harness.yaml` `references`)는 읽되 고치지 않는다. `trust: external` 협업 저장소는 `writable` 폴더에만 쓰고 개발 저장소 경로·기록 ID·원가·공수를 쓰지 않는다 — 훅이 거부·질의한다.
 - 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에. 루트·`docs/`·`rules/`에 새 폴더를 만들면 훅·pre-commit 게이트가 거부한다 — 우회 플래그는 없다.

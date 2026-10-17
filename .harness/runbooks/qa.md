@@ -14,6 +14,16 @@ args: "pull | reply <ID> --state taken|resolved|verified [--commit <sha>] [--ste
 
 > 접수처는 목업 저장소 `qa/`(런북 `qa-intake.md`)다. 유형이 경로를 정한다 — **오류만 개발이 가져간다.** 기획수정(UI·정책)은 목업 rev+1·policy 개정이 먼저이고, 그 뒤 개발이 재승격·구현한다(런북 `mockup.md`). 정책공백은 사람 결정 뒤 다시 분류된다. 도구 `node .harness/scripts/qa-intake.mjs`.
 
+## 0. 누가 발견했나가 자리를 정한다
+
+| 발견 | 자리 |
+|---|---|
+| 기획·검수자가 테스트 서버에서 | 목업 저장소 `qa/` (이 런북이 가져온다) |
+| 개발자가 사람으로서 테스트 서버에서 — **오류**(기획대로 동작하지 않음) | 개발 저장소 `node .harness/scripts/new-doc.mjs qa <slug> "<증상>"` 직접 접수 → 이 런북 §2부터 같다 |
+| 개발자가 발견했지만 **기획에 닿음**(화면·정책을 바꿔야 풀림) | 목업 저장소 `qa/`에 접수해 기획이 분류·결정한다 — 개발이 기획을 대신 정하지 않는다 |
+| 에이전트가 자기 작업 중 | 접수하지 않는다 — 그 FDR 안에서 고친다(evidence/·session-log) |
+| 에이전트가 못 하는 사람 검증 | `docs/queue/HR-` (`rules/human-only.yaml` 축만) |
+
 ## 1. 가져오기
 
 ```bash

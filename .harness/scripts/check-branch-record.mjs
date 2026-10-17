@@ -80,7 +80,7 @@ let branch = ''; try { branch = g('branch --show-current'); } catch { process.ex
 if (!branch) process.exit(0);   // detached — 병합·리베이스 중간 상태는 판정하지 않는다
 const staged = g('diff --cached --name-only --diff-filter=ACMR').split('\n').filter(Boolean);
 const hy = existsSync(join(ROOT, 'harness.yaml')) ? readFileSync(join(ROOT, 'harness.yaml'), 'utf8') : '';
-const base = ((hy.match(/^work:\s*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*base:\s*(\S+)/m)?.[1] || 'main';
+const base = ((hy.match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*base:\s*(\S+)/m)?.[1] || 'main';
 const id = (branch.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
 const problems = judge({ branch, base, staged, scope: id ? fdrScope(ROOT, id) : [], finishing: process.env.HARNESS_WORK_FINISH === '1' });
 if (problems.length) { console.log('[check-branch-record] ' + problems.join('\n[check-branch-record] ')); process.exit(1); }

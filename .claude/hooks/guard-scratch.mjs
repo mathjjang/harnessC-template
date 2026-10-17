@@ -24,7 +24,7 @@ const RULES_ALLOW = ['product.md', 'human-only.yaml', 'runbooks', 'domain', 'REA
 function loadConfig(root) {
   const cfg = { rootAllow: [], scratchDir: '.scratch', allowDirs: [] };
   const hy = existsSync(resolve(root, 'harness.yaml')) ? readFileSync(resolve(root, 'harness.yaml'), 'utf8') : '';
-  const m = hy.match(/^scratch:\s*\n((?:[ \t]+.*\n?)*)/m);
+  const m = hy.match(/^scratch:[^\n]*\n((?:[ \t]+.*\n?)*)/m);
   if (m) { const list = m[1].match(/root_allow:\s*\[([^\]]*)\]/); if (list) cfg.rootAllow = list[1].split(',').map((s) => s.trim()).filter(Boolean); const d = m[1].match(/dir:\s*(\S+)/); if (d) cfg.scratchDir = d[1]; }
   const jp = resolve(root, '.harness', 'clutter-config.json');
   if (existsSync(jp)) { try { const j = JSON.parse(readFileSync(jp, 'utf8')); cfg.rootAllow.push(...(j.rootAllow || [])); cfg.allowDirs.push(...(j.allowDirs || [])); if (j.scratchDir) cfg.scratchDir = j.scratchDir; } catch { /* 무시 */ } }

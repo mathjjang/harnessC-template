@@ -2,7 +2,7 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 코어 버전: **0.3.2** (기술 검토 단계 · 하네스B의 다음 세대)
+- 코어 버전: **0.3.3** (기술 검토 단계 · 하네스B의 다음 세대) · 릴리스 태그 `v0.3.3` · 짝: harnessC-mockup-template `v0.1.1`
 - 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) — 목업(기획·디자인) 저장소 뼈대. 화면 설계가 시작될 때 `node .harness/scripts/mockup-diff.mjs init separate`(별도 GitHub 저장소 — 기획·디자인 분리, 기본) 또는 `init embedded`(개발 저장소 안 `mockups/` — 혼자 개발)로 고른다. 레이아웃이 같아 나중에 폴더째 분리할 수 있다. UI 없는 프로젝트는 없어도 된다
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
 - 이 템플릿은 **결과물**이다. 방법론의 개발·결정(ADR)·탐구(RFC)·근거 문서는 프로젝트 저장소 [`mathjjang/HarnessC`](https://github.com/mathjjang/HarnessC)에 있다 — 여기에는 새 프로젝트가 내려받을 것만 둔다
@@ -10,16 +10,22 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대
 ## 새 프로젝트 시작
 
 ```bash
-# 1. GitHub "Use this template" 또는 clone
+# 1. 템플릿에서 저장소 생성 — GitHub "Use this template" 또는
+gh repo create <owner>/<project> --template mathjjang/harnessC-template --private --clone && cd <project>
 # 2. 티어를 정해 적용 (결정론 복사 · {{VAR}} 치환 · 코어 해시 manifest) — --prune 으로 템플릿 전용 파일 제거
 node init.mjs --name my-project --tier M --prune
 git config core.hooksPath .harness/scripts/git-hooks
 # 3. rules/product.md(제품 불변)와 docs/requirements/ 채우기. 도메인 규칙이 필요하면 rules/domain/<이름>.md (예시: HarnessC 저장소 docs/research/methodology/domain-rules/)
 # 4. 첫 기록은 생성기로
 node .harness/scripts/new-doc.mjs rfc first-question "첫 탐구"
-# 이후 템플릿이 바뀌면
-node .harness/scripts/sync-core.mjs --from ../harnessC-template
+# 5. 화면이 있으면 목업 저장소 — 별도 GitHub 저장소(기본) 또는 개발 저장소 안
+node .harness/scripts/mockup-diff.mjs init separate      # 또는 init embedded
+
+# 템플릿이 새 릴리스를 내면 — harness.yaml upstream.ref 를 그 태그로 올리고
+node .harness/scripts/sync-core.mjs                      # upstream.repo@ref 에서 내려받는다 (로컬 clone 불요 · --from <경로|주소@태그> 로 바꿀 수 있다)
 ```
+
+릴리스 = 두 템플릿에 같은 시점의 태그(`v0.3.3` ↔ 목업 `v0.1.1` 짝). 프로젝트는 태그로 고정해 받고, 받은 출처·SHA가 `.harness/init-manifest.json`에 남는다.
 
 | 티어 | 대상 | FDR 프로파일 | 상시 규칙 상한 |
 |---|---|---|---|
