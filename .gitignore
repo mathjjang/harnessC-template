@@ -9,4 +9,3 @@ node_modules/
 docs/*/*/evidence/runs/*.out
 .DS_Store
 Thumbs.db
-/mockup-template/

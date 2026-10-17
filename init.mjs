@@ -36,7 +36,7 @@ function parseArgs(argv) {
 const walk = (dir, out = [], base = dir) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) { if (!SKIP_REL.has(relative(base, p).split(sep).join('/'))) walk(p, out, base); }
+    if (e.isDirectory()) { if (!SKIP_REL.has(relative(base, p).split(sep).join('/')) && !(p !== base && existsSync(join(p, '.git')))) walk(p, out, base); }   // 자기 .git을 가진 중첩 체크아웃(다른 저장소)은 건드리지 않는다
     else out.push(p);
   }
   return out;

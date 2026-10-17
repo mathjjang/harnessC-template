@@ -23,7 +23,7 @@ import { checkMockup } from './mockup-diff.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RULE_FILES = ['.harness/HARNESS.md', 'rules/product.md', 'AGENTS.md', 'CLAUDE.md'];
-const DOCS_ALLOW = [...DOCS_DIRS, 'methodology'];
+const DOCS_ALLOW = [...DOCS_DIRS];
 const RULES_ALLOW = ['product.md', 'human-only.yaml', 'runbooks', 'domain', 'README.md'];
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();

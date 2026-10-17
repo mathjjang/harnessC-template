@@ -5,7 +5,7 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대
 - 코어 버전: **0.3.2** (기술 검토 단계 · 하네스B의 다음 세대)
 - 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) — 목업(기획·디자인) 저장소 뼈대. 화면 설계가 시작될 때 `node .harness/scripts/mockup-diff.mjs init separate`(별도 GitHub 저장소 — 기획·디자인 분리, 기본) 또는 `init embedded`(개발 저장소 안 `mockups/` — 혼자 개발)로 고른다. 레이아웃이 같아 나중에 폴더째 분리할 수 있다. UI 없는 프로젝트는 없어도 된다
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
-- 근거와 진화 기록: [`docs/methodology/`](docs/methodology/) · 결정: [`docs/decisions/`](docs/decisions/) · 탐구: [`docs/research/`](docs/research/)
+- 이 템플릿은 **결과물**이다. 방법론의 개발·결정(ADR)·탐구(RFC)·근거 문서는 프로젝트 저장소 [`mathjjang/HarnessC`](https://github.com/mathjjang/HarnessC)에 있다 — 여기에는 새 프로젝트가 내려받을 것만 둔다
 
 ## 새 프로젝트 시작
 
@@ -14,7 +14,7 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대
 # 2. 티어를 정해 적용 (결정론 복사 · {{VAR}} 치환 · 코어 해시 manifest) — --prune 으로 템플릿 전용 파일 제거
 node init.mjs --name my-project --tier M --prune
 git config core.hooksPath .harness/scripts/git-hooks
-# 3. rules/product.md(제품 불변)와 docs/requirements/ 채우기. 도메인 규칙이 필요하면 rules/domain/<이름>.md (예시: docs/methodology/domain-rules/)
+# 3. rules/product.md(제품 불변)와 docs/requirements/ 채우기. 도메인 규칙이 필요하면 rules/domain/<이름>.md (예시: HarnessC 저장소 docs/research/methodology/domain-rules/)
 # 4. 첫 기록은 생성기로
 node .harness/scripts/new-doc.mjs rfc first-question "첫 탐구"
 # 이후 템플릿이 바뀌면
@@ -48,7 +48,7 @@ src/ tests/    코드                                                           
 - **폴더는 늘지 않는다.** `docs/`는 여덟으로 고정. 자주 여는 기록 넷(ADR 결정·RFC 탐구·FDR 기능·HO 핸드오프)은 `docs/` 바로 아래 자기 폴더, 나머지(PLAN·MTG·INC·RETRO)는 `records/`. `INDEX.generated.md`가 한 곳에 모아 준다. 데이터 소스 조건·프롬프트 계약 같은 도메인 자료는 `docs/specs/<name>.md` **파일**이다.
 - **증거는 기록 옆.** `docs/<자리>/<ID>/evidence/`. 완료보고서용 모아 보기는 `docs/INDEX.generated.md` 증거 절.
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`(gitignore). main에 제품 코드 직접 커밋 금지. spike는 `rfc/*` 브랜치에서 바로 — 코드는 병합되지 않고 `promote`로 FDR에 재기반. `.harness/runbooks/work.md`.
-- 템플릿에만 있는 것: `init.mjs` · `.harness/tiers/` · `docs/methodology/` — `--prune`이 지운다.
+- 템플릿에만 있는 것: `init.mjs` · `.harness/tiers/` — `--prune`이 지운다.
 
 ## 지금 동작하는 것과 아직 아닌 것
 

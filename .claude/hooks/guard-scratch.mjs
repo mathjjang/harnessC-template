@@ -18,7 +18,7 @@ import { DOCS_DIRS } from '../../.harness/scripts/lib/records.mjs';
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
 const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.worktrees', '.harness', 'rules', 'docs', 'src', 'app', 'tests', 'scripts', 'config', 'mockups', '.claude', '.agents', '.gemini', '.github', '.vscode'];
 const ALLOWED_DIR_RE = /(^|[\\/])(\.scratch|evidence|_assets|node_modules|\.git)([\\/]|$)/;
-const DOCS_ALLOW = [...DOCS_DIRS, 'methodology'];   // docs/ 하위 폴더는 고정(lib/records.mjs) — 기록은 자기 자리, 도메인 자료는 specs/ 파일 (lint ⑬과 동일)
+const DOCS_ALLOW = [...DOCS_DIRS];   // docs/ 하위 폴더는 고정(lib/records.mjs) — 기록은 자기 자리, 도메인 자료는 specs/ 파일 (lint ⑬과 동일)
 const RULES_ALLOW = ['product.md', 'human-only.yaml', 'runbooks', 'domain', 'README.md'];
 
 function loadConfig(root) {
