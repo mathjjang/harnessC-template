@@ -2,7 +2,7 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 코어 버전: **0.3.4** (기술 검토 단계 · 하네스B의 다음 세대) · 릴리스 태그 `v0.3.4` · 짝: harnessC-mockup-template `v0.1.2`
+- 코어 버전: **0.3.5** (기술 검토 단계 · 하네스B의 다음 세대) · 릴리스 태그 `v0.3.5` · 짝: harnessC-mockup-template `v0.1.3`
 - 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) — 목업(기획·디자인) 저장소 뼈대. 화면 설계가 시작될 때 `node .harness/scripts/mockup-diff.mjs init separate`(별도 GitHub 저장소 — 기획·디자인 분리, 기본) 또는 `init embedded`(개발 저장소 안 `mockups/` — 혼자 개발)로 고른다. 레이아웃이 같아 나중에 폴더째 분리할 수 있다. UI 없는 프로젝트는 없어도 된다
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
 - 이 템플릿은 **결과물**이다. 방법론의 개발·결정(ADR)·탐구(RFC)·근거 문서는 프로젝트 저장소 [`mathjjang/HarnessC`](https://github.com/mathjjang/HarnessC)에 있다 — 여기에는 새 프로젝트가 내려받을 것만 둔다
@@ -25,7 +25,7 @@ node .harness/scripts/mockup-diff.mjs init separate      # 또는 init embedded
 node .harness/scripts/sync-core.mjs                      # upstream.repo@ref 에서 내려받는다 (로컬 clone 불요 · --from <경로|주소@태그> 로 바꿀 수 있다)
 ```
 
-릴리스 = 두 템플릿에 같은 시점의 태그(`v0.3.4` ↔ 목업 `v0.1.2` 짝). 프로젝트는 태그로 고정해 받고, 받은 출처·SHA가 `.harness/init-manifest.json`에 남는다.
+릴리스 = 두 템플릿에 같은 시점의 태그(`v0.3.5` ↔ 목업 `v0.1.3` 짝). 프로젝트는 태그로 고정해 받고, 받은 출처·SHA가 `.harness/init-manifest.json`에 남는다.
 
 | 티어 | 대상 | FDR 프로파일 | 상시 규칙 상한 |
 |---|---|---|---|
