@@ -143,14 +143,14 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
   let merged = 'none';
   if (['FDR', 'PLAN'].includes(r.type)) {
     markShipped(wt, id);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
+    // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
+    try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
     if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
     if (c.merge === 'pr') {
-      try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
       git(root, `push -u --force-with-lease origin "${branch}"`, { quiet: true });   // 자기 기록 브랜치만 — rebase 뒤 재push
       const pr = openPr(root, id, { branch, base: c.base, gh });
       return { id, branch, merged: 'pr', note: `${pr.note} · CI(harness)가 리뷰 판정까지 묻는다 — 리뷰어가 판정을 쓰면 커밋 후 다시 finish(PR 본문 갱신) · 병합 뒤 node .harness/scripts/work.mjs gc --apply` };
     }
-    try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
     git(root, `merge --ff-only "${branch}"`, { env, quiet: true });
     merged = 'ff';
   } else {
