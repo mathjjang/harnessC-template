@@ -6,7 +6,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CORE_PATHS, hashCore, coreFiles } from './lib/core-files.mjs';
+import { CORE_PATHS, hashCore, sha } from './lib/core-files.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
@@ -26,7 +26,9 @@ export function sync(root, from, { dryRun = false } = {}) {
     // 치환은 프로젝트명이 들어가는 입구 파일 셋만 — 스크립트·템플릿·런북의 {{…}}는 원본 그대로여야 한다
     for (const f of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) { const p = join(root, f); if (!existsSync(p)) continue; const t = readFileSync(p, 'utf8'); const u = t.replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m); if (u !== t) writeFileSync(p, u); }
   }
-  const after = dryRun ? hashCore(from) : hashCore(root);
+  let after;
+  if (dryRun) { after = hashCore(from); for (const f of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) if (existsSync(join(from, f))) after[f] = sha(readFileSync(join(from, f), 'utf8').replace(/\r\n/g, '\n').replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m)); }
+  else after = hashCore(root);
   const changed = Object.keys({ ...before, ...after }).filter((f) => before[f] !== after[f]);
   if (!dryRun) {
     const mp = join(root, '.harness', 'init-manifest.json');
@@ -56,6 +58,7 @@ if (process.argv.includes('--self-test')) {
     const m = JSON.parse(readFileSync(join(proj, '.harness', 'init-manifest.json'), 'utf8'));
     if (m.coreVersion !== '0.2.0' || !m.core['.harness/HARNESS.md'] || !r.changed.length) fails.push('manifest 미갱신');
     if (JSON.stringify(hashCore(proj)) !== JSON.stringify(m.core)) fails.push('해시 불일치');
+    if (sync(proj, tpl, { dryRun: true }).changed.length) fails.push('동기화 직후 dry-run이 변경을 보고');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(tmp, { recursive: true, force: true });
   console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (복사·치환·낡은 파일 제거·프로젝트 파일 보존·manifest)');
