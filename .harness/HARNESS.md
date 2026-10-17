@@ -14,7 +14,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 큐      docs/queue/<PG|QA|HR|BL>-…                     열린 것만
 ```
 
-폴더는 늘지 않는다 — `docs/`는 `requirements · records · specs · queue` 넷, 종류는 ID 접두가 말한다(lint ⑬·훅). 전체 eager-load 금지. 규칙이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
+폴더는 늘지 않는다 — `docs/`는 넷, 종류는 ID 접두가 말한다(lint ⑬·훅). 전체 eager-load 금지. 규칙이 참조하는 도구는 `.harness/catalog.yaml`에 `active`여야 한다.
 
 ## 2. 라우팅 (위에서부터 먼저 맞는 것)
 
@@ -29,7 +29,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시
 | 외부 데이터·LLM 프롬프트 등 조건이 있는 의존 | — | **스펙 파일** `docs/specs/<name>.md` |
 | 단순 수정 | — | 없음 |
 
-모든 기록은 `docs/records/`에. 타이브레이크: 여러 기능·외부 소비자·장기 호환에 닿으면 REP→ADR 선행. 한 기능 내부면 FDR design에 기록.
+타이브레이크: 여러 기능·외부 소비자·장기 호환에 닿으면 REP→ADR 선행. 한 기능 내부면 FDR design에.
 
 ## 3. ID와 생성
 
