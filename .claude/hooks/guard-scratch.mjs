@@ -44,6 +44,8 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   if (!rel || rel.startsWith('..') || isAbsolute(rel)) return null;                 // 저장소 밖 (scratchpad 포함)
   if (scratchpad && !relative(scratchpad, abs).startsWith('..')) return null;
   const relPosix = rel.split(sep).join('/');
+  // 중첩 체크아웃(자기 .git을 가진 폴더 — mockup-template/ · collab/ …) 안은 그 저장소의 규칙에 맡긴다
+  const segs = relPosix.split('/'); for (let i = 1; i < segs.length; i++) { const d = segs.slice(0, i).join('/'); if ((config.nested || []).includes(d) || existsSync(resolve(root, d, '.git'))) return null; }
   if (ALLOWED_DIR_RE.test(relPosix)) return null;
   if ((config.allowDirs || []).some((d) => relPosix === d || relPosix.startsWith(d.replace(/\/$/, '') + '/'))) return null;
   const top = relPosix.split('/')[0];
@@ -65,8 +67,9 @@ function deny(reason) {
 
 if (process.argv.includes('--self-test')) {
   const root = resolve('/repo');
-  const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp'), config: { rootAllow: ['Makefile'], scratchDir: '.scratch' }, tracked: new Set(['src', 'README.md']) };
+  const ctx = { root, cwd: root, scratchpad: resolve('/tmp/sp'), config: { rootAllow: ['Makefile'], scratchDir: '.scratch', nested: ['mockup-template'] }, tracked: new Set(['src', 'README.md']) };
   const cases = [
+    ['mockup-template/qa/QA-1/.tmp-probe.log', null], ['mockup-template/docs/newdir/x.md', null],   // 중첩 저장소 안은 그 저장소 규칙
     ['src/a.ts', null], ['.tmp-probe.mjs', 'deny'], ['.harness/scripts/probe-x.mjs', 'deny'], ['.scratch/probe-x.mjs', null], ['docs/features/FDR-1/evidence/run.log', null], ['docs/prompts/x.md', 'deny'], ['docs/decisions/ADR-1.md', null], ['docs/research/RFC-1/rfc.md', null], ['docs/handoffs/HO-1/request.md', null], ['docs/records/INC-1.md', null], ['docs/README.md', null], ['rules/packs/x.md', 'deny'], ['rules/domain/x.md', null],
     ['newfile.txt', 'deny'], ['Makefile', null], ['README.md', null], ['/tmp/sp/x.log', null], ['../outside/x.log', null], ['app/build.log', 'deny'], ['docs/x/_assets/a.log', null],
   ];

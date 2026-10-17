@@ -94,7 +94,7 @@ function selfTest() {
   const tmp = join(ROOT, '.init-selftest');
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp);
-  for (const name of readdirSync(ROOT)) if (!['.git', 'node_modules', '.init-selftest', '.scratch'].includes(name)) cpSync(join(ROOT, name), join(tmp, name), { recursive: true });
+  for (const name of readdirSync(ROOT)) if (!['.git', 'node_modules', '.init-selftest', '.scratch', 'mockup-template'].includes(name)) cpSync(join(ROOT, name), join(tmp, name), { recursive: true });   // mockup-template: 중첩 체크아웃(별도 저장소 · gitignore)
   const fails = [];
   try {
     const r = run({ name: 'selftest-proj', tier: 'S', dryRun: false, prune: true }, tmp);

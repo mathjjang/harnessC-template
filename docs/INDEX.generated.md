@@ -1,7 +1,7 @@
 <!-- 생성물: node .harness/scripts/build-index.mjs · 2026-10-17 · 손으로 편집하지 않는다 -->
 # 기록 카탈로그
 
-## ADR — 결정 (9)
+## ADR — 결정 (10)
 
 - [ADR-261016-enforcement-alignment](docs/decisions/ADR-261016-enforcement-alignment.md) — ADR-261016-enforcement-alignment: 하네스C 보장 범위 정렬 — 규칙 문구와 집행기 일치(RFC 재판정 P0) · Accepted
 - [ADR-261016-external-collab](docs/decisions/ADR-261016-external-collab.md) — ADR-261016-external-collab: 외부 조직과의 협업 저장소 — 형제 체크아웃·DEC/MTG·guard-reference · Accepted
@@ -9,6 +9,7 @@
 - [ADR-261017-core-only-and-fixed-folders](docs/decisions/ADR-261017-core-only-and-fixed-folders.md) — ADR-261017-core-only-and-fixed-folders: 템플릿에는 모든 프로젝트에서 동일하게 동작하는 것만 — 고정 폴더·팩 폐 · Accepted
 - [ADR-261017-entry-generation](docs/decisions/ADR-261017-entry-generation.md) — ADR-261017-entry-generation: 절차 정본은 런북, 런타임 입구(.claude·.agents·.gemini)는 생성물 · Accepted
 - [ADR-261017-mockup-diff](docs/decisions/ADR-261017-mockup-diff.md) — ADR-261017-mockup-diff: 확정 목업 승인본 픽셀 대조 — BackstopJS 코어 이식·PC 공용 엔진·완료 게이트 · Accepted
+- [ADR-261017-qa-flow](docs/decisions/ADR-261017-qa-flow.md) — ADR-261017-qa-flow: 검수 접수는 목업 저장소, 수정은 개발 저장소, 닫기는 기획 — 유형이 경로를 정한다 · Accepted
 - [ADR-261017-record-folders](docs/decisions/ADR-261017-record-folders.md) — ADR-261017-record-folders: 자주 여는 기록 넷(ADR·RFC·FDR·HO)을 docs/ 바로 아래 자기 폴더로 · Accepted
 - [ADR-261017-s-tier-budget](docs/decisions/ADR-261017-s-tier-budget.md) — ADR-261017-s-tier-budget: 티어 S 상시 규칙 상한 15KB → 18KB · Accepted
 - [ADR-261017-work-isolation](docs/decisions/ADR-261017-work-isolation.md) — ADR-261017-work-isolation: 동시 작업 — 기록 하나 = 브랜치 하나 = worktree 하나, spike는 RFC 브랜치 · Accepted
@@ -22,7 +23,7 @@
 
 - [HO-261016-codex-rebuttal](docs/handoffs/HO-261016-codex-rebuttal) — HO-261016-codex-rebuttal: 하네스C 방법론 리뷰 재판정에 대한 Codex 재반박 · closed
 
-## runbook (7)
+## runbook (8)
 
 - [collab](.harness/runbooks/collab.md) — 코어 · 발주사·협력사 등 다른 조직과 같이 보는 저장소(harness.yaml references role collab)를 만들거나,
 - [fdr-start](.harness/runbooks/fdr-start.md) — 코어 · FDR을 새로 시작할 때 — "FDR 시작", "기능 개발 착수", "새 FDR", RFC spike를 FDR로 승격할 때
@@ -30,6 +31,7 @@
 - [meeting-ingest](.harness/runbooks/meeting-ingest.md) — 코어 · 외부 조직과의 회의가 끝났을 때 — "회의록 반영", "회의 결과 정리", "미팅 끝났어"
 - [meeting-prep](.harness/runbooks/meeting-prep.md) — 코어 · 외부 조직과의 회의를 준비할 때 — "회의 준비", "안건 정리", "미팅 자료"
 - [mockup](.harness/runbooks/mockup.md) — 코어 · 확정 목업이 있는 화면을 구현·수정할 때, "목업대로 됐는가"를 판정할 때, 공유 CSS·토큰 변경이나 릴리스 전 시각 회귀를
+- [qa](.harness/runbooks/qa.md) — 코어 · 목업 저장소에 검수 접수(qa/QA-…)가 들어왔을 때, 오류 건을 가져와 고치고 검증·회신할 때, "검수 건 처리", "QA
 - [work](.harness/runbooks/work.md) — 코어 · 파일을 고치는 작업을 시작할 때(FDR 구현·RFC spike·PLAN 통합), 끝낼 때, spike를 FDR로 승격할 때, 
 
 ## 증거 — 기록별 evidence/ 모아 보기 (2)

@@ -2,7 +2,7 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 코어 버전: **0.3.1** (기술 검토 단계 · 하네스B의 다음 세대)
+- 코어 버전: **0.3.2** (기술 검토 단계 · 하네스B의 다음 세대)
 - 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) — 목업(기획·디자인) 저장소 뼈대. 화면 설계가 시작될 때 `node .harness/scripts/mockup-diff.mjs init separate`(별도 GitHub 저장소 — 기획·디자인 분리, 기본) 또는 `init embedded`(개발 저장소 안 `mockups/` — 혼자 개발)로 고른다. 레이아웃이 같아 나중에 폴더째 분리할 수 있다. UI 없는 프로젝트는 없어도 된다
 - 계보: Harness `/init` 스캐폴드(하네스B) → 이전 프로젝트 운영 7~14주 → 하네스C
 - 근거와 진화 기록: [`docs/methodology/`](docs/methodology/) · 결정: [`docs/decisions/`](docs/decisions/) · 탐구: [`docs/research/`](docs/research/)
@@ -63,6 +63,7 @@ src/ tests/    코드                                                           
 | 기록(종류별)·스펙·큐·증거 인덱스 생성 | `build-index.mjs` active |
 | 확정 목업 승격(rev 스탬프)·BackstopJS 승인본 픽셀 대조·기록·완료 게이트. 엔진은 PC에 한 번(`engine --install`) | `mockup-diff.mjs` active |
 | 런북 → Claude·Codex·Gemini 입구 생성(포인터) · pre-commit 신선도 | `harness-build.mjs` active |
+| 검수 접수(목업 저장소 `qa/`)의 개발 쪽 처리 — 오류 건 가져오기·수정 회신·리뷰어 검증(고친 쪽≠검증자) | `qa-intake.mjs` active |
 | RUN 원장, FDR close 스펙 병합, metrics | **planned** — `.harness/catalog.yaml` |
 
 ## 검증

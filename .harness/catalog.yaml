@@ -121,6 +121,12 @@ tools:
     enforcement: gate
     self_test: node .harness/scripts/mockup-diff.mjs --self-test
     rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 목업 저장소 자리 선택(init separate|embedded → references role: mockup) · confirmed 화면 승격(원본 rev.yaml 해시 검증 · 자산 참조 검사 · rev 스탬프)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
+  - name: qa-intake.mjs
+    status: active
+    command: node .harness/scripts/qa-intake.mjs pull | reply <ID> --state taken|resolved|verified [--commit <sha>] [--steps "<확인 절차>"] [--by …] | status
+    enforcement: gate
+    self_test: node .harness/scripts/qa-intake.mjs --self-test
+    rule: runbooks/qa.md · ADR-261017-qa-flow — 목업 저장소 qa/의 오류 건만 docs/queue로(pull) · resolution.md 회신(resolved는 커밋+확인 절차 필수 · verified는 수정자와 다른 by만)
   - name: harness-build.mjs
     status: active
     command: node .harness/scripts/harness-build.mjs [--check]

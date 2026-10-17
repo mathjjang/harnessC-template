@@ -239,7 +239,7 @@ function fetchTemplate(dst, from) {
 /** harness.yaml references에 role: mockup 항목을 넣는다(이미 있으면 교체) */
 export function registerMockupRef(root, entry) {
   const p = join(root, 'harness.yaml'); let hy = rd(p); if (!hy) throw new Error('harness.yaml이 없다 — 개발 저장소 루트에서 실행');
-  const line = `  - { path: ${entry.path}, role: mockup, mode: ${entry.mode}${entry.embedded ? ', embedded: true' : ''} }`;
+  const line = `  - { path: ${entry.path}, role: mockup, mode: ${entry.mode}${entry.writable ? `, writable: [${entry.writable.join(', ')}]` : ''}${entry.embedded ? ', embedded: true' : ''} }`;
   hy = hy.split('\n').filter((l) => !/^\s*-\s*\{[^}]*role:\s*mockup\b/.test(l)).join('\n');
   if (/^references:\s*\[\]/m.test(hy)) hy = hy.replace(/^references:\s*\[\][^\n]*/m, (m) => m.replace(/\[\][ \t]*/, '') + '\n' + line);
   else if (/^references:/m.test(hy)) hy = hy.replace(/^(references:[^\n]*\n(?:[ \t]+-[^\n]*\n?)*)/m, (m) => m.replace(/\n?$/, '\n') + line + '\n');
@@ -264,7 +264,8 @@ export function initMockup(root, mode, { name, from, gh = true, owner } = {}) {
   if (existsSync(join(dst, 'init.mjs'))) execSync(`"${process.execPath}" init.mjs --name "${name}"`, { cwd: dst, stdio: 'ignore' });
   if (mode === 'embedded') { for (const d of ['.claude', '.agents', '.gemini', 'CLAUDE.md', 'GEMINI.md', '.gitignore', '.gitattributes']) rmSync(join(dst, d), { recursive: true, force: true }); }
   else execSync('git config core.hooksPath scripts/git-hooks', { cwd: dst, stdio: 'ignore' });
-  const ref = registerMockupRef(root, { path: rel, mode: mode === 'embedded' ? 'read-write' : 'read-only', embedded: mode === 'embedded' });
+  // separate도 read-write지만 writable: [qa/]뿐 — 개발은 검수 건의 resolution.md만 쓴다(guard-reference). 목업·정책은 그 저장소에서만
+  const ref = registerMockupRef(root, { path: rel, mode: 'read-write', writable: mode === 'embedded' ? undefined : ['qa/'], embedded: mode === 'embedded' });
   return { mode, path: rel, created, ref };
 }
 
@@ -346,7 +347,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     const devB = join(tmp, 'dev-b'); mkdirSync(devB, { recursive: true }); writeFileSync(join(devB, 'harness.yaml'), 'project: "beta"\nreferences:\n  - { path: ../ro, mode: read-only }\n');
     const e2 = initMockup(devB, 'separate', { from: tpl, gh: false });
     const hyB = rd(join(devB, 'harness.yaml'));
-    if (e2.path !== '../beta-mockups' || !existsSync(join(tmp, 'beta-mockups', '.git')) || !existsSync(join(tmp, 'beta-mockups', 'CLAUDE.md')) || !/^  - \{ path: \.\.\/ro, mode: read-only \}\n  - \{ path: \.\.\/beta-mockups, role: mockup, mode: read-only \}\n/m.test(hyB)) fails.push('init separate: ' + JSON.stringify(e2) + '\n' + hyB);
+    if (e2.path !== '../beta-mockups' || !existsSync(join(tmp, 'beta-mockups', '.git')) || !existsSync(join(tmp, 'beta-mockups', 'CLAUDE.md')) || !/^  - \{ path: \.\.\/ro, mode: read-only \}\n  - \{ path: \.\.\/beta-mockups, role: mockup, mode: read-write, writable: \[qa\/\] \}\n/m.test(hyB)) fails.push('init separate: ' + JSON.stringify(e2) + '\n' + hyB);
     registerMockupRef(devB, { path: 'mockups', mode: 'read-write', embedded: true }); if ((rd(join(devB, 'harness.yaml')).match(/role: mockup/g) || []).length !== 1) fails.push('references 교체');
     const cfg = mockupConfig(tmp); if (cfg.originEnv !== 'T_ORIGIN' || cfg.viewport.width !== 800 || cfg.threshold !== 0.5) fails.push('config');
     // 설정 생성

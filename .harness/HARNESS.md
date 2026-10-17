@@ -1,6 +1,6 @@
 # HARNESS.md — 하네스C 코어 규칙 (how)
 
-> 하네스C 코어 v0.3.1 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
+> 하네스C 코어 v0.3.2 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
 
 ## 1. 지식 층 (로딩 순서)
 
@@ -26,6 +26,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 | 사용자 가시 기능 | **FDP** | **FDR** |
 | 다른 에이전트(타사 포함)에게 맡김·리뷰 요청 | §11 | **HO** |
 | 확정 목업이 있는 화면 | runbook `mockup.md` (승격→문자 이식→대조) | FDR + `mockup/` + 대조 기록 |
+| 기획이 테스트 서버에서 발견한 것 | 접수는 목업 저장소 `qa/`(유형이 경로를 정함) · 오류만 runbook `qa.md`로 가져옴 | `docs/queue/QA-` + 원본 `resolution.md` |
 | 반복 절차 | — | **runbook** (`rules/runbooks/` · 입구가 필요하면 머리말 `entry:`) |
 | 외부 데이터·LLM 프롬프트 등 조건이 있는 의존 | — | **스펙 파일** `docs/specs/<name>.md` |
 | 단순 수정 | — | 없음 |

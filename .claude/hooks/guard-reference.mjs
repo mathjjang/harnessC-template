@@ -29,10 +29,11 @@ export function judge(path, content, { root, cwd, refs }) {
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) continue;
     const mode = ref.mode || 'read-only';
     if (mode === 'read-only') return { decision: 'deny', reason: `참조 저장소 ${ref.path}는 읽기 전용(mode: ${mode}) — 결함은 그 저장소 담당에게` };
-    if (ref.trust !== 'external') return null;
     const relPosix = rel.split(sep).join('/');
     const w = (ref.writable || []).map((d) => d.replace(/\/$/, ''));
-    if (w.length && !w.some((d) => relPosix === d || relPosix.startsWith(d + '/'))) return { decision: 'deny', reason: `외부 협업 저장소 ${ref.path}에는 writable(${w.join(' ')}) 폴더에만 쓴다 — 다른 폴더가 필요하면 harness.yaml references.writable 등재(ADR)` };
+    // writable이 선언된 read-write 저장소는 trust와 무관하게 그 폴더에만 쓴다 (목업 저장소 qa/ · 협업 저장소 meetings/ …)
+    if (w.length && !w.some((d) => relPosix === d || relPosix.startsWith(d + '/'))) return { decision: 'deny', reason: `참조 저장소 ${ref.path}에는 writable(${w.join(' ')}) 폴더에만 쓴다 — 다른 폴더가 필요하면 harness.yaml references.writable 등재(ADR)` };
+    if (ref.trust !== 'external') return null;
     const text = String(content || '');
     const mark = text.match(DEV_MARK_RE);
     if (mark) return { decision: 'deny', reason: `외부 협업 저장소에 개발 저장소 참조(${mark[0]})를 쓰지 않는다 — 의존은 개발→협업 한 방향(원칙 14). DEC·MTG ID만 인용 가능` };
@@ -54,9 +55,12 @@ if (process.argv.includes('--self-test')) {
     { path: '../collab', role: 'collab', trust: 'external', mode: 'read-write', writable: ['meetings/', 'decisions/'], ask_words: ['원가'] },
     { path: '../ro', mode: 'read-only' },
     { path: '../rw', mode: 'read-write' },
+    { path: '../mk', role: 'mockup', mode: 'read-write', writable: ['qa/'] },
   ];
   const ctx = { root, cwd: root, refs };
   const cases = [
+    ['/mk/qa/QA-261017-x/resolution.md', 'commit abc FDR-261017-y', null],          // 목업 저장소 qa/만 쓰기 — 내부 저장소라 내용 검사 없음
+    ['/mk/screens/ds/list/01-default.html', 'x', 'deny'],
     ['/collab/meetings/MTG-261016-kickoff/agenda.md', '안건', null],
     ['/collab/requirements/x.md', '요구', 'deny'],
     ['/collab/meetings/x.md', '근거 docs/decisions/ADR-x.md', 'deny'],
