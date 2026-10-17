@@ -14,13 +14,18 @@
 - [RFC-261016-harness-c-methodology-review](docs/records/RFC-261016-harness-c-methodology-review) — RFC-261016-harness-c-methodology-review: 하네스C 방법론의 약점과 개선 우선순위 · Concluded
 - [RFC-261017-concurrent-work](docs/records/RFC-261017-concurrent-work) — RFC-261017-concurrent-work: 여러 에이전트·여러 개발자의 동시 작업 — V2 운영 분석과 하네스C 설계 · Concluded
 
+## HO — 핸드오프 (1)
+
+- [HO-261016-codex-rebuttal](docs/records/HO-261016-codex-rebuttal) — HO-261016-codex-rebuttal: 하네스C 방법론 리뷰 재판정에 대한 Codex 재반박 · closed
+
 ## runbook (3)
 
 - [collab](.harness/runbooks/collab.md) — 코어 · 발주사·협력사 등 다른 조직과 같이 보는 저장소(harness.yaml references role collab)를 만들거나,
 - [handoff](.harness/runbooks/handoff.md) — 코어 · 다른 세션·다른 회사 에이전트(Codex·Gemini·Cursor 등)에게 리뷰·검증·조사를 맡기거나, 그런 요청을 받았을 때
 - [work](.harness/runbooks/work.md) — 코어 · 파일을 고치는 작업을 시작할 때(FDR 구현·RFC spike·PLAN 통합), 끝낼 때, spike를 FDR로 승격할 때, 
 
-## 증거 — 기록별 evidence/ 모아 보기 (1)
+## 증거 — 기록별 evidence/ 모아 보기 (2)
 
+- [HO-261016-codex-rebuttal](docs/records/HO-261016-codex-rebuttal/evidence/) — 파일 5
 - [RFC-261016-harness-c-methodology-review](docs/records/RFC-261016-harness-c-methodology-review/evidence/) — 파일 3
 
