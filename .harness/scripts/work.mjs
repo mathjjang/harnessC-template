@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join, resolve, relative, basename, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RECORD_DIRS, recordDir, recordRel } from './lib/records.mjs';
-import { prProblems } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정
+import { prProblems, commitHistory } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -141,10 +141,10 @@ export function markShipped(wt, id) {
   return true;
 }
 
-/** ff 병합 전 리뷰 조건 — PR 모드의 CI(prProblems)와 같은 판정: 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프. 우회 플래그 없음 */
+/** ff 병합 전 리뷰 조건 — PR 모드의 CI(prProblems)와 같은 판정: 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 판정 무효(⑧). 우회 플래그 없음 */
 export function reviewGuard(wt, id, base) {
   const changed = git(wt, `diff --name-only --diff-filter=ACMR "${base}...HEAD"`).split('\n').filter(Boolean);
-  const rv = prProblems(wt, { base, head: branchOf(id), changed }).filter((x) => /^리뷰:/.test(x));
+  const rv = prProblems(wt, { base, head: branchOf(id), changed, ...commitHistory(wt, [`${base}..HEAD`]) }).filter((x) => /^리뷰:/.test(x));
   if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션):\n- ${rv.join('\n- ')}`);
 }
 
@@ -271,6 +271,11 @@ if (process.argv.includes('--self-test')) {
     try { reviewGuard(p.path, p.fdr, "main"); fails.push('ff: 판정 없이 통과'); } catch (e) { if (!/판정 없음/.test(e.message)) fails.push('ff 리뷰 거부 사유: ' + e.message); }
     writeFileSync(fdrMd, rd(fdrMd).replace(/^## 5\. Review[^\n]*\n/m, (m) => `${m}\n- 리뷰어(모델): reviewer(b)\n- 판정: 통과\n`)); g('add -A', p.path); g('commit -q -m review', p.path);
     try { reviewGuard(p.path, p.fdr, "main"); } catch (e) { fails.push('ff: 판정 뒤에도 거부 — ' + e.message); }
+    // ⑧ 판정 뒤 제품 코드가 바뀌면 판정 무효(ff도 PR과 같은 하한) · 다시 판정하면 통과
+    writeFileSync(join(p.path, 'src', 'spike.ts'), 'export const x = 2;\n'); g('add -A', p.path); g('commit -q -m "after verdict"', p.path);
+    try { reviewGuard(p.path, p.fdr, "main"); fails.push('ff: 판정 뒤 코드 변경 통과'); } catch (e) { if (!/판정 뒤에 제품 코드/.test(e.message)) fails.push('ff ⑧ 거부 사유: ' + e.message); }
+    writeFileSync(fdrMd, rd(fdrMd).replace('- 판정: 통과\n', '- 판정: 통과 (재판정 2026-01-02 · spike.ts 재확인)\n')); g('add -A', p.path); g('commit -q -m review2', p.path);   // 재판정은 판정 줄 자체를 다시 쓴다 — 메모만 덧붙이면 판정이 바뀐 것이 아니다
+    try { reviewGuard(p.path, p.fdr, "main"); } catch (e) { fails.push('ff: 재판정 뒤에도 거부 — ' + e.message); }
     const f2 = finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
@@ -303,7 +308,7 @@ if (process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.message); }
   try { for (const w of (g('worktree list --porcelain').match(/^worktree (.+)$/gm) || []).slice(1)) g(`worktree remove --force "${w.slice(9)}"`); } catch { /* */ }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·ff 리뷰 하한 2·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·ff 리뷰 하한 4(⑧ 포함)·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect)');
   process.exit(fails.length ? 1 : 0);
 }
 
