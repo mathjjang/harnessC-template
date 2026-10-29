@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export const CORE_PATHS = [
-  '.harness/HARNESS.md', '.harness/README.md', '.harness/catalog.yaml', '.harness/runbooks', '.harness/scripts', '.harness/templates',
+  '.harness/HARNESS.md', '.harness/README.md', '.harness/LICENSE', '.harness/catalog.yaml', '.harness/runbooks', '.harness/scripts', '.harness/templates',
   '.claude/settings.json', '.claude/hooks', '.claude/agents', '.claude/rules',
   'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
   '.github/workflows/harness.yml',   // 서버 쪽 게이트 — 프로젝트의 다른 워크플로는 건드리지 않는다(파일 하나만)

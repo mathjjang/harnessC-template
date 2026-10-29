@@ -93,6 +93,7 @@ export function run(opts, root = ROOT) {
     rmSync(join(root, '.harness', 'tiers'), { recursive: true, force: true });
     rmSync(join(root, 'init.mjs'), { force: true });
     rmSync(join(root, 'README-tier.md'), { force: true });
+    rmSync(join(root, 'LICENSE'), { force: true });   // 루트 LICENSE는 템플릿 저장소의 것 — 프로젝트는 자기 라이선스를 고른다. 코어의 MIT 고지는 .harness/LICENSE에 남는다(sync-core가 유지)
     rmSync(join(root, 'docs', 'methodology'), { recursive: true, force: true });
   }
   return { dryRun: false, vars, log, manifest };
@@ -113,6 +114,7 @@ async function selfTest() {
     if (!existsSync(tplReadme) || !/\{\{PROJECT_NAME\}\}/.test(readFileSync(tplReadme, 'utf8'))) fails.push('템플릿 원본이 치환됨');
     if (Object.keys(r.manifest.core).length < 10 || Object.values(r.manifest.core).some((h) => h.length !== 64)) fails.push('core 해시 없음');
     if (existsSync(join(tmp, '.harness', 'tiers')) || existsSync(join(tmp, 'init.mjs')) || existsSync(join(tmp, 'docs', 'methodology'))) fails.push('prune 미동작');
+    if (existsSync(join(tmp, 'LICENSE')) || !existsSync(join(tmp, '.harness', 'LICENSE'))) fails.push('prune: 루트 LICENSE는 지우고 .harness/LICENSE는 남겨야');
     const docsTop = readdirSync(join(tmp, 'docs')).filter((n) => !n.includes('.')).sort().join(',');
     if (docsTop !== [...DOCS_DIRS].sort().join(',')) fails.push(`docs/ 폴더 고정 위반: ${docsTop}`);
     try { run({ name: 'x', tier: 'Q', dryRun: true }, tmp); fails.push('잘못된 tier 통과'); } catch { /* 기대: 거부 */ }

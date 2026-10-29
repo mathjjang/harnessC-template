@@ -240,4 +240,8 @@ node .harness/scripts/ci.mjs     # PR 서버 게이트와 같은 검사(+템플�
 
 규칙은 이 템플릿에서만 바뀐다(`.harness/HARNESS.md` §9). 바뀔 때마다 버전을 올려 두 템플릿을 같은 시점에 태그하고, 프로젝트는 `upstream.ref`를 그 태그로 올린 뒤 `sync-core`로 받는다.
 
-라이선스: 아직 부여하지 않았다 — 공개 저장소이지만 LICENSE 파일이 없다. 사용·재배포 전에 문의.
+## 라이선스 · 만든 사람
+
+- 라이선스: [MIT](LICENSE) — Copyright (c) 2026 Ubion Co., Ltd. (주식회사 유비온)
+- 만든 사람: Bong Jin Jang <mathjjang@ubion.co.kr>
+- 이 템플릿으로 만든 프로젝트는 자기 라이선스를 고른다 — 프로젝트 생성 때 루트 `LICENSE`는 지워지고, 복사된 도구의 MIT 고지만 `.harness/LICENSE`에 남는다(지우지 않는다 — MIT의 유일한 조건).
