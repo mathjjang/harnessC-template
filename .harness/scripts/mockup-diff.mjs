@@ -295,12 +295,12 @@ export function initMockup(root, mode, { name, from, gh = true, owner } = {}) {
 export function sourceDrift(root, rev, st) {
   if (!rev.sourceRev) return [];
   let src = rev.source ? resolve(root, rev.source) : '';
-  if (!(src && existsSync(join(src, 'rev.yaml'))) && rev.sourceScreen) { const ref = findReference(rd(join(root, 'harness.yaml')), 'mockup'); if (ref) src = join(refPath(root, ref), 'screens', rev.sourceScreen); }
+  if (!(src && existsSync(join(src, 'rev.yaml'))) && rev.sourceScreen) { const ref = findReference(rd(join(root, 'harness.yaml')), 'mockup'); if (ref) { const mkRoot = refPath(root, ref); src = join(mkRoot, yamlScalar(rd(join(mkRoot, 'mockup.yaml')), 'screens_dir') || 'screens', rev.sourceScreen); } }   // 목업 저장소의 screens_dir 존중
   if (!(src && existsSync(join(src, 'rev.yaml')))) return [];
   const cur = readSourceRev(src); const name = rev.sourceScreen || posix(relative(root, src));
   if (cur.rev > rev.sourceRev) return [`${st}인데 원본 ${name}이 rev ${cur.rev}로 재확정됐다(승격 사본은 rev ${rev.sourceRev}) — 옛 판으로 완료할 수 없다. 다시 promote → run`];
   if (cur.visual_status === 'reopened' && cur.rev === rev.sourceRev) return [`${st}인데 원본 ${name}이 reopen 중이다(rev ${cur.rev}) — 재확정을 기다려 다시 promote → run`];
-  if (rev.sourceAssetsSha) { const now = assetsShaOf(join(src, '..', '..')); if (now && now !== rev.sourceAssetsSha) return [`${st}인데 원본 공용 자산(_assets)이 승격 뒤 바뀌었다 — 기준본 렌더가 달라진다. 원본에서 화면을 재확정한 뒤 다시 promote → run`]; }
+  if (rev.sourceAssetsSha) { const now = assetsShaOf(join(src, '..', '..')); if (!now) return [`${st}인데 원본 공용 자산(_assets)을 찾을 수 없다(${posix(relative(root, join(src, '..', '..')))}/_assets) — 승격 때는 있었다(source_assets_sha). 옮겨졌으면 다시 promote`]; if (now !== rev.sourceAssetsSha) return [`${st}인데 원본 공용 자산(_assets)이 승격 뒤 바뀌었다 — 기준본 렌더가 달라진다. 원본에서 화면을 재확정한 뒤 다시 promote → run`]; }
   return [];
 }
 /** 스펙이 정책을 인용하는가 — 지문은 "안 바뀌었다"만 보장한다. 정책이 스펙에 들어가야 테스트가 검증하고 리뷰가 본다(RFC-261029 P8).
@@ -409,6 +409,10 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (ad().length) fails.push('자산 같은데 드리프트 오탐: ' + ad().join(' | '));
     writeFileSync(tokP, tok0 + '\n:root{--x:1}\n'); if (!ad().some((p) => /원본 공용 자산\(_assets\)이 승격 뒤 바뀌었다/.test(p))) fails.push('원본 자산 변경 미검출');
     writeFileSync(tokP, tok0); if (ad().length) fails.push('자산 원복 뒤 오탐');
+    // 원본 _assets를 못 찾으면 조용히 통과하지 않는다(fail-closed — 리뷰 지적). 승격 때는 있었으므로 없어진 것 자체가 문제
+    const assetsDir = join(mk, 'screens', '_assets'); const assetsBak = join(tmp, '_assets.bak'); cpSync(assetsDir, assetsBak, { recursive: true }); rmSync(assetsDir, { recursive: true, force: true });
+    if (!ad().some((p) => /원본 공용 자산\(_assets\)을 찾을 수 없다/.test(p))) fails.push('자산 폴더 소실을 조용히 통과');
+    cpSync(assetsBak, assetsDir, { recursive: true }); if (ad().length) fails.push('자산 복구 뒤 오탐');
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n- 몰래\n');
     try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('policy.md 변조 원본 통과'); } catch (e) { if (!/policy\.md: 확정본/.test(e.message)) fails.push('policy 변조 거부 사유: ' + e.message); }
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n'); rmSync(join(fdr2, 'mockup'), { recursive: true, force: true });
@@ -460,7 +464,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.stack.split('\n').slice(0, 2).join(' ')); }
   rmSync(tmp, { recursive: true, force: true });
   const eng = loadBackstop(DEFAULT_ROOT);
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 정책 지문·스펙 인용 4 · 공용 자산 드리프트 3 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 정책 지문·스펙 인용 4 · 공용 자산 드리프트 4(fail-closed) · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
   process.exit(fails.length ? 1 : 0);
 }
 
