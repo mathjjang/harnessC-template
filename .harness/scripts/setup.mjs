@@ -52,7 +52,7 @@ export function derive(a) {
   else tierWhy.push(`Q2 동시 구현 ${a.concurrent} · Q3 ${a.duration_months}개월·${a.scale}`);
   why.tier = tierWhy.join(' · ');
   const profile = { S: 'lite', M: 'standard', L: 'full' }[tier];
-  const merge = a.concurrent >= 2 ? 'pr' : 'ff'; why.merge = `Q2 동시 구현 ${a.concurrent}${merge === 'pr' ? ' — 리뷰 판정을 병합 조건으로' : ' — 혼자면 게이트 후 바로 병합'}`;
+  const merge = a.concurrent >= 2 ? 'pr' : 'ff'; why.merge = `Q2 동시 구현 ${a.concurrent}${merge === 'pr' ? ' — 리뷰 판정을 병합 조건으로' : ' — 혼자면 게이트·리뷰 판정 확인 후 바로 병합(리뷰어는 다른 세션)'}`;
   const reviews = a.concurrent >= 5 ? 2 : a.concurrent >= 2 ? 1 : 0; why.reviews = `Q2 동시 구현 ${a.concurrent}`;
   const gate_mode = a.signoff ? 'strict' : tier === 'L' ? 'strict' : 'standard'; why.gate_mode = a.signoff ? 'Q6 사인오프 영역' : tier === 'L' ? `티어 L(${why.tier})` : '기본';
   const human_touchpoints = a.signoff ? ['spec', 'review', 'signoff'] : ['spec', 'review']; why.human_touchpoints = a.signoff ? 'Q6 사인오프 영역' : '기본(사람 2접점)';

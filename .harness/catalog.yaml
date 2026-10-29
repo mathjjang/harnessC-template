@@ -102,7 +102,7 @@ tools:
     command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]
     enforcement: generate
     self_test: node .harness/scripts/work.mjs --self-test
-    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반
+    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트·리뷰 판정(ci prProblems와 같은 하한) 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반
   - name: check-branch-record.mjs
     status: active
     command: (pre-commit) node .harness/scripts/check-branch-record.mjs

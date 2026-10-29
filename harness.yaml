@@ -44,7 +44,7 @@ scratch:                     # 임시 파일 규율 (.harness/HARNESS.md §8) �
 work:                        # 동시 작업 (HARNESS §11 · runbooks/work.md) — 기록=브랜치=worktree
   dir: .worktrees            # worktree 자리 (gitignore). 형제 폴더가 필요하면 ../<proj>-wt
   base: main
-  merge: pr                  # ff(S — 게이트 후 바로 병합) | pr(M·L — push 후 PR)
+  merge: pr                  # ff(S — 게이트·리뷰 판정 확인 후 바로 병합) | pr(M·L — push 후 PR)
   link: []                   # worktree에 하드링크할 gitignore 재료 (예 .env.local)
   setup: ""                  # worktree 생성 후 1회 (예 pnpm install)
 

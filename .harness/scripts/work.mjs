@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join, resolve, relative, basename, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RECORD_DIRS, recordDir, recordRel } from './lib/records.mjs';
+import { prProblems } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -140,6 +141,13 @@ export function markShipped(wt, id) {
   return true;
 }
 
+/** ff 병합 전 리뷰 조건 — PR 모드의 CI(prProblems)와 같은 판정: 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프. 우회 플래그 없음 */
+export function reviewGuard(wt, id, base) {
+  const changed = git(wt, `diff --name-only --diff-filter=ACMR "${base}...HEAD"`).split('\n').filter(Boolean);
+  const rv = prProblems(wt, { base, head: branchOf(id), changed }).filter((x) => /^리뷰:/.test(x));
+  if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션):\n- ${rv.join('\n- ')}`);
+}
+
 export function finish(root, id, { gates = true, gh = true } = {}) {
   const c = config(root);
   const r = record(root, id) || { id, type: id.split('-')[0] };
@@ -156,6 +164,7 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
     // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
     try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
     if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
+    if (gates && c.merge !== 'pr') reviewGuard(wt, id, c.base);   // ff(S)에도 PR과 같은 하한 — 혼자여도 검사는 다른 세션이 한다
     if (c.merge === 'pr') {
       git(root, `push -u --force-with-lease origin "${branch}"`, { quiet: true });   // 자기 기록 브랜치만 — rebase 뒤 재push
       const pr = openPr(root, id, { branch, base: c.base, gh });
@@ -257,6 +266,11 @@ if (process.argv.includes('--self-test')) {
     const f1 = finish(tmp, 'RFC-260101-spike', { gates: false });
     if (f1.merged !== 'records-only' || existsSync(join(tmp, 'src', 'spike.ts')) || !/Concluded/.test(rd(join(tmp, RFC_DIR, 'RFC-260101-spike', 'rfc.md')))) fails.push(`finish(rfc): 기록만 반입이어야 함 (${f1.merged})`);
     if (g('branch --list rfc/RFC-260101-spike')) fails.push('finish: rfc 브랜치 잔존');
+    // ff에도 리뷰 하한 — 판정 없이 gates로 finish하면 거부, 판정(리뷰어≠작성자)을 적으면 통과. lint는 임시 저장소에서 못 돌므로 리뷰 검사만 보는 경로로
+    const fdrMd = join(p.path, FDR_DIR, p.fdr, 'fdr.md');
+    try { reviewGuard(p.path, p.fdr, "main"); fails.push('ff: 판정 없이 통과'); } catch (e) { if (!/판정 없음/.test(e.message)) fails.push('ff 리뷰 거부 사유: ' + e.message); }
+    writeFileSync(fdrMd, rd(fdrMd).replace(/^## 5\. Review[^\n]*\n/m, (m) => `${m}\n- 리뷰어(모델): reviewer(b)\n- 판정: 통과\n`)); g('add -A', p.path); g('commit -q -m review', p.path);
+    try { reviewGuard(p.path, p.fdr, "main"); } catch (e) { fails.push('ff: 판정 뒤에도 거부 — ' + e.message); }
     const f2 = finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
@@ -289,7 +303,7 @@ if (process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.message); }
   try { for (const w of (g('worktree list --porcelain').match(/^worktree (.+)$/gm) || []).slice(1)) g(`worktree remove --force "${w.slice(9)}"`); } catch { /* */ }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·ff 리뷰 하한 2·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect)');
   process.exit(fails.length ? 1 : 0);
 }
 

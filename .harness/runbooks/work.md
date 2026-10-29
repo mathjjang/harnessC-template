@@ -25,7 +25,7 @@ pack: 코어
 node .harness/scripts/new-doc.mjs fdr <slug> "<제목>"       # 기록 생성 → scope: [..] 채우고 커밋 (main에 문서 커밋은 허용)
 node .harness/scripts/work.mjs start FDR-…                    # 브랜치 + .worktrees/FDR-…/
 cd .worktrees/FDR-…  …작업·커밋(pathspec)…                     # 게이트: scope 밖 제품 경로 거부 · 다른 기록 수정 거부
-node .harness/scripts/work.mjs finish FDR-…                   # (본 트리에서) lint → main 위 rebase → ff 병합 → worktree·브랜치 제거  / merge: pr 이면 push + PR 생성(§4)
+node .harness/scripts/work.mjs finish FDR-…                   # (본 트리에서) main 위 rebase → lint → 리뷰 판정 확인(통과·리뷰어≠작성자·high 사인오프 — PR 모드와 같은 하한) → ff 병합 → worktree·브랜치 제거  / merge: pr 이면 push + PR 생성(§4)
 ```
 
 - `scope:`가 비어 있으면 제품 경로 커밋이 거부된다 — 먼저 선언한다. 활성 FDR끼리 겹치면 lint ⑭가 알린다.
