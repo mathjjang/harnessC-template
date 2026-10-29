@@ -7,7 +7,7 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 방법론 템플�
 
 ## 준비물
 
-Node 22 이상, git, gh CLI가 필요하다. 화면 대조를 쓰려면 `node .harness/scripts/mockup-diff.mjs engine --install`을 PC에서 한 번 실행한다.
+Node 22 이상, git, gh CLI가 필요하다. gh CLI가 없으면 PR 생성 같은 단계는 해야 할 일을 안내만 한다. 화면 대조를 쓰려면 `node .harness/scripts/mockup-diff.mjs engine --install`을 PC에서 한 번 실행한다.
 
 명령은 모두 저장소 루트에서 실행한다.
 
@@ -49,7 +49,7 @@ node .harness/scripts/work.mjs finish FDR-<날짜>-<slug>
 
 1. `new-doc`이 기능 기록을 만든다. 기록 머리말의 `scope:`에 고칠 경로를 적고 커밋한다.
 2. `work start`가 이 기능 전용 브랜치와 작업 폴더를 만든다. 작업 폴더에서 구현한다. `scope` 밖의 파일은 커밋되지 않는다.
-3. 시험 결과는 기록의 시험 표에 적고, 출력 원문은 기록 폴더의 `evidence/`에 둔다.
+3. 시험 결과는 기록의 시험 표에 적고, 출력 원문은 기록 폴더의 `evidence/`에 둔다. 돌리지 못한 시험은 "미검증"이라고 적는다.
 4. 다른 세션의 리뷰어가 기록의 리뷰 칸에 `통과`를 적는다. 혼자 개발해도 필요하다. 판정을 받은 뒤 코드를 고쳤으면 다시 리뷰받는다.
 5. `work finish`는 혼자 개발하면 바로 병합하고, 여럿이면 PR을 연다.
 
@@ -69,6 +69,9 @@ node .harness/scripts/work.mjs finish FDR-<날짜>-<slug>
 | `plan` | 큰 요청을 여러 기능으로 나눈다 | `docs/records/` |
 | `ho` | 다른 에이전트에게 일을 맡긴다 | `docs/handoffs/` |
 | `pg`, `hr`, `bl`, `qa` | 사람이 정할 정책, 사람만 할 수 있는 검증, 미룬 일, 사람이 찾은 결함 | `docs/queue/` |
+| `inc`, `retro` | 사고 기록, 회고 | `docs/records/` |
+| `spec` | 지금 동작하는 기능의 스펙 | `docs/specs/` |
+| `runbook` | 반복하는 절차 | `rules/runbooks/` |
 
 세션을 시작하면 진행 중인 기능과 처리할 큐가 자동으로 표시된다.
 
