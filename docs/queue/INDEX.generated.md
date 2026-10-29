@@ -1,4 +1,4 @@
-<!-- 생성물: node .harness/scripts/build-index.mjs · 2026-10-17 · 손으로 편집하지 않는다 -->
+<!-- 생성물: node .harness/scripts/build-index.mjs · 2026-10-29 · 손으로 편집하지 않는다 -->
 # 큐 집계 (사람 할 일)
 
 열린 항목 0 (릴리스 차단 0) / 전체 0
