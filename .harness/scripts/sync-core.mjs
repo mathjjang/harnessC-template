@@ -8,7 +8,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { execSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CORE_PATHS, hashCore, sha } from './lib/core-files.mjs';
+import { corePathsOf, hashCore, sha } from './lib/core-files.mjs';
 import { fetchSource, readUpstream } from './lib/upstream.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -18,9 +18,10 @@ export function sync(root, from, { dryRun = false, source = null } = {}) {
   if (!existsSync(join(from, '.harness', 'HARNESS.md'))) throw new Error(`템플릿이 아니다: ${from}`);
   const hy = readFileSync(join(root, 'harness.yaml'), 'utf8');
   const vars = { PROJECT_NAME: yamlScalar(hy, 'project').replace(/^"|"$/g, ''), TIER: yamlScalar(hy, 'tier') };
-  const before = hashCore(root);
+  const before = hashCore(root, corePathsOf(root));
+  const paths = corePathsOf(from);   // 새 버전의 코어 목록 — 이번 릴리스에서 코어가 된 파일도 한 번에 내려온다
   if (!dryRun) {
-    for (const rel of CORE_PATHS) {
+    for (const rel of paths) {
       const src = join(from, rel); if (!existsSync(src)) continue;
       const dst = join(root, rel);
       if (statSync(src).isDirectory()) { rmSync(dst, { recursive: true, force: true }); cpSync(src, dst, { recursive: true, filter: (s) => !/init-manifest\.json$|[\\/]tiers([\\/]|$)/.test(s) }); }
@@ -34,13 +35,13 @@ export function sync(root, from, { dryRun = false, source = null } = {}) {
   }
   let after;
   if (dryRun) {
-    after = hashCore(from);
+    after = hashCore(from, paths);
     // 티어 오버레이도 센다 — 실제 동기화가 얹는 것과 같게
     const ov = join(from, '.harness', 'tiers', vars.TIER || 'M', '.harness');
     const walk = (d, rel) => { if (!existsSync(d)) return; for (const e of readdirSync(d, { withFileTypes: true })) { const f = join(d, e.name), r2 = `${rel}/${e.name}`; if (e.isDirectory()) walk(f, r2); else if (!/\.gitkeep$/.test(e.name)) after[`.harness${r2}`] = sha(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')); } };
     walk(ov, '');
     for (const f of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) if (existsSync(join(from, f))) after[f] = sha(readFileSync(join(from, f), 'utf8').replace(/\r\n/g, '\n').replace(/\{\{(PROJECT_NAME|TIER)\}\}/g, (m, k) => vars[k] || m)); }
-  else after = hashCore(root);
+  else after = hashCore(root, paths);
   const changed = Object.keys({ ...before, ...after }).filter((f) => before[f] !== after[f]);
   if (!dryRun) {
     const mp = join(root, '.harness', 'init-manifest.json');
@@ -81,9 +82,16 @@ if (process.argv.includes('--self-test')) {
     writeFileSync(join(proj, 'harness.yaml'), 'harness: 0.1.0\nproject: "p1"\ntier: L\n'); sync(proj, tpl);
     if (!existsSync(join(proj, '.harness', 'templates', 'FDR-full', '01-spec.md'))) fails.push('L 오버레이 유실');
     if (sync(proj, tpl, { dryRun: true }).changed.length) fails.push('L dry-run이 오버레이를 변경으로 봄');
+    // 새 버전에서 코어가 된 파일 — 템플릿의 core-files.mjs가 목록을 늘리면 한 번의 동기화로 내려와야 한다(받는 쪽 옛 목록이 아니라)
+    writeFileSync(join(tpl, '.harness', 'scripts', 'lib', 'core-files.mjs'), "export const CORE_PATHS = [\n  '.harness/HARNESS.md', '.harness/NEWCORE', // 주석 'x'\n  '.harness/scripts', '.claude/hooks', 'AGENTS.md',\n];\n");
+    writeFileSync(join(tpl, '.harness', 'NEWCORE'), 'new');
+    sync(proj, tpl);
+    if (!existsSync(join(proj, '.harness', 'NEWCORE'))) fails.push('새 코어 파일이 한 번에 안 내려옴');
+    if (!JSON.parse(readFileSync(join(proj, '.harness', 'init-manifest.json'), 'utf8')).core['.harness/NEWCORE']) fails.push('새 코어 파일이 manifest에 없음');
+    if (corePathsOf(tpl).includes('x')) fails.push('주석 안 문자열을 경로로 읽음');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (복사·치환·낡은 파일 제거·프로젝트 파일 보존·manifest · 티어 L 오버레이 보존·dry-run)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (복사·치환·낡은 파일 제거·프로젝트 파일 보존·manifest · 티어 L 오버레이 보존·dry-run · 새 코어 경로 한 번에)');
   process.exit(fails.length ? 1 : 0);
 }
 
