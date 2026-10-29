@@ -6,12 +6,14 @@
 // 언제나: ① lint ② build-index --check ③ harness-build --check ④ (템플릿 저장소면) 코어 전 self-test
 // PR일 때(head가 있으면): ⑤ 브랜치=기록 · scope — check-branch-record 판정을 PR 변경 파일 전체에 ⑥ 임시 파일 ⑦ 리뷰 판정 — fdr/*·plan/* PR은
 //   그 기록의 리뷰 판정이 `통과`(또는 `조건부` + 조건)여야 하고, risk high면 사람 사인오프가 있어야 병합 가능. 리뷰어는 구현자와 달라야 한다(리뷰어 칸 ≠ 작성 머리).
+//   ⑧ 판정 뒤 제품 코드 — 판정이 마지막으로 바뀐 커밋에 제품 경로가 섞였거나, 그 뒤 커밋이 제품 경로를 바꾸면 판정 무효(다시 리뷰). 런타임과 무관한 하한:
+//   Claude Code의 리뷰어 쓰기 차단(guard-role-write)이 없는 Codex·Gemini에서도 「리뷰어가 고치고 통과」는 병합되지 않는다.
 // 검사하지 않는 것: 리뷰 내용의 타당성 — 판정이 기록됐는지·누가 했는지까지만. --self-test: 판정 파싱·PR 판정을 픽스처로.
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, appendFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { judge, fdrScope } from './check-branch-record.mjs';
+import { judge, fdrScope, NON_PRODUCT } from './check-branch-record.mjs';
 import { isClutter } from './check-clutter.mjs';
 import { recordDir } from './lib/records.mjs';
 
@@ -21,22 +23,40 @@ const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const yamlScalar = (t, k) => ((t.match(new RegExp(`^\\s*${k}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
 const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || '';
 
+/** 리뷰 칸 해석 — 파일 원문(standard 06-review.md · lite fdr.md)에서 판정 줄·리뷰어 */
+function parseReview(raw, std) {
+  const text = std ? raw : ((raw.split(/^## 5\. Review[^\n]*$/m)[1] || '').split(/^## /m)[0]);
+  const verdictLine = text.split('\n').find((l) => /^\s*-\s*(판정[:：]\s*)?(통과|재작업|조건부)/.test(l) && !/통과\s*\|/.test(l)) || '';
+  const reviewer = ((text.match(/리뷰어\(모델\)[:：]\s*([^·\n]*)/) || [])[1] || '').trim();
+  return { text, verdictLine, reviewer };
+}
+
 /** 리뷰 판정 읽기 — standard 06-review.md §1 · lite fdr.md §5. 양식 그대로(「통과 | 재작업 …」)면 미기입 */
 export function reviewOf(dir) {
   const std = existsSync(join(dir, '06-review.md'));
-  const text = std ? rd(join(dir, '06-review.md')) : ((rd(join(dir, 'fdr.md')).split(/^## 5\. Review[^\n]*$/m)[1] || '').split(/^## /m)[0]);
+  const { text, verdictLine, reviewer } = parseReview(rd(join(dir, std ? '06-review.md' : 'fdr.md')), std);
   const head = std ? rd(join(dir, 'manifest.yaml')) : frontmatter(rd(join(dir, 'fdr.md')));
-  const verdictLine = text.split('\n').find((l) => /^\s*-\s*(판정[:：]\s*)?(통과|재작업|조건부)/.test(l) && !/통과\s*\|/.test(l)) || '';
   const verdict = (verdictLine.match(/(통과|재작업|조건부)/) || [])[1] || '';
-  const reviewer = ((text.match(/리뷰어\(모델\)[:：]\s*([^·\n]*)/) || [])[1] || '').trim();
   const author = ((rd(join(dir, std ? '01-spec.md' : 'fdr.md')).match(/작성[:：]\s*([^·\n]+)/) || [])[1] || '').trim();
   const signoff = ((text.match(/사인오프[^:：\n]*[:：]\s*([^\n]*)/) || [])[1] || '').trim();   // "사인오프(risk high): …" 꼴도
   const condition = ((verdictLine.match(/조건[:：]\s*([^)\n]+)/) || [])[1] || '').trim();
   return { verdict, reviewer, author, signoff, condition, risk: yamlScalar(head, 'risk') || 'low', status: yamlScalar(head, 'status') };
 }
 
+/** ⑧ 판정 뒤 제품 코드 — commits: 오래된 것부터 [{ sha, files }] · showAt(sha, 경로) → 그 커밋의 파일 원문. 판정(판정 줄·리뷰어)이 마지막으로 바뀐 커밋이 기준 */
+export function afterVerdict(commits, reviewPath, std, showAt) {
+  let key = ''; let at = -1;
+  commits.forEach((c, i) => { if (!c.files.includes(reviewPath)) return; const r = parseReview(showAt(c.sha, reviewPath) || '', std); const k = r.verdictLine && r.reviewer ? `${r.verdictLine}|${r.reviewer}` : ''; if (k !== key) { key = k; at = k ? i : -1; } });
+  if (at < 0) return [];
+  const product = (fs) => fs.filter((f) => !NON_PRODUCT.test(f)); const p = [];
+  const mixed = product(commits[at].files); if (mixed.length) p.push(`리뷰: 판정과 제품 코드를 한 커밋(${commits[at].sha.slice(0, 7)})에 섞었다: ${mixed.slice(0, 3).join(', ')} — 판정 커밋에는 리뷰 기록만`);
+  const later = commits.slice(at + 1).filter((c) => product(c.files).length);
+  if (later.length) p.push(`리뷰: 판정 뒤에 제품 코드가 바뀌었다(${later.slice(0, 3).map((c) => c.sha.slice(0, 7)).join(', ')}) — 판정 무효, 리뷰어(다른 세션)가 다시 판정`);
+  return p;
+}
+
 /** PR 판정 — 반환 [문제] */
-export function prProblems(root, { base, head, changed }) {
+export function prProblems(root, { base, head, changed, commits = null, showAt = null }) {
   const p = [];
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
   for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false })) p.push(`브랜치·scope: ${x}`);
@@ -52,6 +72,7 @@ export function prProblems(root, { base, head, changed }) {
     if (r.verdict && !r.reviewer) p.push(`리뷰: ${id} 리뷰어(모델) 칸이 비었다`);
     if (r.verdict && r.reviewer && r.author && r.reviewer === r.author) p.push(`리뷰: ${id} 리뷰어(${r.reviewer})가 작성자와 같다 — 고친 쪽은 자기 검증자가 될 수 없다`);
     if (r.risk === 'high' && !/\S/.test(r.signoff.replace(/[()（）]/g, ''))) p.push(`리뷰: ${id} risk high — 사람 사인오프(이름·날짜)가 없다`);
+    if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt)); }
   }
   return p;
 }
@@ -77,7 +98,12 @@ export function run(root = ROOT, { base = '', head = '' } = {}) {
     const b = base || 'main';
     let changed = [];
     const d = sh(`git diff --name-only --diff-filter=ACMR "origin/${b}...HEAD"`, root); const d2 = d.ok ? d : sh(`git diff --name-only --diff-filter=ACMR "${b}...HEAD"`, root);
-    if (!d2.ok) step('PR 변경 파일', d2); else { changed = d2.out.split('\n').filter(Boolean); const p = prProblems(root, { base: b, head, changed }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
+    if (!d2.ok) step('PR 변경 파일', d2); else {
+      changed = d2.out.split('\n').filter(Boolean);
+      const lg = [`origin/${b}..HEAD`, `${b}..HEAD`].map((r) => sh(`git log --reverse --format=%x01%H --name-only "${r}"`, root)).find((x) => x.ok);   // 판정 뒤 제품 코드(⑧)는 커밋 순서로 본다
+      const commits = lg ? lg.out.split('\x01').filter((s) => s.trim()).map((s) => { const [sha, ...fs] = s.trim().split('\n'); return { sha: sha.trim(), files: fs.map((f) => f.trim()).filter(Boolean) }; }) : null;
+      const showAt = (sha, path) => { const r = sh(`git show "${sha}:${path}"`, root); return r.ok ? r.out : ''; };
+      const p = prProblems(root, { base: b, head, changed, commits, showAt }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
   }
   const failed = results.filter((r) => !r.ok);
   if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## harness\n\n${results.map((r) => `- ${r.ok ? '✅' : '❌'} ${r.name}${r.ok ? '' : `\n\n\`\`\`\n${r.out.slice(0, 3000)}\n\`\`\``}`).join('\n')}\n`); } catch { /* */ } }
@@ -109,9 +135,19 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PR('FDR-260101-std').some((x) => /06-review\.md §1/.test(x))) fails.push('standard 양식 = 판정 없음');
     w('docs/features/FDR-260101-std/06-review.md', '# r\n\n- 리뷰어(모델): reviewer(b) · 일자: 2026-01-02\n\n## 1. 판정\n\n- 조건부(조건: 로그 레벨 낮춤 후속 FDR)\n');
     if (PR('FDR-260101-std').length) fails.push('standard 조건부(조건 있음) 오탐: ' + PR('FDR-260101-std').join(' | '));
+    // ⑧ 판정 뒤 제품 코드 — 커밋 순서를 픽스처로. sha 첫 글자 v = 판정이 적힌 원문, a = 양식 그대로
+    const RP = 'docs/features/FDR-260101-ok/fdr.md'; const judged = readFileSync(join(t, RP), 'utf8'); const blank = judged.replace('- 판정: 통과', '- 판정: 통과 | 재작업 | 조건부');
+    const showAt = (sha) => (sha[0] === 'v' ? judged : blank);
+    const PRc = (commits) => prProblems(t, { base: 'main', head: 'fdr/FDR-260101-ok', changed: ['src/a/x.ts', RP], commits, showAt });
+    const c = (sha, ...files) => ({ sha, files });
+    if (PRc([c('a1', 'src/a/x.ts', RP), c('v1', RP)]).length) fails.push('판정 전 코드 오탐: ' + PRc([c('a1', 'src/a/x.ts', RP), c('v1', RP)]).join(' | '));
+    if (!PRc([c('v1', RP), c('a2', 'src/a/x.ts')]).some((x) => /판정 뒤/.test(x))) fails.push('판정 뒤 코드 미차단');
+    if (!PRc([c('v1', RP, 'src/a/x.ts')]).some((x) => /섞었다/.test(x))) fails.push('판정·코드 한 커밋 미차단');
+    if (PRc([c('v1', RP), c('a3', 'docs/features/FDR-260101-ok/evidence/r.txt')]).length) fails.push('판정 뒤 기록만 오탐');
+    if (PRc([c('v1', RP), c('a4', RP), c('a5', 'src/a/x.ts'), c('v2', RP)]).length) fails.push('재판정 뒤 오탐');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {

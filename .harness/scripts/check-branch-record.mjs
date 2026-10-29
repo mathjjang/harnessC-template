@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { RECORD_PATH_RE, recordDir, recordRel } from './lib/records.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const NON_PRODUCT = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemini|\.github|\.scratch|\.worktrees|collab)\/|^[^/]+$/;   // 문서·규칙·목업(embedded)·장치(런타임 입구 포함)·루트 파일은 제품 경로가 아니다
+export const NON_PRODUCT = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemini|\.github|\.scratch|\.worktrees|collab)\/|^[^/]+$/;   // 문서·규칙·목업(embedded)·장치(런타임 입구 포함)·루트 파일은 제품 경로가 아니다
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
 const globRe = (g) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '(?:/.*)?$');
 

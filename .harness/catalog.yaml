@@ -114,7 +114,7 @@ tools:
     command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)
     enforcement: gate
     self_test: node .harness/scripts/ci.mjs --self-test
-    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · risk high 사인오프). pre-commit 우회를 막는다
+    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 무효 — 리뷰어 쓰기 차단 훅이 없는 런타임의 하한). pre-commit 우회를 막는다
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]
