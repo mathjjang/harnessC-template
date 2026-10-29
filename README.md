@@ -2,8 +2,8 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 방법론 템플릿.
 
-- 버전 0.4.0
-- 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) v0.2.0. 화면이 있는 프로젝트에서 목업(기획·디자인) 저장소로 쓴다.
+- 버전 0.4.1
+- 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) v0.2.1. 화면이 있는 프로젝트에서 목업(기획·디자인) 저장소로 쓴다.
 
 ## 준비물
 
