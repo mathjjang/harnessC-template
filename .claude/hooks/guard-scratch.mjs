@@ -31,7 +31,7 @@ function loadConfig(root) {
   return cfg;
 }
 function trackedRoot(root) {
-  try { return new Set(execSync('git ls-files --cached --others --exclude-standard', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean).map((p) => p.split('/')[0])); } catch { return new Set(); }
+  try { return new Set(execSync('git -c core.quotepath=false ls-files --cached --others --exclude-standard', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean).map((p) => p.split('/')[0])); } catch { return new Set(); }
 }
 
 /** 경로 하나를 판정한다. 반환 null = 허용, 문자열 = 거부 사유 */

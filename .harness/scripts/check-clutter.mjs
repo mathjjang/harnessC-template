@@ -77,7 +77,7 @@ if (has('--gc')) {
 
 // 기본: pre-commit 게이트
 let staged = [];
-try { staged = execSync('git diff --cached --name-only --diff-filter=A', { cwd: ROOT, encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean); } catch { /* */ }
+try { staged = execSync('git -c core.quotepath=false diff --cached --name-only --diff-filter=A', { cwd: ROOT, encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean); } catch { /* */ }
 const base = baseline(ROOT);
 const bad = staged.filter((p) => !base.has(p) && (isClutter(p) || (!p.includes('/') && TEMP_RE.test(p))));
 if (bad.length) { console.log('[check-clutter] 임시 파일을 커밋하지 않는다 — ' + scratchDir(ROOT) + '/ 또는 evidence/ 로: ' + bad.join(', ')); process.exit(1); }

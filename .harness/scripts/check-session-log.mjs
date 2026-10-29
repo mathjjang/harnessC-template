@@ -41,7 +41,7 @@ if (process.argv.includes('--self-test')) {
 }
 
 let changed = [];
-try { changed = execSync('git status --porcelain --untracked-files=all', { cwd: ROOT, encoding: 'utf8' }).split('\n').map((l) => l.slice(3).trim()).filter(Boolean); } catch { /* git 없음 */ }
+try { changed = execSync('git -c core.quotepath=false status --porcelain --untracked-files=all', { cwd: ROOT, encoding: 'utf8' }).split('\n').map((l) => l.slice(3).trim()).filter(Boolean); } catch { /* git 없음 */ }
 const missing = findMissing(ROOT, changed);
 if (missing.length) console.log(JSON.stringify({ systemMessage: `세션 로그 미기록: ${missing.join(', ')} — session-log.md에 오늘 행(완료·가설·미결·재개점)을 남기라 (.harness/HARNESS.md §8)` }));
 process.exit(0);

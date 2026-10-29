@@ -79,7 +79,7 @@ export function prProblems(root, { base, head, changed, commits = null, showAt =
 
 /** 판정 뒤 제품 코드(⑧)는 커밋 순서로 본다 — ranges 중 처음 되는 범위의 { commits(오래된 것부터 [{sha, files}]), showAt }. CI(PR)와 work.mjs finish(ff)가 같이 쓴다 */
 export function commitHistory(root, ranges) {
-  const lg = ranges.map((r) => sh(`git log --reverse --format=%x01%H --name-only "${r}"`, root)).find((x) => x.ok);
+  const lg = ranges.map((r) => sh(`git -c core.quotepath=false log --reverse --format=%x01%H --name-only "${r}"`, root)).find((x) => x.ok);
   const commits = lg ? lg.out.split('\x01').filter((s) => s.trim()).map((s) => { const [sha, ...fs] = s.trim().split('\n'); return { sha: sha.trim(), files: fs.map((f) => f.trim()).filter(Boolean) }; }) : null;
   const showAt = (sha, path) => { const r = sh(`git show "${sha}:${path}"`, root); return r.ok ? r.out : ''; };
   return { commits, showAt };
@@ -105,7 +105,7 @@ export function run(root = ROOT, { base = '', head = '' } = {}) {
   if (head) {
     const b = base || 'main';
     let changed = [];
-    const d = sh(`git diff --name-only --diff-filter=ACMR "origin/${b}...HEAD"`, root); const d2 = d.ok ? d : sh(`git diff --name-only --diff-filter=ACMR "${b}...HEAD"`, root);
+    const d = sh(`git -c core.quotepath=false diff --name-only --diff-filter=ACMR "origin/${b}...HEAD"`, root); const d2 = d.ok ? d : sh(`git -c core.quotepath=false diff --name-only --diff-filter=ACMR "${b}...HEAD"`, root);
     if (!d2.ok) step('PR 변경 파일', d2); else {
       changed = d2.out.split('\n').filter(Boolean);
       const p = prProblems(root, { base: b, head, changed, ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }

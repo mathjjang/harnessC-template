@@ -143,7 +143,7 @@ export function markShipped(wt, id) {
 
 /** ff 병합 전 리뷰 조건 — PR 모드의 CI(prProblems)와 같은 판정: 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 판정 무효(⑧). 우회 플래그 없음 */
 export function reviewGuard(wt, id, base) {
-  const changed = git(wt, `diff --name-only --diff-filter=ACMR "${base}...HEAD"`).split('\n').filter(Boolean);
+  const changed = git(wt, `-c core.quotepath=false diff --name-only --diff-filter=ACMR "${base}...HEAD"`).split('\n').filter(Boolean);
   const rv = prProblems(wt, { base, head: branchOf(id), changed, ...commitHistory(wt, [`${base}..HEAD`]) }).filter((x) => /^리뷰:/.test(x));
   if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션):\n- ${rv.join('\n- ')}`);
 }

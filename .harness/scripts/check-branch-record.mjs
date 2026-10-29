@@ -80,7 +80,7 @@ if (process.argv.includes('--self-test')) {
 const g = (c) => execSync(`git ${c}`, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 let branch = ''; try { branch = g('branch --show-current'); } catch { process.exit(0); }
 if (!branch) process.exit(0);   // detached — 병합·리베이스 중간 상태는 판정하지 않는다
-const staged = g('diff --cached --name-only --diff-filter=ACMR').split('\n').filter(Boolean);
+const staged = g('-c core.quotepath=false diff --cached --name-only --diff-filter=ACMR').split('\n').filter(Boolean);
 const hy = existsSync(join(ROOT, 'harness.yaml')) ? readFileSync(join(ROOT, 'harness.yaml'), 'utf8') : '';
 const base = ((hy.match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*base:\s*(\S+)/m)?.[1] || 'main';
 const id = (branch.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
