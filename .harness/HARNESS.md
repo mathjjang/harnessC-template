@@ -1,6 +1,6 @@
 # HARNESS.md — 하네스C 코어 규칙 (how)
 
-> 하네스C 코어 v0.3.8 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
+> 하네스C 코어 v0.3.9 · 모든 프로젝트에서 동일한 파일(lint ⑫). 고치려면 템플릿에서 고치고 `sync-core`. 제품 불변은 `rules/product.md`, 도메인 규칙은 `rules/domain/`, 운영 규칙은 `AGENTS.md`. 코어는 `harness.yaml`로 적응한다. 개정은 §9 REP.
 
 ## 1. 지식 층 (로딩 순서)
 
