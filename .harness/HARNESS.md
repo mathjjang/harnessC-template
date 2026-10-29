@@ -46,7 +46,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 |---|---|---|
 | lite (S) | spec · design · impl · test · review | 폴더에 `fdr.md` 한 장 + `evidence/` |
 | standard (M) | spec · design · impl · unit · integration · review · close | 폴더 + `manifest.yaml` + `evidence/runs/` |
-| full (L) | + ui-flow · prototype · e2e · audit | 폴더 9단계 |
+| full (L) | + ui-flow · prototype(design 뒤 · impl 앞) · e2e · audit | 폴더 11단계 |
 
 - `manifest.yaml`(lite는 `fdr.md` 머리말)이 상태 정본. 상태: `draft → in-progress → shipped → closed` (`abandoned` 사유 필수).
 - **shipped** = 구현이 main에 있고 사람 대기만 남음. **closed** = `01-spec` 델타가 `docs/specs/`에 병합됨. 병합 없이 closed 불가(lint ⑩).

@@ -137,7 +137,7 @@ node .harness/scripts/setup.mjs --show                         # 지금 답과 �
 node .harness/scripts/setup.mjs --interactive --reconfigure    # 이전 답이 기본값 — 바뀐 것만 고친다
 ```
 
-사람이 늘었다 · 외부 발주처가 생겼다 · 화면이 생겼다 — 설정·양식·기록(ADR 개정 이력)이 같이 바뀐다. 티어 L로 오르면 9단계 기록 양식을 템플릿에서 받아 온다.
+사람이 늘었다 · 외부 발주처가 생겼다 · 화면이 생겼다 — 설정·양식·기록(ADR 개정 이력)이 같이 바뀐다. 티어 L로 오르면 11단계 기록 양식을 템플릿에서 받아 온다.
 
 ### 8. 템플릿 갱신 받기
 
@@ -207,7 +207,7 @@ src/ tests/    코드                                                           
 |---|---|---|---|
 | S | lite — `fdr.md` 한 장 + evidence/ | 바로 병합(ff) | 18KB |
 | M | standard — 폴더 7단계 | PR | 25KB |
-| L | full — 폴더 9단계 · strict | PR · 승인 2 | 40KB |
+| L | full — 폴더 11단계 · strict | PR · 승인 2 | 40KB |
 
 ## 지금 동작하는 것과 아직 아닌 것
 
