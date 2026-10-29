@@ -28,7 +28,9 @@ import { fetchSource, readUpstream } from './lib/upstream.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
-const sha = (buf) => createHash('sha256').update(buf).digest('hex');
+/** 지문 — 텍스트는 CRLF→LF 정규화 뒤, 바이너리(NUL)는 바이트 그대로. 목업 저장소 scripts/lib/mockup.mjs sha()와 같은 규약 — 한쪽만 바꾸면 확정 지문이 어긋나 같은 내용에 거짓 경보(Windows CRLF 실사고) */
+const isBinary = (buf) => { const n = Math.min(buf.length, 8000); for (let i = 0; i < n; i += 1) if (buf[i] === 0) return true; return false; };
+const sha = (buf) => createHash('sha256').update(Buffer.isBuffer(buf) && isBinary(buf) ? buf : Buffer.from(String(buf).replace(/\r\n/g, '\n'), 'utf8')).digest('hex');
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
 const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || '';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -50,7 +52,7 @@ function fdrStatus(dir) { const m = rd(join(dir, 'manifest.yaml')); return yamlS
 export function readRev(dir) {
   const t = rd(join(dir, 'mockup', 'rev.yaml')); if (!t) return null;
   const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];
-  return { rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), files };
+  return { rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), sourceScreen: yamlScalar(t, 'source_screen'), sourceRev: Number(yamlScalar(t, 'source_rev')) || 0, files };
 }
 export function readScenarios(dir) { const p = join(dir, 'mockup', 'diff-scenarios.json'); if (!existsSync(p)) return null; return JSON.parse(rd(p)).filter((s) => s && s.state); }
 const readDeviations = (dir) => { const p = join(dir, 'mockup', 'deviations.json'); return existsSync(p) ? JSON.parse(rd(p)) : []; };
@@ -62,7 +64,7 @@ function listFdrs(root) { const d = join(root, RECORD_DIRS.FDR); return existsSy
 /** 목업 저장소(harnessC-mockup-template)의 rev.yaml — visual_status·rev·confirmed_by·files. 없으면 null(일반 폴더) */
 function readSourceRev(src) {
   const t = rd(join(src, 'rev.yaml')); if (!t) return null;
-  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];
+  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:html|md)):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 상태 html + policy.md(목업 v0.1.6+)
   return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), files };
 }
 /** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다 */
@@ -88,7 +90,7 @@ export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {})
   const htmls = readdirSync(src).filter((f) => f.endsWith('.html')).sort();
   if (srcRev) {
     if (srcRev.visual_status !== 'confirmed') throw new Error(`${srcDir}: visual_status가 ${srcRev.visual_status || '없음'} — confirmed 목업만 승격한다 (목업 저장소에서 confirm.mjs)`);
-    for (const f of htmls) if (sha(readFileSync(join(src, f))) !== srcRev.files[f]) throw new Error(`${srcDir}/${f}: 확정본(rev ${srcRev.rev}) 해시와 다르다 — 원본이 reopen 중이거나 몰래 고쳐졌다. 재확정 뒤 승격`);
+    for (const f of [...htmls, ...(srcRev.files['policy.md'] ? ['policy.md'] : [])]) if (sha(readFileSync(join(src, f))) !== srcRev.files[f]) throw new Error(`${srcDir}/${f}: 확정본(rev ${srcRev.rev}) 해시와 다르다 — 원본이 reopen 중이거나 몰래 고쳐졌다. 재확정 뒤 승격`);
   }
   const screen = basename(src); const dst = join(dir, 'mockup'); const dstScreen = join(dst, screen);
   const prev = readRev(dir); const rev = (prev ? prev.rev : 0) + 1;
@@ -277,6 +279,17 @@ export function initMockup(root, mode, { name, from, gh = true, owner } = {}) {
 }
 
 // ---------- check (완료 게이트) ----------
+/** 원본 드리프트 — 승격 스탬프 source_rev ↔ 목업 저장소 원본 rev.yaml의 rev. 원본을 읽을 수 있을 때만(source 경로 또는 references role: mockup) 판정, 못 읽으면 []. 감지만으로는 사람이 발견해야 일이 생기므로 완료 시점에 막는다 */
+export function sourceDrift(root, rev, st) {
+  if (!rev.sourceRev) return [];
+  let src = rev.source ? resolve(root, rev.source) : '';
+  if (!(src && existsSync(join(src, 'rev.yaml'))) && rev.sourceScreen) { const ref = findReference(rd(join(root, 'harness.yaml')), 'mockup'); if (ref) src = join(refPath(root, ref), 'screens', rev.sourceScreen); }
+  if (!(src && existsSync(join(src, 'rev.yaml')))) return [];
+  const cur = readSourceRev(src); const name = rev.sourceScreen || posix(relative(root, src));
+  if (cur.rev > rev.sourceRev) return [`${st}인데 원본 ${name}이 rev ${cur.rev}로 재확정됐다(승격 사본은 rev ${rev.sourceRev}) — 옛 판으로 완료할 수 없다. 다시 promote → run`];
+  if (cur.visual_status === 'reopened' && cur.rev === rev.sourceRev) return [`${st}인데 원본 ${name}이 reopen 중이다(rev ${cur.rev}) — 재확정을 기다려 다시 promote → run`];
+  return [];
+}
 /** 반환 [] = 통과. FDR 폴더에 mockup/이 없으면 대상 아님 */
 export function checkMockup(root, dir) {
   const problems = []; const m = join(dir, 'mockup');
@@ -290,6 +303,7 @@ export function checkMockup(root, dir) {
   if (states.size && !live.length) problems.push('전 상태 excluded — 게이트가 한 번도 돌지 않는 완전 우회. 확정 목업 기반 완료를 주장할 수 없다');
   const st = fdrStatus(dir);
   if (!/^(shipped|closed)$/.test(st)) return problems;   // 작업 중에는 형식만. 완료 주장 시점에 산출물을 묻는다
+  problems.push(...sourceDrift(root, rev, st));
   const rp = resultsPath(dir, rev.rev);
   if (!existsSync(rp)) return [...problems, `${st}인데 rev ${rev.rev}의 대조 기록이 없다: ${posix(relative(dir, rp))} — node .harness/scripts/mockup-diff.mjs run`];
   let res; try { res = JSON.parse(rd(rp)); } catch { return [...problems, `${posix(relative(dir, rp))} 파싱 실패`]; }
@@ -341,6 +355,20 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     writeFileSync(join(mk, 'screens', 'ds', 'list', '01-default.html'), h1.replace('./_screen.css', './nope.css')); writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revY('confirmed', sha(rd(join(mk, 'screens', 'ds', 'list', '01-default.html')))));
     try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('무스타일 통과'); } catch (e) { if (!/자산 참조가 열리지 않는다/.test(e.message)) fails.push('무스타일 거부 사유: ' + e.message); }
     if (existsSync(join(fdr2, 'mockup'))) fails.push('실패한 승격의 잔해가 남음');
+    // 원본 드리프트 — 승격(rev 3) 뒤 원본이 rev 4로 재확정되면 shipped 거부 · reopen 중이면 거부 · 같은 rev면 통과 · in-progress는 막지 않음 · policy.md 변조는 승격 거부
+    writeFileSync(join(mk, 'screens', 'ds', 'list', '01-default.html'), h1); writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n');
+    const revP = (st, r) => `screen: ds/list\nrev: ${r}\nvisual_status: ${st}\nconfirmed: 2026-01-02\nconfirmed_by: "cto"\nfiles:\n  01-default.html: ${sha(h1)}\n  policy.md: ${sha('# p\n')}\n`;
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 3));
+    promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); writeFileSync(join(fdr2, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: 'list/01-default.html', excluded: 't' }]));
+    const stN = (s) => writeFileSync(join(fdr2, 'fdr.md'), `---\nid: FDR-000000-n\nstatus: ${s}\n---\n- 작성: t\n`);
+    const sd = () => checkMockup(tmp, fdr2).filter((p) => /재확정됐다|reopen 중/.test(p));
+    stN('shipped'); if (sd().length) fails.push('같은 rev 드리프트 오탐: ' + sd().join(' | '));
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 4)); if (!sd().some((p) => /rev 4로 재확정/.test(p))) fails.push('원본 rev 증가 미검출');
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('reopened', 3)); if (!sd().some((p) => /reopen 중/.test(p))) fails.push('원본 reopen 미검출');
+    stN('in-progress'); writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 4)); if (sd().length) fails.push('in-progress에 드리프트 차단(작업 중은 막지 않는다)');
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n- 몰래\n');
+    try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('policy.md 변조 원본 통과'); } catch (e) { if (!/policy\.md: 확정본/.test(e.message)) fails.push('policy 변조 거부 사유: ' + e.message); }
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n'); rmSync(join(fdr2, 'mockup'), { recursive: true, force: true });
     // init — 가짜 템플릿으로 embedded·separate(clone 경로) 둘 다, references 등록·교체
     const tpl = join(tmp, 'tpl'); mkdirSync(join(tpl, 'scripts'), { recursive: true }); mkdirSync(join(tpl, '.claude'), { recursive: true }); mkdirSync(join(tpl, 'runbooks'), { recursive: true });
     writeFileSync(join(tpl, 'mockup.yaml'), 'project: "{{PROJECT_NAME}}"\n'); writeFileSync(join(tpl, 'AGENTS.md'), '# {{PROJECT_NAME}}\n'); writeFileSync(join(tpl, 'CLAUDE.md'), 'x'); writeFileSync(join(tpl, 'scripts', 'validate.mjs'), 'process.exit(0)');
@@ -389,7 +417,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.stack.split('\n').slice(0, 2).join(' ')); }
   rmSync(tmp, { recursive: true, force: true });
   const eng = loadBackstop(DEFAULT_ROOT);
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
   process.exit(fails.length ? 1 : 0);
 }
 
