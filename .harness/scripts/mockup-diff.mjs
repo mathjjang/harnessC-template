@@ -64,7 +64,7 @@ function listFdrs(root) { const d = join(root, RECORD_DIRS.FDR); return existsSy
 /** 목업 저장소(harnessC-mockup-template)의 rev.yaml — visual_status·rev·confirmed_by·files. 없으면 null(일반 폴더) */
 function readSourceRev(src) {
   const t = rd(join(src, 'rev.yaml')); if (!t) return null;
-  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:html|md)):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 상태 html + policy.md(목업 v0.1.6+)
+  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:html|md|css)):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 상태 html + policy.md(목업 v0.1.6+) + 폴더 css(v0.1.7+)
   return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), files };
 }
 /** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다 */
@@ -90,7 +90,7 @@ export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {})
   const htmls = readdirSync(src).filter((f) => f.endsWith('.html')).sort();
   if (srcRev) {
     if (srcRev.visual_status !== 'confirmed') throw new Error(`${srcDir}: visual_status가 ${srcRev.visual_status || '없음'} — confirmed 목업만 승격한다 (목업 저장소에서 confirm.mjs)`);
-    for (const f of [...htmls, ...(srcRev.files['policy.md'] ? ['policy.md'] : [])]) if (sha(readFileSync(join(src, f))) !== srcRev.files[f]) throw new Error(`${srcDir}/${f}: 확정본(rev ${srcRev.rev}) 해시와 다르다 — 원본이 reopen 중이거나 몰래 고쳐졌다. 재확정 뒤 승격`);
+    for (const f of [...new Set([...htmls, ...Object.keys(srcRev.files)])]) if (!existsSync(join(src, f)) || sha(readFileSync(join(src, f))) !== srcRev.files[f]) throw new Error(`${srcDir}/${f}: 확정본(rev ${srcRev.rev}) 해시와 다르다 — 원본이 reopen 중이거나 몰래 고쳐졌다. 재확정 뒤 승격`);
   }
   const screen = basename(src); const dst = join(dir, 'mockup'); const dstScreen = join(dst, screen);
   const prev = readRev(dir); const rev = (prev ? prev.rev : 0) + 1;

@@ -9,6 +9,8 @@ AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대
 
 ## 사용법
 
+**선행 조건** — Node 22 이상(CI 기준) · git · `gh` CLI(PR 생성·`protect`·`init separate`·`gc`가 쓴다 — 없으면 그 단계만 안내로 대체) · 화면 대조를 쓰면 `mockup-diff.mjs engine --install`(BackstopJS + Playwright 브라우저 내려받기).
+
 명령은 전부 저장소 루트에서 `node`로 돈다. 에이전트(Claude Code · Codex · Gemini CLI)는 같은 절차를 런북으로 읽는다 — 아래 [에이전트에게 시키기](#에이전트에게-시키기) 참고.
 
 ### 1. 새 프로젝트 시작 — 질문으로 설정
@@ -20,7 +22,7 @@ cd <project>
 
 # 질문에 답하면 설정·근거 기록까지 끝난다 (--prune: 템플릿 전용 파일 제거)
 node init.mjs --interactive --prune
-git config core.hooksPath .harness/scripts/git-hooks
+git config core.hooksPath .harness/scripts/git-hooks   # pre-commit 게이트 — 안 하면 scope 밖 커밋·main 직접 커밋·shipped 조건 검사가 로컬에서 돌지 않는다
 ```
 
 묻는 것 — 반드시 셋, 나머지는 기본값을 보여 주고 한 번에 확인한다.
@@ -28,14 +30,14 @@ git config core.hooksPath .harness/scripts/git-hooks
 | # | 질문 | 이것으로 정해지는 것 |
 |---|---|---|
 | Q1 | 프로젝트 이름 | 이름 치환 |
-| Q2 | 동시에 구현하는 사람·에이전트 세션 수 | 병합 방식(1이면 바로 병합 · 2 이상이면 PR) · 필수 승인 수 |
+| Q2 | 동시에 구현하는 사람·에이전트 세션 수 | 병합 방식(1이면 리뷰 판정 뒤 바로 병합 · 2 이상이면 PR) · 필수 승인 수 |
 | Q4 | 화면이 있는가, 목업은 누가 만드나(none / self / separate) | 목업 저장소 자리 |
-| Q3 | 기간 · 기능 규모 | 기록 양식(lite / standard / full) · 규칙 크기 상한 |
+| Q3a·Q3b | 예상 기간(개월) · 기능 규모(small / medium / large) | 기록 양식(lite / standard / full) · 규칙 크기 상한 |
 | Q5 | 외부 조직(발주처·협력사)과 같이 보는 문서가 있나 | 협업 저장소 |
-| Q6 | 결제·개인정보·공공 납품처럼 사람 사인오프가 필요한 영역이 있나 | 엄격 모드 · 사인오프 접점 |
+| Q6 | 결제·개인정보·의료·공공 납품처럼 사람 사인오프가 필요한 영역이 있나 | 엄격 모드 · 사인오프 접점 |
 | Q7 | GitHub 저장소 공개 여부 | 비공개 + PR이면 "CI가 병합을 막지 못한다" 경고 |
 
-결과는 세 곳에 남는다: `harness.yaml`(값 옆에 `# 근거: Q2 …`), `harness.yaml`의 `setup:` 블록(답 원문), 첫 결정 기록 `docs/decisions/ADR-<날짜>-project-setup.md`. 티어(S·M·L)는 고르는 것이 아니라 답에서 나온다 — S: 혼자·짧게 · M: 동시 2명 이상·3개월 초과·외부 조직 · L: 대규모·동시 5명 이상·외부+사인오프.
+결과는 세 곳에 남는다: `harness.yaml`(값 옆에 `# 근거: Q2 …`), `harness.yaml`의 `setup:` 블록(답 원문), 첫 결정 기록 `docs/decisions/ADR-<날짜>-project-setup.md`. 티어(S·M·L)는 고르는 것이 아니라 답에서 나온다 — S: 혼자·짧게 · M: 동시 2명 이상·3개월 초과·규모 medium(FDR 10~50)·외부 조직 · L: 대규모·동시 5명 이상·외부+사인오프.
 
 > 질문 없이 바로: `node init.mjs --name <이름> --tier S|M|L --prune` · 에이전트는 답을 파일로: `node init.mjs --answers answers.json --prune`
 
@@ -50,7 +52,8 @@ cd .worktrees/FDR-<날짜>-<slug>                            # 여기서 구현�
 cd ../.. && node .harness/scripts/work.mjs finish FDR-<날짜>-<slug>
 ```
 
-- `finish`가 기록을 `shipped`로 올리고 → main 위로 rebase → 검사 → 혼자면 바로 병합, 여럿이면 PR을 연다(3절).
+- `finish`가 기록을 `shipped`로 올리고 → main 위로 rebase → lint → **리뷰 판정 확인** → 혼자면 바로 병합(ff), 여럿이면 PR을 연다(3절).
+- 리뷰 판정은 혼자여도 필요하다 — **다른 세션**의 리뷰어가 기록의 리뷰 칸에 `통과`(또는 `조건부` + 조건)를 적어야 병합된다. 판정이 비었거나 `재작업`이거나 리뷰어가 작성자와 같거나, **판정 뒤에 제품 코드가 바뀌면**(판정 무효 — 다시 리뷰) 병합이 막힌다. ff·PR 공통.
 - 시험 결과는 기록의 시험 표에 명령·출력 원문으로, 원문 파일은 기록 폴더의 `evidence/`에. 못 돌린 것은 "미검증"으로 적는다.
 - 두 기능이 같은 경로를 고치면 검사가 알린다 — 공유 변경을 작은 기록 하나로 먼저 병합한다.
 - 착수 절차 전체: `.harness/runbooks/fdr-start.md` · 브랜치 규칙: `.harness/runbooks/work.md`
@@ -76,7 +79,7 @@ Q2에 2 이상이라고 답하면 PR 모드다.
 ```bash
 node .harness/scripts/work.mjs protect                  # 저장소당 1회 — main 직접 push 금지 · 필수 검사 harness · 필수 승인
 node .harness/scripts/work.mjs finish FDR-…             # push + PR 생성(본문은 기록에서 자동 생성)
-#  → GitHub Actions 「harness」가 검사: 규칙 · 브랜치=기록 · scope · 리뷰 판정
+#  → GitHub Actions 「harness」가 검사: 규칙 · 브랜치=기록 · scope · 임시 파일 · 리뷰 판정(판정 뒤 제품 코드가 바뀌면 판정 무효 — 다시 리뷰)
 #    리뷰 전이라 「판정 없음」으로 실패하는 것이 정상
 #  → 리뷰어(구현자와 다른 세션·사람)가 기록의 리뷰 칸에 판정(통과·재작업·조건부)을 쓴다 — risk high면 사람 사인오프도
 node .harness/scripts/work.mjs finish FDR-…             # 다시 — PR 본문 갱신 → 검사 통과 → 사람 승인 → GitHub에서 병합
@@ -84,7 +87,7 @@ git pull && node .harness/scripts/work.mjs gc --apply   # 병합된 PR의 작업
 ```
 
 - 로컬 검사(pre-commit)를 `--no-verify`로 건너뛰어도 PR에서 같은 검사가 다시 돈다.
-- 리뷰 판정이 비었거나 `재작업`이거나 리뷰어가 작성자와 같으면 병합이 막힌다.
+- 리뷰 조건(2절)은 PR에서 CI가 다시 묻는다 — 로컬을 건너뛴 PR도 같은 선에서 막힌다.
 - **GitHub Free의 비공개 저장소는 브랜치 보호를 쓸 수 없다** — 검사 실패가 표시되지만 병합 버튼은 막히지 않는다. 공개 저장소 또는 Team/Pro에서만 "막는다"가 성립한다.
 
 ### 4. 화면이 있으면 — 목업 대조
@@ -205,7 +208,7 @@ src/ tests/    코드                                                           
 
 | 티어(질문의 결과) | 기록 양식 | 병합 | 규칙 상한 |
 |---|---|---|---|
-| S | lite — `fdr.md` 한 장 + evidence/ | 바로 병합(ff) | 18KB |
+| S | lite — `fdr.md` 한 장 + evidence/ | 바로 병합(ff · 리뷰 판정 뒤) | 18KB |
 | M | standard — 폴더 7단계 | PR | 25KB |
 | L | full — 폴더 11단계 · strict | PR · 승인 2 | 40KB |
 
@@ -237,4 +240,4 @@ node .harness/scripts/ci.mjs     # PR 서버 게이트와 같은 검사(+템플�
 
 규칙은 이 템플릿에서만 바뀐다(`.harness/HARNESS.md` §9). 바뀔 때마다 버전을 올려 두 템플릿을 같은 시점에 태그하고, 프로젝트는 `upstream.ref`를 그 태그로 올린 뒤 `sync-core`로 받는다.
 
-라이선스: 미정(비공개). 공개 전환 시 결정.
+라이선스: 아직 부여하지 않았다 — 공개 저장소이지만 LICENSE 파일이 없다. 사용·재배포 전에 문의.
