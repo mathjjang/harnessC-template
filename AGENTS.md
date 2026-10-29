@@ -1,6 +1,6 @@
 # AGENTS.md — {{PROJECT_NAME}} 에이전트 운영 규칙
 
-> 하네스C 코어 v0.3.11 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
+> 하네스C 코어 v0.3.12 · 모든 에이전트(Claude Code·Codex·Gemini·Cursor 등) 공통. 모든 프로젝트에서 동일(프로젝트명만 — lint ⑫). 충돌 시 `rules/product.md` → `.harness/HARNESS.md` → 이 파일 순. 쓰기 전 훅은 **Claude Code**에만 있다 — 다른 런타임은 pre-commit 게이트만이니 아래 규칙을 커밋 전 스스로 점검한다.
 
 ## 가장 먼저
 
