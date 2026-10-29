@@ -2,7 +2,7 @@
 
 AI 에이전트와 함께 개발하는 프로젝트를 위한 **방법론 뼈대**. 이 저장소에는 **모든 프로젝트에서 동일하게 동작하는 것만** 있다. 제품·도메인에 따라 달라지는 것은 각 프로젝트의 `rules/`·`docs/`에 쓴다. 방법론의 고도화는 여기서만 한다 — 프로젝트는 `sync-core`로 내려받고, 프로젝트에서 코어를 고치면 린트가 막는다.
 
-- 버전: **0.3.13** · 릴리스 태그 `v0.3.13` · 짝: harnessC-mockup-template `v0.1.11`
+- 버전: **0.3.14** · 릴리스 태그 `v0.3.14` · 짝: harnessC-mockup-template `v0.1.12`
 - 짝 템플릿: [harnessC-mockup-template](https://github.com/mathjjang/harnessC-mockup-template) — 목업(기획·디자인) 저장소 뼈대. 화면이 있는 프로젝트만 쓴다
 
 ---
