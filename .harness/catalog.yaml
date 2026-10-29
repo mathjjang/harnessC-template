@@ -132,7 +132,7 @@ tools:
     command: node .harness/scripts/mockup-diff.mjs init separate|embedded | promote <FDR-ID> <모듈>/<화면>|<폴더> | run <FDR-ID>|--all [--state <이름>] | check [<FDR-ID>|--all] | engine [--install]
     enforcement: gate
     self_test: node .harness/scripts/mockup-diff.mjs --self-test
-    rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 목업 저장소 자리 선택(init separate|embedded → references role: mockup) · confirmed 화면 승격(원본 rev.yaml 해시 검증 — 상태 html + policy.md · 자산 참조 검사 · rev 스탬프 — html은 files:, 정책·css는 policy: 지문) · 사본 정책 불변·스펙 정책 인용(lint ⑯) · 완료 시 원본 드리프트(원본 rev 증가·reopen → shipped 거부)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
+    rule: .harness/HARNESS.md §6 · runbooks/mockup.md — 목업 저장소 자리 선택(init separate|embedded → references role: mockup) · confirmed 화면 승격(원본 rev.yaml 해시 검증 — 상태 html + policy.md · 자산 참조 검사 · rev 스탬프 — html은 files:, 정책·css는 policy: 지문) · 사본 정책 불변·스펙 정책 인용·원본 공용 자산 드리프트(source_assets_sha)(lint ⑯) · 완료 시 원본 드리프트(원본 rev 증가·reopen → shipped 거부)·BackstopJS 승인본 대조·기록(evidence/mockup-diff)·완료 게이트(lint ⑯). 엔진은 PC 공용(~/.harness/tools). 엔진 스크립트 lib/backstop-onReady.cjs·onBefore.cjs
   - name: qa-intake.mjs
     status: active
     command: node .harness/scripts/qa-intake.mjs pull | reply <ID> --state taken|resolved|verified [--commit <sha>] [--steps "<확인 절차>"] [--by …] | status

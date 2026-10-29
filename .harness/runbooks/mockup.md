@@ -80,5 +80,5 @@ node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <모듈>/<화면> --by "<
 ## 함정
 
 - 로그인 오리진 ≠ 캡처 오리진 → 비로그인 화면이 조용히 찍힌다. 로그인 모듈은 `{ origin }`을 받아 그 오리진으로 간다.
-- 목업 승격본이 원본보다 낡은 채 기준본으로 쓰임 → 원본이 재확정(rev 증가)·reopen 중이면 완료 게이트(lint ⑯ · `checkMockup`)가 shipped·closed를 막는다 — 다시 promote → run. 작업 중에는 막지 않는다. 원본을 못 읽으면(참조 없음) 판정하지 않는다.
+- 목업 승격본이 원본보다 낡은 채 기준본으로 쓰임 → 원본이 재확정(rev 증가)·reopen 중이거나 **원본 공용 자산(`_assets`)이 승격 뒤 바뀌었으면**(스탬프 `source_assets_sha` ≠ 현재 묶음) 완료 게이트(lint ⑯ · `checkMockup`)가 shipped·closed를 막는다 — 다시 promote → run. 작업 중에는 막지 않는다. 원본을 못 읽으면(참조 없음) 판정하지 않는다.
 - 정적 목업이 못 담는 동작(스크롤·진행 중·삭제 반영)을 목업 탓하지 않는다 — 그것은 스펙 시나리오와 E2E의 몫이다.

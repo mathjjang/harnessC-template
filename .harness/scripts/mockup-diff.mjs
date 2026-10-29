@@ -53,7 +53,7 @@ export function readRev(dir) {
   const t = rd(join(dir, 'mockup', 'rev.yaml')); if (!t) return null;
   const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 대조 시나리오는 상태 html만
   const policy = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:md|css)):\s*([0-9a-f]{64})\s*$/gm)) policy[m[1]] = m[2];   // 정책·css 사본 지문 — 개발이 사본을 고치면 check가 잡는다(RFC-261029 P1)
-  return { policy, rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), sourceScreen: yamlScalar(t, 'source_screen'), sourceRev: Number(yamlScalar(t, 'source_rev')) || 0, files };
+  return { policy, rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), sourceScreen: yamlScalar(t, 'source_screen'), sourceRev: Number(yamlScalar(t, 'source_rev')) || 0, sourceAssetsSha: yamlScalar(t, 'source_assets_sha'), files };
 }
 export function readScenarios(dir) { const p = join(dir, 'mockup', 'diff-scenarios.json'); if (!existsSync(p)) return null; return JSON.parse(rd(p)).filter((s) => s && s.state); }
 const readDeviations = (dir) => { const p = join(dir, 'mockup', 'deviations.json'); return existsSync(p) ? JSON.parse(rd(p)) : []; };
@@ -63,10 +63,17 @@ function listFdrs(root) { const d = join(root, RECORD_DIRS.FDR); return existsSy
 
 // ---------- promote ----------
 /** 목업 저장소(harnessC-mockup-template)의 rev.yaml — visual_status·rev·confirmed_by·files. 없으면 null(일반 폴더) */
+/** 목업 저장소 공용 자산(screens/_assets/**) 묶음 지문 — 목업 쪽 assetsSha()와 같은 규약(경로 정렬 + 내용 지문). 한쪽만 바꾸면 드리프트 오판 */
+function assetsShaOf(screensDir) {
+  const base = join(screensDir, '_assets'); if (!existsSync(base)) return '';
+  const out = []; const walk = (d, rel) => { for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) { const p = join(d, e.name), r = `${rel}/${e.name}`; if (e.isDirectory()) walk(p, r); else out.push(`${r}:${sha(readFileSync(p))}`); } };
+  walk(base, '_assets');
+  return sha(out.join('\n'));
+}
 function readSourceRev(src) {
   const t = rd(join(src, 'rev.yaml')); if (!t) return null;
   const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:html|md|css)):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 상태 html + policy.md(목업 v0.1.6+) + 폴더 css(v0.1.7+)
-  return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), files };
+  return { rev: Number(yamlScalar(t, 'rev')) || 0, visual_status: yamlScalar(t, 'visual_status'), confirmed: yamlScalar(t, 'confirmed'), confirmed_by: yamlScalar(t, 'confirmed_by'), screen: yamlScalar(t, 'screen'), assets_sha: yamlScalar(t, 'assets_sha'), files };
 }
 /** html이 참조하는 로컬 자산 중 디스크에 없는 것 — 승격 사본이 무스타일이면 기준본이 못 된다 */
 function unresolvedAssets(htmlPath) {
@@ -105,6 +112,7 @@ export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {})
   for (const f of files) { const miss = unresolvedAssets(join(dst, f)); if (miss.length) { rmSync(dst, { recursive: true, force: true }); throw new Error(`승격 실패 — ${f}의 자산 참조가 열리지 않는다(무스타일 기준본): ${miss.join(', ')}. 자산을 참조가 열리는 자리에 둔다`); } }
   const lines = ['# 확정 목업 승격 스탬프 — node .harness/scripts/mockup-diff.mjs promote 가 쓴다. 손 편집 금지. 목업을 고치려면 원본에서 고치고 다시 promote(rev+1).', `rev: ${rev}`, `promoted: ${today()}`, `source: ${posix(relative(root, src)) || '.'}`, `by: "${by}"`];
   if (srcRev) lines.push(`source_screen: ${srcRev.screen}`, `source_rev: ${srcRev.rev}`, `source_confirmed: ${srcRev.confirmed}`, `source_confirmed_by: "${srcRev.confirmed_by}"`);
+  if (srcRev && srcRev.assets_sha) lines.push(`source_assets_sha: ${srcRev.assets_sha}`);   // 확정 당시 공용 자산 묶음 — 원본 _assets가 바뀌면 sourceDrift가 잡는다(목업 v0.1.13+)
   lines.push('files:'); for (const f of files) lines.push(`  ${f}: ${sha(readFileSync(join(dst, f)))}`);
   // 정책·css 사본도 지문 — 화면은 픽셀로 대조되지만 정책은 복사된 뒤 아무도 안 봤다(RFC-261029 P1). 개발이 사본을 고치면 check가 거부
   const policyFiles = readdirSync(dstScreen).filter((f) => f === 'policy.md' || f.endsWith('.css')).sort().map((f) => `${screen}/${f}`);
@@ -292,6 +300,7 @@ export function sourceDrift(root, rev, st) {
   const cur = readSourceRev(src); const name = rev.sourceScreen || posix(relative(root, src));
   if (cur.rev > rev.sourceRev) return [`${st}인데 원본 ${name}이 rev ${cur.rev}로 재확정됐다(승격 사본은 rev ${rev.sourceRev}) — 옛 판으로 완료할 수 없다. 다시 promote → run`];
   if (cur.visual_status === 'reopened' && cur.rev === rev.sourceRev) return [`${st}인데 원본 ${name}이 reopen 중이다(rev ${cur.rev}) — 재확정을 기다려 다시 promote → run`];
+  if (rev.sourceAssetsSha) { const now = assetsShaOf(join(src, '..', '..')); if (now && now !== rev.sourceAssetsSha) return [`${st}인데 원본 공용 자산(_assets)이 승격 뒤 바뀌었다 — 기준본 렌더가 달라진다. 원본에서 화면을 재확정한 뒤 다시 promote → run`]; }
   return [];
 }
 /** 스펙이 정책을 인용하는가 — 지문은 "안 바뀌었다"만 보장한다. 정책이 스펙에 들어가야 테스트가 검증하고 리뷰가 본다(RFC-261029 P8).
@@ -390,6 +399,16 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (cite().length) fails.push('인용 뒤 오탐: ' + cite().join(' | '));
     writeFileSync(join(fdr2, 'mockup', 'list', 'policy.md'), '# p\n- 개발이 몰래\n'); if (!cite().some((p) => /승격 사본 list\/policy\.md가 승격 때와 다르다/.test(p))) fails.push('사본 변조 미검출');
     writeFileSync(join(fdr2, 'mockup', 'list', 'policy.md'), '# p\n');
+    // 공용 자산 드리프트(RFC-261029 C) — 원본 rev.yaml에 assets_sha가 있으면 승격 스탬프에 source_assets_sha, 원본 _assets가 바뀌면 shipped 거부 · 원복하면 통과
+    const tokP = join(mk, 'screens', '_assets', 'tokens.css'); const tok0 = readFileSync(tokP, 'utf8');
+    writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 4) + `assets_sha: ${assetsShaOf(join(mk, 'screens'))}\n`);
+    rmSync(join(fdr2, 'mockup'), { recursive: true, force: true }); promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); writeFileSync(join(fdr2, 'mockup', 'diff-scenarios.json'), JSON.stringify([{ state: 'list/01-default.html', excluded: 't' }]));
+    if (!/^source_assets_sha: [0-9a-f]{64}$/m.test(rd(join(fdr2, 'mockup', 'rev.yaml')))) fails.push('승격 스탬프에 source_assets_sha 없음');
+    writeFileSync(join(fdr2, 'fdr.md'), `---\nid: FDR-000000-n\nstatus: shipped\n---\n- 작성: t\n\n## 1. Spec\n\n- 출처: mockup/list/policy.md rev ${readRev(fdr2).rev}\n\n## 2. Design\n`);
+    const ad = () => checkMockup(tmp, fdr2).filter((p) => /공용 자산/.test(p));
+    if (ad().length) fails.push('자산 같은데 드리프트 오탐: ' + ad().join(' | '));
+    writeFileSync(tokP, tok0 + '\n:root{--x:1}\n'); if (!ad().some((p) => /원본 공용 자산\(_assets\)이 승격 뒤 바뀌었다/.test(p))) fails.push('원본 자산 변경 미검출');
+    writeFileSync(tokP, tok0); if (ad().length) fails.push('자산 원복 뒤 오탐');
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n- 몰래\n');
     try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('policy.md 변조 원본 통과'); } catch (e) { if (!/policy\.md: 확정본/.test(e.message)) fails.push('policy 변조 거부 사유: ' + e.message); }
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n'); rmSync(join(fdr2, 'mockup'), { recursive: true, force: true });
@@ -441,7 +460,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.stack.split('\n').slice(0, 2).join(' ')); }
   rmSync(tmp, { recursive: true, force: true });
   const eng = loadBackstop(DEFAULT_ROOT);
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 정책 지문·스펙 인용 4 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 정책 지문·스펙 인용 4 · 공용 자산 드리프트 3 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
   process.exit(fails.length ? 1 : 0);
 }
 
