@@ -24,7 +24,8 @@ updated: {{DATE}}
 - WHEN / THEN / 단언 등급 / 계층
 
 **AC**
-- AC-1 … (출처 REQ-…)
+- 출처: REQ-… · 확정 목업이 있으면 `mockup/<화면>/policy.md rev N` (승격 뒤 적는다 — 없으면 lint ⑯이 거부)
+- AC-1 … (출처 REQ-… 또는 policy.md §n)
 
 **사전 일괄 질의 (Stage 1 — 접점 ①)**
 - Q1 … → 답:

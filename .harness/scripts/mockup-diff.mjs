@@ -51,8 +51,9 @@ const fdrDirOf = (root, id) => join(root, recordDir(id), id);
 function fdrStatus(dir) { const m = rd(join(dir, 'manifest.yaml')); return yamlScalar(m || frontmatter(rd(join(dir, 'fdr.md'))), 'status'); }
 export function readRev(dir) {
   const t = rd(join(dir, 'mockup', 'rev.yaml')); if (!t) return null;
-  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];
-  return { rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), sourceScreen: yamlScalar(t, 'source_screen'), sourceRev: Number(yamlScalar(t, 'source_rev')) || 0, files };
+  const files = {}; for (const m of t.matchAll(/^  ([^:\n]+\.html):\s*([0-9a-f]{64})\s*$/gm)) files[m[1]] = m[2];   // 대조 시나리오는 상태 html만
+  const policy = {}; for (const m of t.matchAll(/^  ([^:\n]+\.(?:md|css)):\s*([0-9a-f]{64})\s*$/gm)) policy[m[1]] = m[2];   // 정책·css 사본 지문 — 개발이 사본을 고치면 check가 잡는다(RFC-261029 P1)
+  return { policy, rev: Number(yamlScalar(t, 'rev')) || 0, promoted: yamlScalar(t, 'promoted'), source: yamlScalar(t, 'source'), sourceScreen: yamlScalar(t, 'source_screen'), sourceRev: Number(yamlScalar(t, 'source_rev')) || 0, files };
 }
 export function readScenarios(dir) { const p = join(dir, 'mockup', 'diff-scenarios.json'); if (!existsSync(p)) return null; return JSON.parse(rd(p)).filter((s) => s && s.state); }
 const readDeviations = (dir) => { const p = join(dir, 'mockup', 'deviations.json'); return existsSync(p) ? JSON.parse(rd(p)) : []; };
@@ -105,6 +106,9 @@ export function promote(root, fdrId, srcDir, { by = '(모델 미확인)' } = {})
   const lines = ['# 확정 목업 승격 스탬프 — node .harness/scripts/mockup-diff.mjs promote 가 쓴다. 손 편집 금지. 목업을 고치려면 원본에서 고치고 다시 promote(rev+1).', `rev: ${rev}`, `promoted: ${today()}`, `source: ${posix(relative(root, src)) || '.'}`, `by: "${by}"`];
   if (srcRev) lines.push(`source_screen: ${srcRev.screen}`, `source_rev: ${srcRev.rev}`, `source_confirmed: ${srcRev.confirmed}`, `source_confirmed_by: "${srcRev.confirmed_by}"`);
   lines.push('files:'); for (const f of files) lines.push(`  ${f}: ${sha(readFileSync(join(dst, f)))}`);
+  // 정책·css 사본도 지문 — 화면은 픽셀로 대조되지만 정책은 복사된 뒤 아무도 안 봤다(RFC-261029 P1). 개발이 사본을 고치면 check가 거부
+  const policyFiles = readdirSync(dstScreen).filter((f) => f === 'policy.md' || f.endsWith('.css')).sort().map((f) => `${screen}/${f}`);
+  if (policyFiles.length) { lines.push('policy:'); for (const f of policyFiles) lines.push(`  ${f}: ${sha(readFileSync(join(dst, f)))}`); }
   writeFileSync(join(dst, 'rev.yaml'), lines.join('\n') + '\n');
   if (!existsSync(join(dst, 'diff-scenarios.json'))) writeFileSync(join(dst, 'diff-scenarios.json'), JSON.stringify([{ _comment: '상태 파일 전수를 적는다(rev.yaml files와 1:1). path는 구현 화면 경로(오리진 제외). 도달 불가는 excluded + 사유. 대조 범위는 selectors(화면이 소유한 영역).' }, ...files.map((f) => ({ state: f, path: '/' }))], null, 2) + '\n');
   const bi = join(root, '.harness', 'scripts', 'build-index.mjs'); if (existsSync(bi)) { try { execSync(`"${process.execPath}" "${bi}"`, { cwd: root, stdio: 'ignore' }); } catch { /* */ } }
@@ -290,12 +294,24 @@ export function sourceDrift(root, rev, st) {
   if (cur.visual_status === 'reopened' && cur.rev === rev.sourceRev) return [`${st}인데 원본 ${name}이 reopen 중이다(rev ${cur.rev}) — 재확정을 기다려 다시 promote → run`];
   return [];
 }
+/** 스펙이 정책을 인용하는가 — 지문은 "안 바뀌었다"만 보장한다. 정책이 스펙에 들어가야 테스트가 검증하고 리뷰가 본다(RFC-261029 P8).
+ *  스펙(lite fdr.md §1 · standard 01-spec.md)에 `mockup/<화면>/policy.md` 경로와 그 rev가 적혀 있어야 한다. 정책 사본이 없는(일반 폴더 승격) FDR은 대상 아님 */
+export function specCitesPolicy(dir, rev) {
+  const pol = Object.keys(rev.policy).filter((f) => f.endsWith('/policy.md')); if (!pol.length) return [];
+  const spec = existsSync(join(dir, '01-spec.md')) ? rd(join(dir, '01-spec.md')) : ((rd(join(dir, 'fdr.md')).split(/^## 1\. Spec[^\n]*$/m)[1] || '').split(/^## /m)[0]);
+  return pol.filter((f) => !new RegExp(`mockup/${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\brev\\s*${rev.rev}\\b`).test(spec))
+    .map((f) => `스펙이 정책을 인용하지 않는다 — §1(스펙)에 \`mockup/${f} rev ${rev.rev}\`를 출처로 적고 7절을 시나리오(WHEN/THEN)로 옮긴다. 정책이 스펙에 없으면 테스트도 리뷰도 그것을 보지 않는다`);
+}
+
 /** 반환 [] = 통과. FDR 폴더에 mockup/이 없으면 대상 아님 */
 export function checkMockup(root, dir) {
   const problems = []; const m = join(dir, 'mockup');
   if (!existsSync(m)) return problems;
   const rev = readRev(dir); if (!rev) return ['mockup/rev.yaml 없음 — 승격은 mockup-diff.mjs promote로'];
   const sc = readScenarios(dir); if (!sc) return ['mockup/diff-scenarios.json 없음 — 상태 파일 전수를 적는다(도달 불가는 excluded + 사유)'];
+  // 정책·css 사본 불변 — 작업 중에도 검사한다. 사본은 정본이 아니라 승격본이다; 고치고 싶으면 목업 저장소에서(기획수정 접수) 고치고 다시 promote
+  for (const [f, h] of Object.entries(rev.policy)) { const p = join(m, f); if (!existsSync(p)) problems.push(`승격 사본 ${f}가 사라졌다 — 다시 promote`); else if (sha(readFileSync(p)) !== h) problems.push(`승격 사본 ${f}가 승격 때와 다르다 — 사본을 고치지 않는다. 정책을 바꾸려면 목업 저장소에서 reopen → 재확정 → 다시 promote`); }
+  problems.push(...specCitesPolicy(dir, rev));
   const states = new Set(Object.keys(rev.files)); const declared = new Set(sc.map((s) => s.state));
   for (const f of states) if (!declared.has(f)) problems.push(`시나리오 미커버: ${f} (rev.yaml에 있는데 diff-scenarios.json에 없음)`);
   for (const s of sc) if (!states.has(s.state)) problems.push(`유령 시나리오: ${s.state} (rev.yaml files에 없음)`);
@@ -366,6 +382,14 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 4)); if (!sd().some((p) => /rev 4로 재확정/.test(p))) fails.push('원본 rev 증가 미검출');
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('reopened', 3)); if (!sd().some((p) => /reopen 중/.test(p))) fails.push('원본 reopen 미검출');
     stN('in-progress'); writeFileSync(join(mk, 'screens', 'ds', 'list', 'rev.yaml'), revP('confirmed', 4)); if (sd().length) fails.push('in-progress에 드리프트 차단(작업 중은 막지 않는다)');
+    // 정책이 개발까지(RFC-261029 A) — 스탬프 policy: 블록 · 스펙 인용 없음 → 위반 · 인용 → 통과 · 사본 변조 → 위반
+    const stampN = rd(join(fdr2, 'mockup', 'rev.yaml')); if (!/^policy:\n/m.test(stampN) || !/^  list\/policy\.md: [0-9a-f]{64}$/m.test(stampN) || !/^  list\/_screen\.css: [0-9a-f]{64}$/m.test(stampN)) fails.push('승격 스탬프에 policy: 블록(policy.md·css) 없음: ' + stampN);
+    const cite = () => checkMockup(tmp, fdr2).filter((p) => /정책을 인용|승격 사본/.test(p));
+    if (!cite().some((p) => /정책을 인용하지 않는다/.test(p))) fails.push('스펙 인용 없음 미검출');
+    writeFileSync(join(fdr2, 'fdr.md'), `---\nid: FDR-000000-n\nstatus: in-progress\n---\n- 작성: t\n\n## 1. Spec\n\n- 출처: mockup/list/policy.md rev ${readRev(fdr2).rev}\n\n## 2. Design\n`);
+    if (cite().length) fails.push('인용 뒤 오탐: ' + cite().join(' | '));
+    writeFileSync(join(fdr2, 'mockup', 'list', 'policy.md'), '# p\n- 개발이 몰래\n'); if (!cite().some((p) => /승격 사본 list\/policy\.md가 승격 때와 다르다/.test(p))) fails.push('사본 변조 미검출');
+    writeFileSync(join(fdr2, 'mockup', 'list', 'policy.md'), '# p\n');
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n- 몰래\n');
     try { promote(tmp, 'FDR-000000-n', 'ds/list', { by: 't' }); fails.push('policy.md 변조 원본 통과'); } catch (e) { if (!/policy\.md: 확정본/.test(e.message)) fails.push('policy 변조 거부 사유: ' + e.message); }
     writeFileSync(join(mk, 'screens', 'ds', 'list', 'policy.md'), '# p\n'); rmSync(join(fdr2, 'mockup'), { recursive: true, force: true });
@@ -417,7 +441,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   } catch (e) { fails.push('예외: ' + e.stack.split('\n').slice(0, 2).join(' ')); }
   rmSync(tmp, { recursive: true, force: true });
   const eng = loadBackstop(DEFAULT_ROOT);
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : `self-test OK (promote rev 2회 · 원본 rev.yaml 검증 4 · 원본 드리프트 4 · policy 변조 · 정책 지문·스펙 인용 4 · 설정 생성·필터 · 기록기 pass/fail/error · check 8종 — 캡처 실행은 ${eng ? `backstopjs ${eng.version} @ ${eng.from}(run으로 실측)` : 'backstopjs 없음, 미검증 — engine --install'})`);
   process.exit(fails.length ? 1 : 0);
 }
 

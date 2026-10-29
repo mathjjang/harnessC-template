@@ -13,7 +13,7 @@ args: "<slug> \"<제목>\" [--profile lite|standard|full]"
 1. **생성**: `node .harness/scripts/new-doc.mjs fdr <slug> "<제목>"` — 티어가 프로파일을 정한다. 손 복사 금지. spike(RFC)에서 승격이면 대신 `node .harness/scripts/work.mjs promote <RFC-ID> <slug> "<제목>"`.
 2. **출처·범위**: `manifest.yaml`(lite는 `fdr.md` 머리말) `source_req`에 confirmed REQ만. 없으면 요구사항 층에 먼저(`docs/requirements/`). `scope:`에 이 FDR이 고칠 제품 경로 glob을 적는다 — 린트가 다른 활성 FDR과의 겹침을 알린다. 겹치면 공유 변경을 별도 lite FDR로 먼저 병합.
 2a. **브랜치**: 기록을 커밋한 뒤 `node .harness/scripts/work.mjs start <FDR-ID>` → `.worktrees/<FDR-ID>/`에서 작업한다. 끝나면 `work.mjs finish <FDR-ID>`(게이트→병합→정리). 검색은 `rg`(gitignore 존중)로.
-2b. **확정 목업이 있는 화면이면** 코드보다 먼저 승격한다 — `.harness/runbooks/mockup.md` §1.
+2b. **확정 목업이 있는 화면이면** 코드보다 먼저 승격한다 — `.harness/runbooks/mockup.md` §1. 승격 뒤 스펙 출처에 `mockup/<화면>/policy.md rev N`을 적고 **policy.md 7절(상태 전이·액션·권한·빈/오류·한계값·동적 동작·문구)을 §1 시나리오(WHEN/THEN)로 옮긴다** — 정책이 스펙에 없으면 테스트도 리뷰도 그것을 보지 않는다. 사본은 고치지 않는다(지문 — 바꾸려면 목업 저장소에서).
 3. **사실 대조**: 마지막 핀 이후 바뀐 요구·정책 절만 대조해 `일치/불일치/대응없음/검증불가`. 불일치는 PG로, AC를 임의 수정하지 않는다.
 4. **델타 스펙**: `docs/specs/<capability>/spec.md` 대비 ADDED/MODIFIED/REMOVED로 쓴다. 시나리오마다 WHEN/THEN·단언 등급·계층.
 5. **위험 등급**: 보안·스키마·공개 API·저장 형식·결제에 닿으면 `risk: high`. `gate_mode: fast`는 AC 출처가 승인된 REQ/FDR이고 새 정책 0건일 때만.

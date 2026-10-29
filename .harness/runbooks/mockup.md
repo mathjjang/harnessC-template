@@ -28,6 +28,8 @@ node .harness/scripts/mockup-diff.mjs promote <FDR-ID> <모듈>/<화면> --by "<
 - `docs/features/<FDR-ID>/mockup/<화면>/`에 사본, 공용 자산은 FDR 루트 `_assets/`(html의 `../../_assets/` 참조가 그대로 열리는 자리), `mockup/rev.yaml`에 rev·원본 화면·원본 rev·확정자·상태 파일별 sha256. 원본이 confirmed가 아니거나 확정본 해시와 다르면(reopen 중·몰래 수정) 승격이 거부된다. 재확정(원본 rev+1)이면 다시 promote → 사본 rev+1. **사본은 고치지 않는다.**
 - 승격이 사본의 자산 참조를 검사한다 — 열리지 않으면(무스타일) 승격 자체가 실패한다. 그래도 사본 1장은 브라우저로 열어 본다.
 - 승격을 건너뛰면 게이트 전부가 "대상 아님"으로 침묵한다. 기존 구현이 있어도 출발점은 목업이다.
+- 승격 스탬프는 html 지문(`files:`)과 **정책·css 지문(`policy:`)**을 따로 남긴다. 사본 `policy.md`·css를 개발 쪽에서 고치면 `check`가 거부한다 — 정책은 목업 저장소에서만 바뀐다(기획수정 접수 → reopen → 재확정 → 다시 promote).
+- 승격 직후 스펙 §1 출처에 `mockup/<화면>/policy.md rev N`을 적고 7절을 시나리오로 옮긴다. 안 적으면 완료 게이트(lint ⑯)가 "스펙이 정책을 인용하지 않는다"로 거부한다.
 
 ## 2. 시나리오 — `mockup/diff-scenarios.json`
 

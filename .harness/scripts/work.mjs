@@ -291,7 +291,7 @@ if (process.argv.includes('--self-test')) {
     writeFileSync(join(tmp, 'harness.yaml'), 'tier: M\nwork:   # 머리 줄 주석\n  dir: .worktrees\n  base: main\n  merge: pr\n'); g('commit -qam pr-mode');
     const { create } = await import(pathToFileURL(join(tmp, '.harness', 'scripts', 'new-doc.mjs')).href);
     const f3 = create(tmp, 'fdr', 'pr-one', 'PR 하나', { agent: 't', profile: 'lite' });
-    writeFileSync(join(f3.path, 'fdr.md'), rd(join(f3.path, 'fdr.md')).replace(/^scope: \[\].*$/m, 'scope: [src/**]').replace('- AC-1 … (출처 REQ-…)', '- AC-1 목록이 보인다 (출처 REQ-1)')); g('add -A'); g('commit -q -m f3');
+    writeFileSync(join(f3.path, 'fdr.md'), rd(join(f3.path, 'fdr.md')).replace(/^scope: \[\].*$/m, 'scope: [src/**]').replace(/^- AC-1 … \(출처 [^)]*\)$/m, '- AC-1 목록이 보인다 (출처 REQ-1)')); g('add -A'); g('commit -q -m f3');
     const w3 = start(tmp, f3.id); writeFileSync(join(w3.path, 'src', 'c.ts'), 'c');
     const wf = join(w3.path, relative(tmp, f3.path), 'fdr.md'); writeFileSync(wf, rd(wf).replace(/(\| AC \| 계층 \| 실행 명령 \| RUN\/결과 원문 \| 판정 \|\n\|---\|---\|---\|---\|---\|\n)/, '$1| AC-1 | unit | `t` | `ok` | 통과 |\n'));   // 시험 결과는 브랜치에만
     g('add -A', w3.path); g('commit -q -m c', w3.path);

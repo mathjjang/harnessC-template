@@ -8,7 +8,7 @@
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
 //       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가
-//       ⑯ 확정 목업(mockup/)이 있는 FDR이 shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시가 맞는가 · 원본이 재확정(rev 증가)·reopen이면 거부 (mockup-diff.mjs checkMockup)
+//       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
 // --self-test: 위반 표본에서 각 검사가 실제로 잡히는지 확인.
