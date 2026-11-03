@@ -99,7 +99,7 @@ export function prBody(root, id) {
   const body = lite ? t : ['01-spec.md', '04-unit.md', '05-integration.md'].map((f) => rd(join(dir, f))).join('\n');
   const ac = [...body.matchAll(/^\s*-\s*(AC-\d+[^\n]*)$/gm)].map((m) => m[1]).filter((l) => !/…/.test(l));
   const rows = [...body.matchAll(/^\|\s*AC-[^\n]*\|$/gm)].map((m) => m[0]);
-  const rev = (() => { const p = lite ? (t.split(/^## 5\. Review[^\n]*$/m)[1] || '').split(/^## /m)[0] : rd(join(dir, '06-review.md')); const v = p.split('\n').find((l) => /^\s*-\s*(판정[:：]\s*)?(통과|재작업|조건부)/.test(l) && !/통과\s*\|/.test(l)); return v ? v.replace(/^\s*-\s*/, '') : '미기입 — 리뷰어(다른 세션) 판정 전에는 CI가 병합을 막는다'; })();
+  const rev = (() => { const p = lite ? (t.split(/^## 5\. Review[^\n]*$/m)[1] || '').split(/^## /m)[0] : rd(join(dir, '06-review.md')); const v = p.split('\n').find((l) => /^\s*-\s*(판정[:：]\s*)?(통과|재작업|조건부)/.test(l) && !/통과\s*\|/.test(l)); return v ? v.replace(/^\s*-\s*/, '') : '미기입 — 리뷰어(다른 세션 또는 리뷰 서브에이전트) 판정 전에는 CI가 병합을 막는다'; })();
   const mk = (() => { const d = join(dir, 'evidence', 'mockup-diff'); if (!existsSync(d)) return ''; const revs = readdirSync(d).filter((n) => /^rev\d+$/.test(n)).sort((a, b) => Number(a.slice(3)) - Number(b.slice(3))); const last = revs.pop(); if (!last) return ''; try { const j = JSON.parse(rd(join(d, last, 'results.json'))); return `목업 대조 ${last}: 실행 ${j.summary.run} · 통과 ${j.summary.pass} · 초과 ${j.summary.fail} · 오류 ${j.summary.error} · 제외 ${j.summary.excluded}`; } catch { return ''; } })();
   const rel = relative(root, dir).split(sep).join('/');
   return [`## ${id}${title ? ` · ${title}` : ''}`, '', `- 기록(정본): \`${rel}/\` · 상태 ${r.status || '?'} · risk ${yamlScalar(head, 'risk') || '?'}`, `- scope: \`${scope || '(없음)'}\``, '', '### AC', ...(ac.length ? ac.map((a) => `- ${a}`) : ['- (기록에 AC 없음)']), '', '### 시험 (RUN — 원문은 기록의 evidence/)', ...(rows.length ? ['| AC | … |', '|---|---|', ...rows] : ['- (시험 표에 행 없음 — 미검증)']), ...(mk ? ['', `- ${mk}`] : []), '', '### 리뷰', `- ${rev}`, '', '_이 본문은 `work.mjs finish`가 기록에서 생성한다 — 고칠 것은 기록이다._'].join('\n');
@@ -164,7 +164,7 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
     // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
     try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
     if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
-    if (gates && c.merge !== 'pr') reviewGuard(wt, id, c.base);   // ff(S)에도 PR과 같은 하한 — 혼자여도 검사는 다른 세션이 한다
+    if (gates && c.merge !== 'pr') reviewGuard(wt, id, c.base);   // ff(S)에도 PR과 같은 하한 — 혼자여도 검사는 다른 세션(또는 risk low·medium 리뷰 서브에이전트)이 한다
     if (c.merge === 'pr') {
       git(root, `push -u --force-with-lease origin "${branch}"`, { quiet: true });   // 자기 기록 브랜치만 — rebase 뒤 재push
       const pr = openPr(root, id, { branch, base: c.base, gh });
