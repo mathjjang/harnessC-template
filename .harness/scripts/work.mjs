@@ -145,7 +145,7 @@ export function markShipped(wt, id) {
 export function reviewGuard(wt, id, base) {
   const changed = git(wt, `-c core.quotepath=false diff --name-only --diff-filter=ACMR "${base}...HEAD"`).split('\n').filter(Boolean);
   const rv = prProblems(wt, { base, head: branchOf(id), changed, ...commitHistory(wt, [`${base}..HEAD`]) }).filter((x) => /^리뷰:/.test(x));
-  if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션):\n- ${rv.join('\n- ')}`);
+  if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션 또는 risk low·medium의 리뷰 서브에이전트):\n- ${rv.join('\n- ')}`);
 }
 
 export function finish(root, id, { gates = true, gh = true } = {}) {
