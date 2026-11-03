@@ -51,7 +51,7 @@ export function afterVerdict(commits, reviewPath, std, showAt) {
   const product = (fs) => fs.filter((f) => !NON_PRODUCT.test(f)); const p = [];
   const mixed = product(commits[at].files); if (mixed.length) p.push(`리뷰: 판정과 제품 코드를 한 커밋(${commits[at].sha.slice(0, 7)})에 섞었다: ${mixed.slice(0, 3).join(', ')} — 판정 커밋에는 리뷰 기록만`);
   const later = commits.slice(at + 1).filter((c) => product(c.files).length);
-  if (later.length) p.push(`리뷰: 판정 뒤에 제품 코드가 바뀌었다(${later.slice(0, 3).map((c) => c.sha.slice(0, 7)).join(', ')}) — 판정 무효, 리뷰어(다른 세션)가 다시 판정`);
+  if (later.length) p.push(`리뷰: 판정 뒤에 제품 코드가 바뀌었다(${later.slice(0, 3).map((c) => c.sha.slice(0, 7)).join(', ')}) — 판정 무효, 리뷰어(다른 세션 또는 리뷰 서브에이전트)가 다시 판정`);
   return p;
 }
 
@@ -66,11 +66,16 @@ export function prProblems(root, { base, head, changed, commits = null, showAt =
     const id = m[2]; const dir = join(root, recordDir(id), id);
     if (!existsSync(dir)) return [...p, `리뷰: 기록 폴더가 없다 — ${recordDir(id)}/${id}`];
     const r = reviewOf(dir);
-    if (!r.verdict) p.push(`리뷰: ${id} 판정 없음 — 리뷰어(다른 세션)가 ${existsSync(join(dir, '06-review.md')) ? '06-review.md §1' : 'fdr.md §5'}에 통과·재작업·조건부를 적은 뒤 병합`);
+    if (!r.verdict) p.push(`리뷰: ${id} 판정 없음 — 리뷰어(다른 세션 또는 리뷰 서브에이전트)가 ${existsSync(join(dir, '06-review.md')) ? '06-review.md §1' : 'fdr.md §5'}에 통과·재작업·조건부를 적은 뒤 병합`);
     else if (r.verdict === '재작업') p.push(`리뷰: ${id} 판정 재작업 — 고친 뒤 다시 리뷰`);
     else if (r.verdict === '조건부' && !r.condition) p.push(`리뷰: ${id} 조건부인데 조건이 없다 — "조건부(조건: …)"`);
     if (r.verdict && !r.reviewer) p.push(`리뷰: ${id} 리뷰어(모델) 칸이 비었다`);
     if (r.verdict && r.reviewer && r.author && r.reviewer === r.author) p.push(`리뷰: ${id} 리뷰어(${r.reviewer})가 작성자와 같다 — 고친 쪽은 자기 검증자가 될 수 없다`);
+    if (r.verdict && /서브에이전트|subagent/i.test(r.reviewer)) {   // 리뷰 서브에이전트(HARNESS §5) — low·medium만, 지시문·보고 원문이 증거에
+      if (r.risk === 'high') p.push(`리뷰: ${id} risk high는 리뷰 서브에이전트를 리뷰어로 인정하지 않는다 — 다른 세션 리뷰 + 사람 사인오프`);
+      const ev = join(dir, 'evidence', 'review'); const fs = existsSync(ev) ? readdirSync(ev) : [];
+      if (!fs.some((f) => /^brief.*\.md$/.test(f)) || !fs.some((f) => /^report.*\.md$/.test(f))) p.push(`리뷰: ${id} 리뷰어가 서브에이전트인데 evidence/review/에 지시문(brief*.md)·보고 원문(report*.md)이 없다`);
+    }
     if (r.risk === 'high' && !/\S/.test(r.signoff.replace(/[()（）]/g, ''))) p.push(`리뷰: ${id} risk high — 사람 사인오프(이름·날짜)가 없다`);
     if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt)); }
   }
@@ -130,6 +135,12 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     lite('FDR-260101-high', { verdict: '통과', reviewer: 'reviewer(b)', risk: 'high' }); if (!PR('FDR-260101-high').some((x) => /사인오프/.test(x))) fails.push('high 사인오프 미차단');
     lite('FDR-260101-high2', { verdict: '통과', reviewer: 'reviewer(b)', risk: 'high', signoff: '김 · 2026-01-02' }); if (PR('FDR-260101-high2').length) fails.push('high 사인오프 오탐');
     lite('FDR-260101-cond', { verdict: '조건부', reviewer: 'reviewer(b)' }); if (!PR('FDR-260101-cond').some((x) => /조건이 없다/.test(x))) fails.push('조건 없는 조건부');
+    // 리뷰 서브에이전트 — 증거 짝·risk high 거부
+    lite('FDR-260101-sub', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); if (!PR('FDR-260101-sub').some((x) => /brief/.test(x))) fails.push('서브에이전트 증거 없음 미차단');
+    w('docs/features/FDR-260101-sub/evidence/review/brief.md', 'b'); if (!PR('FDR-260101-sub').some((x) => /report/.test(x))) fails.push('서브에이전트 보고 원문 없음 미차단');
+    w('docs/features/FDR-260101-sub/evidence/review/report.md', 'r'); if (PR('FDR-260101-sub').length) fails.push('서브에이전트 증거 짝 오탐: ' + PR('FDR-260101-sub').join(' | '));
+    lite('FDR-260101-subhi', { verdict: '통과', reviewer: 'reviewer subagent (m)', risk: 'high', signoff: '김 · 2026-01-02' }); w('docs/features/FDR-260101-subhi/evidence/review/brief-r1.md', 'b'); w('docs/features/FDR-260101-subhi/evidence/review/report-r1.md', 'r');
+    if (!PR('FDR-260101-subhi').some((x) => /risk high는 리뷰 서브에이전트/.test(x))) fails.push('high 서브에이전트 미차단');
     if (!PR('FDR-260101-ok', ['src/b/out.ts']).some((x) => /scope 밖/.test(x))) fails.push('scope 밖 미차단');
     if (!PR('FDR-260101-ok', ['src/a/.tmp-probe.mjs']).some((x) => /임시 파일/.test(x))) fails.push('임시 파일 미차단');
     if (!prProblems(t, { base: 'main', head: 'feature/x', changed: ['src/a.ts'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('기록 아닌 브랜치 미차단');
@@ -152,7 +163,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (PRc([c('v1', RP), c('a4', RP), c('a5', 'src/a/x.ts'), c('v2', RP)]).length) fails.push('재판정 뒤 오탐');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 4 · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {
