@@ -10,7 +10,7 @@
 //   Claude Code의 리뷰어 쓰기 차단(guard-role-write)이 없는 Codex·Gemini에서도 「리뷰어가 고치고 통과」는 병합되지 않는다.
 // 검사하지 않는 것: 리뷰 내용의 타당성 — 판정이 기록됐는지·누가 했는지까지만. --self-test: 판정 파싱·PR 판정을 픽스처로.
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, appendFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, appendFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { judge, fdrScope, NON_PRODUCT } from './check-branch-record.mjs';
@@ -63,7 +63,8 @@ export function afterVerdict(commits, reviewPath, std, showAt) {
 export function prProblems(root, { base, head, changed, commits = null, showAt = null }) {
   const p = [];
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
-  const templateRep = existsSync(join(root, 'init.mjs')) && /^rep\/[a-z0-9-]+$/.test(head);   // 템플릿 저장소의 규칙 변경(REP, HARNESS §9) — 기록 ID가 없다. 승인은 PR 리뷰·병합
+  // 템플릿 저장소의 규칙 변경(REP, HARNESS §9) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 템플릿 = init.mjs와 .harness/tiers/가 함께 있다(prune 안 한 프로젝트에도 둘이 남으므로) + 바뀐 파일에 제품 경로가 없다
+  const templateRep = existsSync(join(root, 'init.mjs')) && existsSync(join(root, '.harness', 'tiers')) && /^rep\/[a-z0-9-]+$/.test(head) && changed.every((f) => NON_PRODUCT.test(f));
   if (!templateRep) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false })) p.push(`브랜치·scope: ${x}`);
   for (const f of changed.filter((f) => isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
   const m = head.match(/^(fdr|plan)\/([A-Z]+-\d{6}-[a-z0-9-]+)$/);
@@ -79,8 +80,8 @@ export function prProblems(root, { base, head, changed, commits = null, showAt =
     if (r.verdict && SUBAGENT.test(r.reviewerLine)) {   // 리뷰 서브에이전트(HARNESS §5) — low·medium만, 라운드마다 지시문·보고 원문 짝. 표지는 리뷰어 칸의 자기 신고(표지 없이 쓴 것은 못 잡는다 — catalog)
       if (r.risk === 'high') p.push(`리뷰: ${id} risk high는 리뷰 서브에이전트를 리뷰어로 인정하지 않는다 — 다른 세션 리뷰 + 사람 사인오프`);
       const ev = join(dir, 'evidence', 'review');
-      const files = existsSync(ev) ? readdirSync(ev, { withFileTypes: true }).filter((e) => e.isFile() && statSync(join(ev, e.name)).size > 0).map((e) => e.name) : [];
-      const rounds = (k) => new Set(files.map((f) => { const m = f.match(new RegExp(`^${k}(-[a-z0-9-]+)?\\.md$`)); return m ? (m[1] || '') : null; }).filter((x) => x !== null));   // brief.md ↔ report.md · brief-r2.md ↔ report-r2.md
+      const files = existsSync(ev) ? readdirSync(ev, { withFileTypes: true }).filter((e) => e.isFile() && /\S/.test(readFileSync(join(ev, e.name), 'utf8'))).map((e) => e.name) : [];   // 빈 파일·공백만인 파일·폴더는 세지 않는다
+      const rounds = (k) => new Set(files.map((f) => { const m = f.match(new RegExp(`^${k}(-[a-z0-9-]+)?\\.md$`, 'i')); return m ? (m[1] || '').toLowerCase() : null; }).filter((x) => x !== null));   // brief.md ↔ report.md · brief-r2.md ↔ report-r2.md(꼬리 대소문자 무시)
       const b = rounds('brief'); const rp = rounds('report');
       if (!b.size || !rp.size) p.push(`리뷰: ${id} 리뷰어가 서브에이전트인데 evidence/review/에 지시문(brief*.md)·보고 원문(report*.md)이 없다(빈 파일·폴더는 세지 않는다)`);
       else { const odd = [...[...b].filter((x) => !rp.has(x)).map((x) => `brief${x}.md`), ...[...rp].filter((x) => !b.has(x)).map((x) => `report${x}.md`)]; if (odd.length) p.push(`리뷰: ${id} 서브에이전트 리뷰의 라운드 짝이 맞지 않는다 — ${odd.join(', ')}의 짝이 없다(라운드마다 brief-<꼬리>.md · report-<꼬리>.md)`); }
@@ -162,7 +163,12 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!NOEV('FDR-260101-substd')) fails.push('standard 서브에이전트 증거 없음 미차단');
     SUBEV('FDR-260101-substd', 'brief.md'); SUBEV('FDR-260101-substd', 'report.md'); if (PR('FDR-260101-substd').length) fails.push('standard 서브에이전트 짝 오탐: ' + PR('FDR-260101-substd').join(' | '));
     if (!prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('템플릿 아닌 저장소의 rep/ 브랜치 미차단');
-    w('init.mjs', '//'); if (prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md'] }).length) fails.push('템플릿 REP 브랜치 오탐'); rmSync(join(t, 'init.mjs'));
+    w('init.mjs', '//'); w('.harness/tiers/S/harness.yaml', 'x');
+    if (prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md', 'init.mjs', '.harness/tiers/S/harness.yaml'] }).length) fails.push('템플릿 REP 브랜치 오탐');
+    if (!prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md', 'src/a/x.ts'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('init.mjs·tiers가 있어도 rep/ 브랜치의 제품 코드 미차단');
+    rmSync(join(t, 'init.mjs')); rmSync(join(t, '.harness', 'tiers'), { recursive: true, force: true });
+    lite('FDR-260101-subw', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subw', 'brief.md', ' \n\t\n'); SUBEV('FDR-260101-subw', 'report.md'); if (!NOEV('FDR-260101-subw')) fails.push('공백만인 파일을 증거로 셈');
+    lite('FDR-260101-subu', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subu', 'brief-R2.md'); SUBEV('FDR-260101-subu', 'report-r2.md'); if (PR('FDR-260101-subu').length) fails.push('꼬리 대소문자 짝 오탐: ' + PR('FDR-260101-subu').join(' | '));
     lite('FDR-260101-subhi', { verdict: '통과', reviewer: 'reviewer subagent (m)', risk: 'high', signoff: '김 · 2026-01-02' }); w('docs/features/FDR-260101-subhi/evidence/review/brief-r1.md', 'b'); w('docs/features/FDR-260101-subhi/evidence/review/report-r1.md', 'r');
     if (!PR('FDR-260101-subhi').some((x) => /risk high는 리뷰 서브에이전트/.test(x))) fails.push('high 서브에이전트 미차단');
     if (!PR('FDR-260101-ok', ['src/b/out.ts']).some((x) => /scope 밖/.test(x))) fails.push('scope 밖 미차단');
@@ -187,7 +193,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (PRc([c('v1', RP), c('a4', RP), c('a5', 'src/a/x.ts'), c('v2', RP)]).length) fails.push('재판정 뒤 오탐');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 16(짝·라운드·빈 파일·폴더·표지 변형 3·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 2 · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 18(짝·라운드·빈 파일·공백 파일·폴더·꼬리 대소문자·표지 변형 3·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 3(제품 코드 차단) · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {
