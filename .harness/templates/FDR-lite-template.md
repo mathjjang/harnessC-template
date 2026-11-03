@@ -43,6 +43,7 @@ updated: {{DATE}}
 ## 5. Review (접점 ② — 다른 세션 또는 리뷰 서브에이전트(`evidence/review/` 지시문·보고 원문). 확인한 RUN 목록 · PG 일괄 결정 · 리뷰 패키지 링크)
 
 - 리뷰어(모델):
+- 독립성 한계(서브에이전트면 필수 — 같은 모델·구현자가 띄움 · 지시문 `evidence/review/brief*.md` · 보고 원문 `report*.md`):
 - 판정: 통과 | 재작업 | 조건부(조건: )
 - 사람 사인오프(risk high): 
 - 종결: shipped(사람 대기: ) | closed(스펙 병합: )

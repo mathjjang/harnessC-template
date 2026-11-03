@@ -62,7 +62,7 @@ node .harness/scripts/work.mjs finish RFC-…                   # 기록 폴더(
 node .harness/scripts/work.mjs protect                 # 저장소당 1회 — main 직접 push 금지 · 필수 검사 harness · 필수 승인(S0·M1·L2) · force-push 금지
 node .harness/scripts/work.mjs finish FDR-…            # main 위 rebase → push → PR 생성(gh) · 본문은 기록에서 — worktree는 병합 때까지 남는다
 #   → CI(harness): lint·생성물·입구 신선도 + 브랜치=기록·scope·임시 파일·리뷰 판정. 리뷰 전이라 「판정 없음」으로 실패하는 것이 정상
-#   → 리뷰어(다른 세션)가 06-review.md(lite §5)에 판정·리뷰어(모델) — risk high면 사람 사인오프. 리뷰어는 커밋할 수 없으니 구현자가 커밋
+#   → 리뷰어(다른 세션 또는 risk low·medium 리뷰 서브에이전트 — runbooks/review.md)가 06-review.md(lite §5)에 판정·리뷰어(모델) — risk high면 사람 사인오프. 리뷰어는 커밋할 수 없으니 구현자가 커밋
 node .harness/scripts/work.mjs finish FDR-…            # 다시: rebase·push·PR 본문 갱신 → CI 통과 → 사람 승인 → GitHub에서 병합(squash 권장)
 git pull && node .harness/scripts/work.mjs gc --apply  # 병합된 PR의 worktree·브랜치 정리(gh로 병합 여부 확인)
 ```

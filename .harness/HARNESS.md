@@ -24,6 +24,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 | 되돌리기 비싼 결정 (구조·공개 계약·저장 형식·정책·이 규칙) | **REP** §9 | **ADR** |
 | 큰 요청 (여러 FDR·5파일↑·2시간↑) | 분해 | **PLAN** → FDR들 |
 | 사용자 가시 기능 | **FDP** | **FDR** |
+| FDR 리뷰를 리뷰 서브에이전트에게(risk low·medium) | §5 · `runbooks/review.md` | 06(lite §5) + `evidence/review/` |
 | 다른 에이전트(타사 포함)에게 맡김·리뷰 요청 | §11 | **HO** |
 | 확정 목업이 있는 화면 | runbook `mockup.md` (승격→문자 이식→대조) | FDR + `mockup/` + 대조 기록 |
 | 기획이 테스트 서버에서 발견한 것 | 접수는 목업 저장소 `qa/`(유형이 경로를 정함) · 오류만 runbook `qa.md`로 가져옴 | `docs/queue/QA-` + 원본 `resolution.md` |
