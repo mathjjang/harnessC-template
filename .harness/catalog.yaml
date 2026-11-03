@@ -114,7 +114,7 @@ tools:
     command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)
     enforcement: gate
     self_test: node .harness/scripts/ci.mjs --self-test
-    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · 리뷰 서브에이전트(리뷰어 칸 표지 — 자기 신고, 표지 없이 쓴 것은 못 잡는다)면 evidence/review/ 라운드마다 brief·report 짝(빈 파일·폴더 제외)과 risk≤medium(§5) · 템플릿 저장소의 rep/<slug> PR은 브랜치=기록 검사 면제. 지시문에 결론 없음·06 판정=report 판정·독립성 한계 칸은 report 등급(리뷰 패키지 표본 감사) · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 무효 — 리뷰어 쓰기 차단 훅이 없는 런타임의 하한). pre-commit 우회를 막는다
+    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · 리뷰 서브에이전트(리뷰어 칸 표지 — 자기 신고, 표지 없이 쓴 것은 못 잡는다)면 evidence/review/ 라운드마다 brief·report 짝(빈 파일·공백만인 파일·폴더 제외, 꼬리 대소문자 무시)과 risk≤medium(§5) · 템플릿 저장소의 rep/<slug> PR은 init.mjs·.harness/tiers가 있고 바뀐 파일에 제품 경로가 없을 때만 브랜치=기록 검사 면제(§9). 지시문에 결론 없음·06 판정=report 판정·독립성 한계 칸·재판정 때 새 라운드는 report 등급(리뷰 패키지 표본 감사) · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 무효 — 리뷰어 쓰기 차단 훅이 없는 런타임의 하한). pre-commit 우회를 막는다
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]
