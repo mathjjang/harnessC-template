@@ -63,7 +63,7 @@ export function afterVerdict(commits, reviewPath, std, showAt) {
 export function prProblems(root, { base, head, changed, commits = null, showAt = null }) {
   const p = [];
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
-  // 템플릿 저장소의 규칙 변경(REP, HARNESS §9) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 템플릿 = init.mjs와 .harness/tiers/가 함께 있다(prune 안 한 프로젝트에도 둘이 남으므로) + 바뀐 파일에 제품 경로가 없다
+  // 템플릿 저장소의 규칙 변경(REP, HARNESS §9) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 실질 방어는 "바뀐 파일에 제품 경로가 없다"(main 직접 커밋 허용 범위와 같다). init.mjs·.harness/tiers는 보조 표지 — prune 안 한 프로젝트에도 남는다
   const templateRep = existsSync(join(root, 'init.mjs')) && existsSync(join(root, '.harness', 'tiers')) && /^rep\/[a-z0-9-]+$/.test(head) && changed.every((f) => NON_PRODUCT.test(f));
   if (!templateRep) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false })) p.push(`브랜치·scope: ${x}`);
   for (const f of changed.filter((f) => isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
