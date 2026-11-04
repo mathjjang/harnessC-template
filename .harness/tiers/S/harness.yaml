@@ -39,6 +39,7 @@ work:                        # 동시 작업 (HARNESS §11 · runbooks/work.md) 
   base: main
   merge: ff                  # ff(S — 게이트·리뷰 판정 확인 후 바로 병합) | pr(M·L — push 후 PR)
   link: []                   # worktree에 하드링크할 gitignore 재료 (예 .env.local)
+  root_files: []             # 제품 경로가 아닌 루트 파일 추가 (등재는 ADR) — 파일 이름만(/ 금지 · lint ⑲). 코어 기본(.gitattributes .gitignore .editorconfig .mcp.json AGENTS.md CLAUDE.md GEMINI.md LICENSE README.md harness.yaml init.mjs) 밖의 루트 파일(package.json 등)은 제품 경로
   setup: ""                  # worktree 생성 후 1회 (예 pnpm install)
 
 mockup:                      # 확정 목업 대조 (.harness/runbooks/mockup.md) — mockup-diff.mjs가 읽는다. 목업이 없는 프로젝트는 그대로 둔다(mockup/ 없는 FDR은 대상 아님)

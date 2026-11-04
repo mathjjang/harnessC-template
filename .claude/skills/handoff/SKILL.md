@@ -1,0 +1,9 @@
+---
+name: handoff
+description: 다른 세션·다른 회사 에이전트(Codex·Gemini·Cursor 등)와 리뷰·검증·조사를 주고받는 절차(HO) — 맡길 때와 받았을 때. 다른 세션 리뷰어로 "리뷰해줘"·"FDR-… 검토"·"review 단계"를 받았으면 받는 쪽 절차와 리뷰어 불변(.claude/agents/reviewer.md 본문 — 어느 런타임이든 따른다). 구현 세션이 자기 FDR(risk low·medium)을 새 문맥 서브에이전트에게 맡기는 것은 subagent-review.
+---
+<!-- 생성물: node .harness/scripts/harness-build.mjs · 손으로 편집하지 않는다 — 정본은 .harness/runbooks/handoff.md -->
+
+# 핸드오프 — 에이전트 간 주고받기
+
+절차 정본은 `.harness/runbooks/handoff.md`이다. 그 파일을 읽고 그대로 따른다. 입력: $ARGUMENTS

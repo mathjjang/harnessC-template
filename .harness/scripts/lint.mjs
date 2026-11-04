@@ -7,7 +7,7 @@
 //       ⑪ 핸드오프(HO-)의 상태가 open|taken|answered|closed이고 closed면 result.md가 있는가
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
-//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가
+//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가 ⑲ harness.yaml work.root_files가 루트 파일 이름만인가
 //       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
@@ -20,6 +20,7 @@ import { parseReferences } from './lib/refs.mjs';
 import { hashCore } from './lib/core-files.mjs';
 import { DOCS_DIRS, listRecords } from './lib/records.mjs';
 import { checkMockup } from './mockup-diff.mjs';
+import { rootFileEntries, notRootEntry, workErrors } from './check-branch-record.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RULE_FILES = ['.harness/HARNESS.md', 'rules/product.md', 'AGENTS.md', 'CLAUDE.md'];
@@ -122,6 +123,14 @@ export function lint(root) {
   if (existsSync(ddir)) for (const e of readdirSync(ddir, { withFileTypes: true })) if (e.isDirectory() && !DOCS_ALLOW.includes(e.name)) problems.push(`docs/${e.name}/ — docs/ 폴더는 ${DOCS_DIRS.join('·')}뿐이다. 기록은 자기 자리에, 도메인 자료는 specs/ 파일로`);
   const rl = join(root, 'rules');
   if (existsSync(rl)) for (const n of readdirSync(rl)) if (!RULES_ALLOW.includes(n)) problems.push(`rules/${n} — rules/는 ${RULES_ALLOW.slice(0, 4).join('·')}뿐이다. 방법론은 .harness/`);
+  // ⑲ work.root_files는 루트 파일만 — 하위 경로(/·\)를 넣으면 그 경로가 제품 경로 판정(scope·⑧)에서 빠진다. check-branch-record도 버리지만 등재 실수를 숨기지 않게 여기서 실패시킨다
+  //    work 절을 읽지 못한 값(목록 아님·닫히지 않음 등)도 알린다 — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. 어느 경로와도 같아질 수 없는 항목(폴더·와일드카드·. ..·구분자 닮은 글자·앞뒤 공백)도 등재 실수라 알린다(면제는 생기지 않는다)
+  for (const e of workErrors(root)) problems.push(`harness.yaml work 절: ${e} — HARNESS §11`);
+  for (const s of rootFileEntries(root)) {
+    if (notRootEntry(s)) problems.push(`work.root_files(${s}) — 루트 파일 이름만 넣는다(/·\\ 금지). 하위 경로는 docs·rules 같은 자리나 FDR scope로 — HARNESS §11`);
+    else if (/^\.{1,2}$|[*?[\]{}]|^\s|\s$|[\uFF0F\uFF3C\u2215\u2044\u29F8\u29F9]/.test(s)) problems.push(`work.root_files(${s}) — 파일 이름이 아니다(와일드카드·. ..·구분자 닮은 글자·앞뒤 공백). 어느 경로와도 같지 않아 효과가 없다 — HARNESS §11`);
+    else if (existsSync(join(root, s)) && statSync(join(root, s)).isDirectory()) problems.push(`work.root_files(${s}) — 폴더다. 루트 파일 이름만 넣는다(폴더 아래는 제품 경로 그대로) — HARNESS §11`);
+  }
   // ⑭ 활성 FDR끼리 scope 겹침 — 같은 제품 경로를 두 FDR이 동시에 고치면 서로 덮어쓴다. 생성·린트 시점에 알린다
   const liveFdrs = [];
   for (const r of records.filter((r) => /^FDR-/.test(r.name) && statSync(r.path).isDirectory())) {
@@ -165,7 +174,9 @@ export function lint(root) {
 if (process.argv.includes('--self-test')) {
   const tmp = join(HERE, '..', '.lint-selftest'); rmSync(tmp, { recursive: true, force: true });
   for (const d of ['.harness', 'rules', 'docs/decisions', 'docs/features', 'docs/handoffs', 'docs/records', 'docs/queue', 'docs/specs/cap', 'docs/extra', 'rules/packs']) mkdirSync(join(tmp, d), { recursive: true });
-  writeFileSync(join(tmp, 'harness.yaml'), 'budgets:\n  always_on_kb: 1\nreferences:\n  - { path: mockups, role: mockup, mode: read-write, embedded: true }\n');
+  // ⑲ 부정: work.root_files에 하위 경로(src/x.ts)·역슬래시·폴더(srcd)·와일드카드·..·전각 구분자, 목록 아닌 값(해석 실패) / 양성: pyproject.toml
+  mkdirSync(join(tmp, 'srcd'));
+  writeFileSync(join(tmp, 'harness.yaml'), 'budgets:\n  always_on_kb: 1\nreferences:\n  - { path: mockups, role: mockup, mode: read-write, embedded: true }\nwork:\n  root_files: [pyproject.toml, src/x.ts, "lib\\\\y.ts", srcd, "*", "..", "a\uFF0Fb", " sp.toml"]\n\n  root_files: oops.toml\n');
   // ⑰ 부정: embedded 목업 게이트가 실패(exit 1) — ⑧은 embedded를 건너뛴다(gitignore 요구 없음)
   mkdirSync(join(tmp, 'mockups', 'scripts'), { recursive: true }); writeFileSync(join(tmp, 'mockups', 'scripts', 'validate.mjs'), 'console.log("목업 검사 위반 1건: m/x: 확정본과 다르다"); process.exit(1);\n');
   writeFileSync(join(tmp, '.harness', 'HARNESS.md'), '﻿규칙 본문. node .harness/scripts/ghost.mjs 를 돌린다.\n이 문장은 두 파일에 똑같이 들어가 중복이 된다 예시\n' + 'x'.repeat(1500));
@@ -196,10 +207,10 @@ if (process.argv.includes('--self-test')) {
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)'];
+  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
-  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 5건 · 기록 자리 3곳 · 프로젝트 도구)`);
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x));
+  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 6건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
 const root = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(HERE, '..', '..');

@@ -96,7 +96,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 
 ## 9. REP (규칙 변경)
 
-이 파일·AGENTS.md·코어 runbook·템플릿·스크립트를 바꾸는 것은 REP이며 **템플릿 저장소에서만** 한다: ① ADR 초안 ② 영향 스캔(문서·코드·설정·템플릿·게이트) ③ 승인 ④ 적용 ⑤ 검증 ⑥ `Accepted` ⑦ 프로젝트는 `sync-core`로 내려받는다. 되돌릴 땐 새 ADR + 옛 것 `Superseded`. 새 규칙은 강제 등급을 고른다 — `generate > gate > report > none`(사유 필수) — 그리고 `.harness/catalog.yaml`에 집행 수단을 적는다. "사람이 읽어야 지켜지는 규칙"은 미완성 규칙이다. 템플릿 저장소의 REP 브랜치는 `rep/<slug>`이고 PR 리뷰·병합이 승인이다 — CI는 바뀐 파일에 제품 경로가 없을 때만 브랜치=기록 검사를 면제한다.
+이 파일·AGENTS.md·코어 runbook·템플릿·스크립트를 바꾸는 것은 REP이며 **템플릿 저장소에서만** 한다: ① ADR 초안 ② 영향 스캔(문서·코드·설정·템플릿·게이트) ③ 승인 ④ 적용 ⑤ 검증 ⑥ `Accepted` ⑦ 프로젝트는 `sync-core`로 내려받는다. 되돌릴 땐 새 ADR + 옛 것 `Superseded`. 새 규칙은 강제 등급을 고른다 — `generate > gate > report > none`(사유 필수) — 그리고 `.harness/catalog.yaml`에 집행 수단을 적는다. "사람이 읽어야 지켜지는 규칙"은 미완성 규칙이다. 템플릿 저장소의 REP 브랜치는 `rep/<slug>`이고 PR 리뷰·병합이 승인이다 — CI(PR)와 pre-commit(스테이징)은 바뀐 파일에 제품 경로가 없을 때만 브랜치=기록 검사를 면제한다.
 
 ## 10. 원칙 (요약)
 
@@ -105,4 +105,5 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 ## 11. 동시 작업 · 핸드오프
 
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`, 브랜치 `<type>/<ID>`. main에 제품 코드 직접 커밋 금지(게이트). `rfc/*`는 spike — 코드는 병합되지 않고 기록만 반입. 승격은 `promote`(squash 1커밋). S는 ff 병합, M·L은 PR — `finish`가 PR을 열고(본문은 기록에서) 서버 게이트 `ci.mjs`가 scope·리뷰 판정까지 다시 묻는다. 잔존 브랜치·worktree는 lint ⑮. 절차 `.harness/runbooks/work.md`.
+- **제품 경로가 아닌 것**은 docs·rules·mockups·장치 폴더와, 루트 파일 중 코어 기본(규칙·설정 파일 — catalog `check-branch-record`)과 `harness.yaml` `work.root_files`(루트 파일 이름만 · 등재는 ADR)뿐이다. 그 밖의 루트 파일은 제품 경로라 main 직접 커밋·scope·⑧에 걸린다. PR 판정(ci)과 ff 병합 전 리뷰 하한(work.mjs)은 base 쪽 `work.root_files`로 본다 — 등재는 따로 병합한 뒤에 효력. 잘못 쓴 항목·해석 실패는 lint ⑲.
 - 다른 세션·다른 회사 에이전트와는 `docs/handoffs/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.

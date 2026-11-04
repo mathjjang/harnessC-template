@@ -3,6 +3,8 @@ id: RB-handoff
 trigger: 다른 세션·다른 회사 에이전트(Codex·Gemini·Cursor 등)에게 리뷰·검증·조사를 맡기거나, 그런 요청을 받았을 때
 evidence: docs/handoffs/<HO-ID>/evidence/
 pack: 코어
+entry: handoff
+summary: 다른 세션·다른 회사 에이전트(Codex·Gemini·Cursor 등)와 리뷰·검증·조사를 주고받는 절차(HO) — 맡길 때와 받았을 때. 다른 세션 리뷰어로 "리뷰해줘"·"FDR-… 검토"·"review 단계"를 받았으면 받는 쪽 절차와 리뷰어 불변(.claude/agents/reviewer.md 본문 — 어느 런타임이든 따른다). 구현 세션이 자기 FDR(risk low·medium)을 새 문맥 서브에이전트에게 맡기는 것은 subagent-review.
 ---
 
 # 핸드오프 — 에이전트 간 주고받기
@@ -37,6 +39,7 @@ docs/handoffs/HO-<YYMMDD>-<slug>/
 3. 기준 커밋을 확인한다. `git diff <기준> HEAD --stat`이 `docs/handoffs/HO-…`뿐이면 **이 작업 트리에서 그대로 본다**. 코드·규칙이 달라졌을 때만 `git worktree add --detach .scratch/<HO-ID> <기준>`을 만들고, 응답을 마치면 `git worktree remove .scratch/<HO-ID>`로 지운다(저장소 전체 사본이라 무겁다).
 4. 응답: `node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<자기(모델)>"` → 생긴 파일에만 쓴다. 결론 먼저, 항목마다 근거(파일:라인·명령·원문)·등급·완료/미검증/건너뜀.
 5. 쓰기 허용 밖(제품 코드·규칙·남의 응답)은 고치지 않는다. 고쳐야 하면 응답에 제안으로 적는다.
+   - **FDR 리뷰 요청**이면 리뷰어 불변(`.claude/agents/reviewer.md` 본문 1~6 — Claude Code가 아니어도 그대로)을 따른다. 판정은 쓰기 허용에 든 `06-review.md`(lite는 `fdr.md` §5)에 통과·재작업·조건부로 — 리뷰어(모델) 칸은 자기 이름(작성자와 다른 문자열). risk high는 사인오프 칸을 사람 몫으로 남긴다. 제품 코드는 고치지 않는다(판정 뒤 코드가 바뀌면 CI ⑧이 판정을 무효로 한다).
 6. 상태를 `answered`. 커밋·push는 하지 않는다(보낸 쪽이 result와 함께).
 
 ## 전달 문구 (사람이 붙여 넣는 한 줄)

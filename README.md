@@ -153,6 +153,8 @@ node .harness/scripts/sync-core.mjs
 
 `rules/`, `docs/`, `harness.yaml`, 코드는 바뀌지 않는다. `.harness/`, `.claude/`, `AGENTS.md`는 프로젝트에서 고치지 말고 이 템플릿 저장소에 제안한다.
 
+루트 파일은 코어 기본 목록(`.gitattributes` `.gitignore` `.editorconfig` `.mcp.json` `AGENTS.md` `CLAUDE.md` `GEMINI.md` `LICENSE` `README.md` `harness.yaml` `init.mjs`)만 제품 경로가 아니다. 그 밖의 루트 파일(`package.json` 등)은 제품 코드처럼 main에 직접 커밋할 수 없다. 프로젝트의 다른 루트 설정 파일은 `harness.yaml` `work.root_files`에 파일 이름만 적는다(하위 경로는 lint가 거부).
+
 ## 에이전트에게 시키기
 
 | 할 일 | Claude Code | Codex | Gemini CLI |
@@ -162,6 +164,8 @@ node .harness/scripts/sync-core.mjs
 | 목업 대조 | `/mockup-diff` | 스킬 `mockup-diff` | `/mockup-diff` |
 | 검수 건 처리 | `/qa` | 스킬 `qa` | `/qa` |
 | 회의 준비, 회의록 반영 | `/meeting-prep`, `/meeting-ingest` | 스킬 | 커맨드 |
+| 리뷰 맡기기(구현 세션, risk low·medium) | `/subagent-review` | 스킬 `subagent-review` | `/subagent-review` |
+| 다른 세션과 주고받기, 다른 세션 리뷰어로 리뷰 | `/handoff`(리뷰어는 `reviewer` 에이전트) | 스킬 `handoff` | `/handoff` |
 
 Gemini CLI는 처음 열 때 폴더를 신뢰한다고 승인해야 프로젝트 커맨드를 불러온다.
 
