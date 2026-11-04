@@ -13,7 +13,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, appendFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { judge, fdrScope, NON_PRODUCT, nonProductOf, templateRep } from './check-branch-record.mjs';
+import { judge, fdrScope, NON_PRODUCT, nonProductOf, nonProductOfYaml, templateRep } from './check-branch-record.mjs';
 import { isClutter } from './check-clutter.mjs';
 import { recordDir } from './lib/records.mjs';
 
@@ -27,9 +27,10 @@ const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || 
 export const SUBAGENT = /서브\s*에이전트|sub-?agent/i;
 /** 표지를 찾는 자리 — 리뷰어 줄을 ·로 나눈 조각 중 첫 조각(이름)과 「라벨:」로 시작하지 않는 조각. 「· 일자: …」「· 메모: 서브에이전트 아님」 같은 메모 조각은 보지 않는다(오탐). 「reviewer · 서브에이전트 (m)」은 그대로 잡는다 */
 export const markerPart = (line) => line.split('·').filter((seg, i) => i === 0 || !/^\s*[^\s:：]+\s*[:：]/.test(seg)).join('·');
-/** 글이 있는지 — 공백·보이지 않는 문자만 든 값은 빈 값과 같다(증거 파일·사인오프 칸). 지우는 것: 유니코드 Default_Ignorable_Code_Point(영폭, 한글 채움 U+3164·U+115F·U+1160·U+FFA0 포함) · 제어 Cc(NUL 등) · 서식 Cf · 사용 영역 Co · 점자 공백 U+2800.
- *  짝 없는 서로게이트(Cs)는 파일을 UTF-8로 읽을 때 U+FFFD로 바뀌어 여기 닿지 않는다. U+FFFD는 보이는 글자라 지우지 않는다 */
-export const hasText = (t) => /\S/u.test(t.replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}\p{Cf}\p{Co}\u2800]/gu, ''));
+/** 글이 있는지 — 보이는 글자(문자 L·숫자 N·문장 부호 P·기호 S)가 하나 이상이어야 한다(증거 파일·사인오프 칸). 먼저 Default_Ignorable_Code_Point(영폭, 한글 채움 U+3164·U+115F·U+1160·U+FFA0 — 이것들은 L로 분류된다)와 점자 공백 U+2800(S)을 지운다.
+ *  그래서 공백 Z·제어 Cc·서식 Cf(U+0600처럼 보이는 Cf도 — 혼자서는 글이 아니다)·사용 영역 Co·미할당 Cn·비문자(U+FFFE)·결합 문자 M(U+0300·U+20DD)만 든 값은 빈 값이다. U+1D159(악보 빈 음표머리)는 기호 S라 글로 센다 — 일반 분류로 정하고 낱글자 목록을 두지 않는다.
+ *  짝 없는 서로게이트(Cs)는 파일을 UTF-8로 읽을 때 U+FFFD(S)로 바뀌어 글로 센다 */
+export const hasText = (t) => /[\p{L}\p{N}\p{P}\p{S}]/u.test(t.replace(/[\p{Default_Ignorable_Code_Point}\u2800]/gu, ''));
 
 /** 리뷰 칸 해석 — 파일 원문(standard 06-review.md · lite fdr.md)에서 판정 줄·리뷰어 */
 function parseReview(raw, std) {
@@ -74,9 +75,10 @@ export function afterVerdict(commits, reviewPath, std, showAt, roundDir = '', np
   return p;
 }
 
-/** PR 판정 — 반환 [문제]. 제품 경로 판정은 nonProductOf(root)(코어 루트 파일 + harness.yaml work.root_files) */
-export function prProblems(root, { base, head, changed, deleted = [], commits = null, showAt = null }) {
-  const p = []; const np = nonProductOf(root);
+/** PR 판정 — 반환 [문제]. 제품 경로 판정은 코어 루트 파일 + harness.yaml work.root_files. baseYaml(base 쪽 harness.yaml 원문 — 없으면 '')을 주면 root_files를 거기서 읽는다:
+ *  PR이 스스로 등재한 루트 파일은 그 PR의 scope·⑧에서 면제되지 않는다(등재는 따로 병합한 뒤에 효력). 주지 않으면(null) root의 harness.yaml */
+export function prProblems(root, { base, head, changed, deleted = [], commits = null, showAt = null, baseYaml = null }) {
+  const p = []; const np = baseYaml === null ? nonProductOf(root) : nonProductOfYaml(baseYaml);
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
   // 템플릿 저장소의 규칙 변경(REP, HARNESS §9 rep/<slug>) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 면제 조건은 pre-commit과 같다(check-branch-record templateRep)
   if (!templateRep(root, head, changed, np)) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false, np })) p.push(`브랜치·scope: ${x}`);
@@ -151,7 +153,8 @@ export function run(root = ROOT, { base = '', head = '' } = {}) {
     const d = changedFiles(root, `origin/${b}...HEAD`); const d2 = d.ok ? d : changedFiles(root, `${b}...HEAD`);
     if (!d2.ok) step('PR 변경 파일', d2); else {
       changed = d2.changed;
-      const p = prProblems(root, { base: b, head, changed, deleted: d2.deleted, ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
+      const by = [`origin/${b}`, b].map((r) => sh(`git show "${r}:harness.yaml"`, root)).find((r) => r.ok);   // base 쪽 work.root_files — 없으면 코어 기본만
+      const p = prProblems(root, { base: b, head, changed, deleted: d2.deleted, baseYaml: by ? by.out : '', ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
   }
   const failed = results.filter((r) => !r.ok);
   if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## harness\n\n${results.map((r) => `- ${r.ok ? '✅' : '❌'} ${r.name}${r.ok ? '' : `\n\n\`\`\`\n${r.out.slice(0, 3000)}\n\`\`\``}`).join('\n')}\n`); } catch { /* */ } }
@@ -216,8 +219,17 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PR('FDR-260101-ok', ['src/b/out.ts']).some((x) => /scope 밖/.test(x))) fails.push('scope 밖 미차단');
     if (!PR('FDR-260101-ok', ['main.py']).some((x) => /scope 밖/.test(x))) fails.push('scope 밖 루트 제품 파일 미차단');
     if (PR('FDR-260101-ok', ['pyproject.toml', 'AGENTS.md']).length) fails.push('work.root_files·코어 루트 파일 오탐: ' + PR('FDR-260101-ok', ['pyproject.toml', 'AGENTS.md']).join(' | '));
+    // N1 — root_files는 base 쪽에서 읽는다: head만 등재한 pyproject.toml은 이 PR에서 제품 경로(scope 밖·판정 뒤), base가 등재했으면 면제
+    const PRb = (baseYaml, changed, commits = null) => prProblems(t, { base: 'main', head: 'fdr/FDR-260101-ok', changed, baseYaml, commits, showAt: commits ? (sha) => (sha[0] === 'v' ? readFileSync(join(t, 'docs/features/FDR-260101-ok/fdr.md'), 'utf8') : '') : null });
+    if (!PRb('', ['pyproject.toml']).some((x) => /scope 밖/.test(x))) fails.push('head만 등재한 루트 파일(base에 없음)을 scope에서 면제');
+    if (!PRb('work:\n  root_files: [other.cfg]\n', ['pyproject.toml']).some((x) => /scope 밖/.test(x))) fails.push('base에 없는 루트 파일을 head 등재로 면제');
+    if (PRb('work:\r\n  root_files:\r\n    - pyproject.toml\r\n', ['pyproject.toml']).length) fails.push('base가 등재한 루트 파일 오탐');
+    if (!PRb('', ['docs/features/FDR-260101-ok/fdr.md'], [{ sha: 'v1', files: ['docs/features/FDR-260101-ok/fdr.md'], added: [] }, { sha: 'a2', files: ['pyproject.toml'], added: [] }]).some((x) => /판정 뒤/.test(x))) fails.push('판정 뒤 head만 등재한 루트 파일 미차단');
     // N2 — 제어(Cc)·서식(Cf)·사용 영역(Co) 문자만인 파일도 증거가 아니다
     for (const [k, s] of [['c', '\u0000\u0001\u007F\u0085'], ['f', '؀￹\u{13430}'], ['o', '\u{F0000}']]) { lite(`FDR-260101-subc${k}`, { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV(`FDR-260101-subc${k}`, 'brief.md', s + '\n'); SUBEV(`FDR-260101-subc${k}`, 'report.md'); if (!NOEV(`FDR-260101-subc${k}`)) fails.push(`${{ c: '제어', f: '서식', o: '사용 영역' }[k]} 문자만인 파일을 증거로 셈`); }
+    // D3 — 미할당 Cn·비문자·결합 문자만인 파일도 증거가 아니다 / 한 글자(문자·숫자·부호·기호)면 글이다
+    for (const [k, s] of [['n', '\u0378\u0379'], ['x', '\uFFFE\uFFFF\u{10FFFF}'], ['m', '\u0300\u0301\u20DD']]) { lite(`FDR-260101-subq${k}`, { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV(`FDR-260101-subq${k}`, 'brief.md', s + '\n'); SUBEV(`FDR-260101-subq${k}`, 'report.md'); if (!NOEV(`FDR-260101-subq${k}`)) fails.push(`${{ n: '미할당', x: '비문자', m: '결합 문자' }[k]} 문자만인 파일을 증거로 셈`); }
+    for (const s of ['가', '7', '-', '→', '\uFFFD']) if (!hasText(s)) fails.push(`보이는 한 글자를 빈 값으로 봄(U+${s.codePointAt(0).toString(16).toUpperCase()})`);
     if (!PR('FDR-260101-ok', ['src/a/.tmp-probe.mjs']).some((x) => /임시 파일/.test(x))) fails.push('임시 파일 미차단');
     if (!prProblems(t, { base: 'main', head: 'feature/x', changed: ['src/a.ts'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('기록 아닌 브랜치 미차단');
     if (prProblems(t, { base: 'main', head: 'rfc/RFC-260101-q', changed: ['src/any.ts'] }).some((x) => /리뷰/.test(x))) fails.push('rfc PR에 리뷰 요구');
@@ -271,7 +283,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     } finally { rmSync(g, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · scope 밖 3(루트 파일 2) · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·미할당·비문자·결합 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · 보이는 한 글자 5 · scope 밖 3(루트 파일 2) · base 쪽 root_files 4(scope 3·판정 뒤 1) · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {

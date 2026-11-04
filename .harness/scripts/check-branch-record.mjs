@@ -20,9 +20,50 @@ const NON_PRODUCT_DIR = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemi
 /** 제품이 아닌 루트 파일 — 코어 기본은 템플릿 루트의 규칙·설정 파일과 런타임·편집기 설정(.mcp.json — .claude/와 같은 성격 · .editorconfig). 그 밖의 프로젝트 루트 설정 파일은 harness.yaml work.root_files에 */
 export const CORE_ROOT_FILES = ['.gitattributes', '.gitignore', '.editorconfig', '.mcp.json', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'LICENSE', 'README.md', 'harness.yaml', 'init.mjs'];
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
-const workBlock = (root) => (rd(join(root, 'harness.yaml')).match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
-/** harness.yaml work.root_files: [a, b] 원문 항목 — lint ⑲가 루트가 아닌 항목을 거부한다 */
-export const rootFileEntries = (root) => { const m = workBlock(root).match(/^\s*root_files:\s*\[([^\]]*)\]/m); return m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : []; };
+/** 줄 끝 주석을 뗀다 — 따옴표 안의 #은 남긴다(YAML: 주석 # 앞은 공백이거나 줄 처음) */
+const uncomment = (s) => { let q = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (q) { if (c === '\\' && q === '"') i++; else if (c === q) q = ''; } else if (c === '"' || c === "'") q = c; else if (c === '#' && (i === 0 || /\s/.test(s[i - 1]))) return s.slice(0, i); } return s; };
+/** YAML 스칼라 따옴표 풀기 — "…"는 \\·\" 이스케이프, '…'는 '' */
+const unquote = (s) => { s = s.trim(); if (s.length > 1 && s[0] === '"' && s.endsWith('"')) return s.slice(1, -1).replace(/\\(["\\])/g, '$1'); if (s.length > 1 && s[0] === "'" && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'"); return s; };
+/** 흐름 목록 [a, "b,c"] 항목 — 따옴표 안 쉼표는 나누지 않는다 */
+const flowItems = (s) => { const out = []; let cur = ''; let q = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (q) { cur += c; if (c === '\\' && q === '"') cur +=s[++i] ?? ''; else if (c === q) q = ''; } else if (c === '"' || c === "'") { q = c; cur += c; } else if (c === ',') { out.push(cur); cur = ''; } else cur += c; } out.push(cur); return out.map(unquote).filter(Boolean); };
+/** harness.yaml 원문의 work 절 — { base, rootFiles(원문 항목), errors }. CRLF·BOM, 절 안의 빈 줄·0열 주석, 흐름 목록([a, b] — 여러 줄 포함)·블록 목록(- x)을 읽는다. 읽지 못한 값은 버리지 않고 errors로 알린다(lint ⑲) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다 */
+export function parseWork(text) {
+  const out = { base: '', rootFiles: [], errors: [] };
+  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
+  const at = lines.findIndex((l) => /^work:\s*$/.test(uncomment(l)));
+  if (at < 0) { if (lines.some((l) => /^work:/.test(l))) out.errors.push('work: 뒤에 값이 있다 — 들여쓴 키 블록으로 쓴다'); return out; }
+  const body = []; for (let i = at + 1; i < lines.length && !/^[^\s#]/.test(lines[i]); i++) body.push(uncomment(lines[i]).replace(/\s+$/, ''));
+  const ind = (l) => l.match(/^ */)[0].length;
+  const first = body.find((l) => l.trim()); if (!first) return out;
+  const keyInd = ind(first);
+  for (let i = 0; i < body.length; i++) {
+    const l = body[i]; if (!l.trim() || ind(l) !== keyInd) continue;
+    const m = l.match(/^\s*([A-Za-z_][\w-]*):(?:\s+(.*))?$/); if (!m) continue;
+    const [, key, v = ''] = m;
+    if (key === 'base') out.base = unquote(v);
+    if (key !== 'root_files') continue;
+    if (v.startsWith('[')) {
+      let s = v; let j = i; while (!s.includes(']') && j + 1 < body.length) s += ' ' + body[++j].trim();
+      const close = s.indexOf(']');
+      if (close < 0) out.errors.push('work.root_files [ … ]가 닫히지 않았다');
+      else { out.rootFiles.push(...flowItems(s.slice(1, close))); if (s.slice(close + 1).trim()) out.errors.push(`work.root_files ] 뒤에 글이 있다(${s.slice(close + 1).trim()})`); }
+      i = j;
+    } else if (!v.trim()) {
+      let j = i + 1;
+      for (; j < body.length; j++) {
+        const b = body[j]; if (!b.trim()) continue; if (ind(b) <= keyInd && !/^\s*-(\s|$)/.test(b)) break;
+        const li = b.match(/^\s*-(?:\s+(.*))?$/); if (li) { if (unquote(li[1] || '')) out.rootFiles.push(unquote(li[1] || '')); } else out.errors.push(`work.root_files 목록 항목이 아니다(${b.trim()}) — "- 파일" 또는 [a, b]`);
+      }
+      i = j - 1;
+    } else out.errors.push(`work.root_files가 목록이 아니다(${v.trim()}) — [a, b] 또는 "- 파일"`);
+  }
+  return out;
+}
+const workOf = (root) => parseWork(rd(join(root, 'harness.yaml')));
+/** harness.yaml work 절 해석 실패 — lint ⑲ */
+export const workErrors = (root) => workOf(root).errors;
+/** harness.yaml work.root_files 원문 항목 — lint ⑲가 루트가 아닌 항목을 거부한다 */
+export const rootFileEntries = (root) => workOf(root).rootFiles;
 /** 루트 파일이 아닌 항목(경로 구분자 / \ 가 든 것) — 하위 경로를 등재해 제품 경로 판정(scope·⑧)을 끄지 못하게 버린다 */
 export const notRootEntry = (s) => /[/\\]/.test(s);
 /** 제품이 아닌 루트 파일(프로젝트 확장) — 루트가 아닌 항목은 버린다 */
@@ -32,6 +73,8 @@ export const nonProduct = (extra = []) => { const files = new Set([...CORE_ROOT_
 /** 코어 기본만(프로젝트 확장 없음). 프로젝트 판정은 nonProductOf(root) */
 export const NON_PRODUCT = nonProduct();
 export const nonProductOf = (root) => nonProduct(rootFiles(root));
+/** harness.yaml 원문(ci는 base 쪽)으로 — PR이 스스로 등재한 루트 파일은 그 PR의 판정에서 면제되지 않는다 */
+export const nonProductOfYaml = (text) => nonProduct(parseWork(text).rootFiles.filter((s) => !notRootEntry(s)));
 /** 템플릿 저장소의 REP 브랜치(HARNESS §9 rep/<slug>) — 브랜치=기록 검사 면제. init.mjs·.harness/tiers는 보조 표지(prune 안 한 프로젝트에도 남는다)이고 실질 방어는 바뀐 경로에 제품 경로가 없다는 것(main 직접 커밋 허용 범위와 같다). ci(PR 전체)·pre-commit(스테이징)이 같이 쓴다 */
 export const templateRep = (root, branch, paths, np = nonProductOf(root)) => existsSync(join(root, 'init.mjs')) && existsSync(join(root, '.harness', 'tiers')) && /^rep\/[a-z0-9-]+$/.test(branch) && paths.every((f) => np.test(f));
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
@@ -75,7 +118,7 @@ export function stagedPaths(cwd) {
 export function precommit(root, { branch, staged, finishing = false }) {
   const np = nonProductOf(root);
   if (templateRep(root, branch, staged, np)) return [];
-  const base = workBlock(root).match(/^\s*base:\s*(\S+)/m)?.[1] || 'main';
+  const base = workOf(root).base || 'main';
   const id = (branch.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
   return judge({ branch, base, staged, scope: id ? fdrScope(root, id) : [], finishing, np });
 }
@@ -123,8 +166,27 @@ if (process.argv.includes('--self-test')) {
     const P = (branch, staged) => precommit(t, { branch, staged }).length;
     writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
     if (P('main', ['pyproject.toml', '.npmrc']) || P('main', ['README.md', '.mcp.json', '.editorconfig'])) { fail++; console.error('FAIL work.root_files·코어 루트 파일 오탐'); }
-    if (!P('main', ['src/a.ts']) || !P('main', ['lib/x.ts'])) { fail++; console.error('FAIL work.root_files의 하위 경로(src/a.ts·lib\\x.ts)를 제품 경로에서 뺌'); }
-    if (rootFiles(t).join() !== 'pyproject.toml,.npmrc' || rootFileEntries(t).length !== 4) { fail++; console.error('FAIL rootFiles 하위 경로 버림', rootFiles(t), rootFileEntries(t)); }
+    // 'lib\x.ts'는 POSIX에서 루트 파일 이름이 될 수 있다 — 항목이 버려져야 그 경로가 제품으로 막힌다(역슬래시 판별을 빼는 변이에서 실패)
+    if (!P('main', ['src/a.ts']) || !P('main', ['lib\\x.ts'])) { fail++; console.error('FAIL work.root_files의 하위 경로(src/a.ts·lib\\x.ts)를 제품 경로에서 뺌'); }
+    if (rootFiles(t).join() !== 'pyproject.toml,.npmrc' || rootFileEntries(t).join('|') !== 'pyproject.toml|.npmrc|src/a.ts|lib\\x.ts') { fail++; console.error('FAIL rootFiles 하위 경로 버림', rootFiles(t), rootFileEntries(t)); }
+    // work 절 해석(parseWork) — CRLF·BOM·절 안 빈 줄·0열 주석·블록 목록·여러 줄 흐름 목록·따옴표 안 #·쉼표 / 해석 실패는 errors
+    const pw = [
+      ['\uFEFFwork:\r\n  base: dev\r\n  root_files: [a.toml, b.cfg]\r\n', 'dev', 'a.toml|b.cfg', 0],
+      ['work:\n  base: main\n\n# 주석\n  root_files: [a.toml]\nother:\n  root_files: [z]\n', 'main', 'a.toml', 0],
+      ['work:   # 절 주석\n  root_files:\n    - a.toml\n\n    - "b # c"   # 끝 주석\n  base: dev\n', 'dev', 'a.toml|b # c', 0],
+      ['work:\n  root_files:\n  - a.toml\n  - b.cfg\n', '', 'a.toml|b.cfg', 0],
+      ['work:\n  root_files: [a.toml,\n    "b,c"]\n  base: x\n', 'x', 'a.toml|b,c', 0],
+      ["work:\n  root_files: ['it''s', \"q\\\"\"]\n", '', "it's|q\"", 0],
+      ['work:\n  root_files: a.toml\n', '', '', 1],
+      ['work:\n  root_files: [a.toml\n', '', '', 1],
+      ['work:\n  root_files:\n    a.toml\n', '', '', 1],
+      ['work: {root_files: [a]}\n', '', '', 1],
+      ['mockup:\n  root_files: [a]\n', '', '', 0],
+    ];
+    for (const [s, base, rf, ne] of pw) { const r = parseWork(s); if (r.base !== base || r.rootFiles.join('|') !== rf || (r.errors.length > 0) !== (ne > 0)) { fail++; console.error('FAIL parseWork', JSON.stringify(s), r); } }
+    writeFileSync(join(t, 'harness.yaml'), 'work:\r\n  base: main\r\n\r\n  root_files:\r\n    - pyproject.toml\r\n');
+    if (P('main', ['pyproject.toml'])) { fail++; console.error('FAIL CRLF·빈 줄·블록 목록 root_files를 pre-commit이 못 읽음'); }
+    writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
     if (!P('main', ['package.json'])) { fail++; console.error('FAIL 다른 절의 root_files를 읽음(package.json 미차단)'); }
     if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL 템플릿 아닌 저장소의 rep/ 커밋 미차단'); }
     writeFileSync(join(t, 'init.mjs'), '//\n'); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL init.mjs만 있는 저장소의 rep/ 커밋 미차단'); }
@@ -134,7 +196,7 @@ if (process.argv.includes('--self-test')) {
     if (!P('rep/Bad_Slug', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL rep/ 슬러그 형식 밖 미차단'); }
     rmSync(join(t, 'init.mjs')); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL tiers만 있는 저장소의 rep/ 커밋 미차단'); }
   } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 4(하위 경로 버림 2) · rep/ 면제 6)`);
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 11(해석 실패 4) · rep/ 면제 6)`);
   process.exit(fail ? 1 : 0);
 }
 

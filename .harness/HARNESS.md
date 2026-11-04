@@ -105,4 +105,5 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 ## 11. 동시 작업 · 핸드오프
 
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`, 브랜치 `<type>/<ID>`. main에 제품 코드 직접 커밋 금지(게이트). `rfc/*`는 spike — 코드는 병합되지 않고 기록만 반입. 승격은 `promote`(squash 1커밋). S는 ff 병합, M·L은 PR — `finish`가 PR을 열고(본문은 기록에서) 서버 게이트 `ci.mjs`가 scope·리뷰 판정까지 다시 묻는다. 잔존 브랜치·worktree는 lint ⑮. 절차 `.harness/runbooks/work.md`.
+- **제품 경로가 아닌 것**은 docs·rules·mockups·장치 폴더와, 루트 파일 중 코어 기본(규칙·설정 파일 — catalog `check-branch-record`)과 `harness.yaml` `work.root_files`(루트 파일 이름만 · 등재는 ADR)뿐이다. 그 밖의 루트 파일은 제품 경로라 main 직접 커밋·scope·⑧에 걸린다. PR 판정은 base 쪽 `work.root_files`로 본다 — 등재는 따로 병합한 뒤에 효력. 잘못 쓴 항목·해석 실패는 lint ⑲.
 - 다른 세션·다른 회사 에이전트와는 `docs/handoffs/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.
