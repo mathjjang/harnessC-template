@@ -7,7 +7,7 @@
 //       ⑪ 핸드오프(HO-)의 상태가 open|taken|answered|closed이고 closed면 result.md가 있는가
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
-//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가
+//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가
 //       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
@@ -126,6 +126,8 @@ export function lint(root) {
   const liveFdrs = [];
   for (const r of records.filter((r) => /^FDR-/.test(r.name) && statSync(r.path).isDirectory())) {
     const n = r.name; const head = rd(join(r.path, 'manifest.yaml')) || frontmatter(rd(join(r.path, 'fdr.md')));
+    const risk = yamlScalar(head, 'risk').replace(/^["']|["']$/g, '');   // ⑱ risk 값 — 오타·대문자는 high 검사(ci 사인오프·서브에이전트 거부)를 비켜 갈 수 있다. 비어 있으면 ci가 low로 읽는다(양식은 늘 low로 채운다)
+    if (risk && !['low', 'medium', 'high'].includes(risk)) problems.push(`risk 값: ${n}의 risk(${risk})는 low|medium|high(소문자) 중 하나 — HARNESS §4`);
     if (/^(shipped|closed|abandoned)$/.test(yamlScalar(head, 'status'))) continue;   // shipped = 이미 main에 병합 — 동시 편집 위험이 없다. 겹침은 병합 전(draft·in-progress)끼리만
     const m = head.match(/^scope:\s*\[([^\]]*)\]/m);
     liveFdrs.push({ id: n, scope: m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : [] });
@@ -184,6 +186,8 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs', 'unit.out'), 'exit 0\n');
   // ⑭ 부정: 활성 FDR 둘의 scope가 겹침 / 양성: 서로소
   for (const [id, sc, st = 'in-progress'] of [['FDR-000000-a', 'src/customs/**'], ['FDR-000000-b', 'src/customs/api/*'], ['FDR-000000-c', 'src/report/**'], ['FDR-000000-d', 'src/report/**', 'shipped']]) { mkdirSync(join(tmp, 'docs', 'features', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: ${st}\nscope: [${sc}]\n---\n- 작성: t\n`); }   // d: shipped는 c와 같은 경로여도 겹침 아님
+  // ⑱ 부정: risk 오타·대문자 / 양성: medium(따옴표)
+  for (const [id, rk] of [['FDR-000000-rtypo', 'hgih'], ['FDR-000000-rcap', 'High'], ['FDR-000000-rok', '"medium"']]) { mkdirSync(join(tmp, 'docs', 'features', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: shipped\nrisk: ${rk}                 # low | medium | high\n---\n- 작성: t\n`); }
   writeFileSync(join(tmp, 'docs', 'specs', 'cap', 'spec.md'), '# cap\n병합: FDR-000000-std · FDR-000000-ok\n');
   // ⑯ 부정: 확정 목업이 있는 shipped FDR에 대조 기록 없음 / 양성: in-progress는 형식만
   for (const [id, st] of [['FDR-000000-mock', 'shipped'], ['FDR-000000-mockwip', 'in-progress']]) { mkdirSync(join(tmp, 'docs', 'features', id, 'mockup'), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: ${st}\n---\n- 작성: t\n`); writeFileSync(join(tmp, 'docs', 'features', id, 'mockup', 'rev.yaml'), 'rev: 1\nfiles:\n  01-a.html: ' + 'a'.repeat(64) + '\n'); writeFileSync(join(tmp, 'docs', 'features', id, 'mockup', 'diff-scenarios.json'), '[{"state":"01-a.html","path":"/"}]'); }
@@ -192,10 +196,10 @@ if (process.argv.includes('--self-test')) {
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs'];
+  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
-  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 4건 · 기록 자리 3곳 · 프로젝트 도구)`);
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x));
+  console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 5건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
 const root = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : join(HERE, '..', '..');
