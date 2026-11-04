@@ -258,7 +258,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     try {
       gx('init -q -b main'); mkdirSync(join(g, 'src'), { recursive: true }); mkdirSync(join(g, 'docs'), { recursive: true });
       writeFileSync(join(g, 'src', 'a.ts'), 'a\n'); writeFileSync(join(g, 'src', 'b.ts'), 'b\nb\nb\n'); writeFileSync(join(g, 'docs', '.tmp-probe.mjs'), 'x\n'); writeFileSync(join(g, 'docs', 'x.md'), 'x\n'); writeFileSync(join(g, 'init.mjs'), '//\n'); mkdirSync(join(g, '.harness', 'tiers', 'S'), { recursive: true }); writeFileSync(join(g, '.harness', 'tiers', 'S', 'h.yaml'), 'x\n');
-      gx('add -A'); gx('commit -q -m base'); gx('switch -q -c rep/x'); gx('rm -q src/a.ts docs/.tmp-probe.mjs'); gx('mv src/b.ts docs/b.md'); gx('commit -q -m move');
+      gx('add -A'); gx('commit -q -m base'); gx('switch -q -c rep/x'); gx('rm -q src/a.ts docs/.tmp-probe.mjs'); gx('mv src/b.ts docs/b.md'); writeFileSync(join(g, 'docs', 'x.md'), 'x2\n'); gx('add docs/x.md'); gx('commit -q -m move');
       const cf = changedFiles(g, 'main...HEAD');
       for (const f of ['src/a.ts', 'src/b.ts', 'docs/b.md']) if (!cf.ok || !cf.changed.includes(f)) fails.push(`삭제·이동 경로 누락: ${f} (${cf.ok ? cf.changed.join(',') : cf.out})`);
       const gp = prProblems(g, { base: 'main', head: 'rep/x', changed: cf.changed || [], deleted: cf.deleted || [] });
@@ -266,7 +266,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
       if (gp.some((x) => /임시 파일/.test(x))) fails.push('임시 파일 삭제를 임시 파일로 셈');
       const hist = commitHistory(g, ['main..HEAD']);
       if (!(hist.commits || []).some((x) => x.files.includes('src/b.ts'))) fails.push('커밋 이력에 이동 전 경로 누락');
-      if (!(hist.commits || []).some((x) => x.added.includes('docs/b.md') && !x.added.includes('src/a.ts') && x.files.includes('src/a.ts'))) fails.push('커밋 이력의 추가(A) 경로 판별 틀림: ' + JSON.stringify(hist.commits));
+      if (!(hist.commits || []).some((x) => x.added.includes('docs/b.md') && !x.added.includes('src/a.ts') && x.files.includes('src/a.ts') && !x.added.includes('docs/x.md') && x.files.includes('docs/x.md'))) fails.push('커밋 이력의 추가(A) 경로 판별 틀림(삭제·수정은 추가가 아니다): ' + JSON.stringify(hist.commits));
     } finally { rmSync(g, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
