@@ -1,10 +1,10 @@
 ---
 id: RB-review
-trigger: FDR 리뷰·재리뷰를 리뷰 서브에이전트에게 맡길 때(risk low·medium) — "리뷰해줘", "재리뷰", "review 단계"
+trigger: 구현 세션이 자기 FDR(risk low·medium)의 리뷰·재리뷰를 새 문맥 리뷰 서브에이전트에게 맡길 때 — "서브에이전트로 리뷰", "리뷰 서브에이전트 띄워", 구현 세션의 "리뷰 맡겨"·"재리뷰". 다른 세션 리뷰어로 열린 세션·risk high는 대상이 아니다(§0)
 evidence: docs/features/<ID>/evidence/review/
 pack: 코어
 entry: subagent-review
-summary: FDR 리뷰를 새 문맥 리뷰 서브에이전트에게 맡기는 절차(risk low·medium) — 지시문에 결론 금지, 지시문·보고 원문 보관, 차단 결함 재확인, 독립성 한계. "리뷰해줘", "재리뷰", "서브에이전트로 리뷰" 요청 시.
+summary: 구현 세션이 FDR 리뷰를 새 문맥 리뷰 서브에이전트에게 맡기는 절차(risk low·medium만) — 지시문에 결론 금지, 지시문·보고 원문 보관, 차단 결함 재확인, 독립성 한계. "서브에이전트로 리뷰", 구현 세션의 "리뷰 맡겨"·"재리뷰" 요청 시. risk high나 다른 세션 리뷰어로 리뷰하는 중이면 쓰지 않는다 — handoff.md·reviewer 에이전트.
 ---
 
 # 리뷰 서브에이전트 — 구현 세션이 새 문맥 리뷰어를 띄운다
@@ -13,6 +13,7 @@ summary: FDR 리뷰를 새 문맥 리뷰 서브에이전트에게 맡기는 절�
 
 ## 0. 전제
 
+- **먼저 갈래를 가린다.** 이 세션이 리뷰어로 열린 다른 세션이면(리뷰 요청·HO를 받았다) 이 절차가 아니다 — `reviewer` 에이전트 불변대로 06에 직접 판정. risk high면 다른 세션 리뷰 + 사람 사인오프(`runbooks/handoff.md`로 맡긴다). 아래는 구현 세션이 자기 FDR 리뷰를 맡길 때만.
 - FDR `risk`가 low 또는 medium. 리뷰할 커밋 범위(`<base>..<tip>`)가 정해졌다 — 판정 뒤 제품 코드가 바뀌면 판정 무효(CI ⑧).
 - 런타임에 쓰기 도구 없는 새 문맥 리뷰어가 있다(Claude Code `.claude/agents/reviewer.md`). 없으면 다른 세션으로.
 
@@ -28,7 +29,7 @@ summary: FDR 리뷰를 새 문맥 리뷰 서브에이전트에게 맡기는 절�
 
 ## 2. 판정
 
-- `evidence/review/`에 라운드마다 brief·report 짝. CI(ci.mjs SUBAGENT)는 리뷰어(모델) 줄에 서브에이전트 표지(서브에이전트·서브 에이전트·sub-agent·subagent)가 있으면 라운드마다 짝(빈 파일·공백만·폴더 제외)과 risk≤medium을 검사한다. 판정 뒤 코드가 바뀌어 다시 판정하면 새 라운드(brief-r<N>·report-r<N>)를 둔다 — CI는 라운드가 새것인지는 보지 않는다(report 등급).
+- `evidence/review/`에 라운드마다 brief·report 짝. CI(ci.mjs SUBAGENT)는 리뷰어(모델) 줄의 이름 조각(`· 일자:`·`· 메모:`처럼 「라벨:」로 시작하는 조각은 빼고)에 서브에이전트 표지(서브에이전트·서브 에이전트·sub-agent·subagent)가 있으면 라운드마다 짝(빈 파일·공백·보이지 않는 문자만·폴더 제외)과 risk≤medium을 검사한다. 판정 뒤 코드가 바뀌어 다시 판정하면 새 라운드(brief-r<N>·report-r<N>)를 둔다 — CI는 마지막 제품 코드 커밋 뒤에 그 전에 없던 report 경로가 커밋됐는지 본다(옛 report를 고쳐 쓴 것은 새 라운드가 아니다). 그 report가 그 판정의 근거인지는 보지 않는다(report 등급).
 - 06 차단 결함마다 "리뷰어 확인" 또는 제외 사유.
 
 ## 3. 실패 시

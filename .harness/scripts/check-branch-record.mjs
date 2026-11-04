@@ -47,6 +47,11 @@ export function judge({ branch, base = 'main', staged, scope = [], finishing = f
   return problems;
 }
 
+/** 스테이징된 경로 — 삭제·이동 전 경로까지(--no-renames: 이동은 삭제+추가). 제품 파일을 지우거나 docs/로 옮기는 것도 제품 변경이다(ci.mjs changedFiles와 같은 기준) */
+export function stagedPaths(cwd) {
+  return execSync('git -c core.quotepath=false diff --cached --name-only --no-renames', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(Boolean);
+}
+
 const IS_MAIN = Boolean(process.argv[1]) && /check-branch-record\.mjs$/.test(process.argv[1]);
 if (IS_MAIN) {
 if (process.argv.includes('--self-test')) {
@@ -73,14 +78,23 @@ if (process.argv.includes('--self-test')) {
   let fail = 0;
   for (const [inp, want] of cases) { const got = judge(inp).length; if ((got > 0) !== (want > 0)) { fail++; console.error('FAIL', JSON.stringify(inp), judge(inp)); } }
   const re = globRe('src/customs/**'); if (!re.test('src/customs/a/b.ts') || re.test('src/other/a.ts')) { fail++; console.error('FAIL glob'); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob)`);
+  // 스테이징 경로 — 삭제·이동 전 경로까지(임시 git 저장소)
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs'); const { tmpdir } = await import('node:os');
+  const t = mkdtempSync(join(tmpdir(), 'cbr-st-')); const gx = (c) => execSync(`git -c user.name=t -c user.email=t@t ${c}`, { cwd: t, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+  try {
+    gx('init -q -b main'); mkdirSync(join(t, 'src')); mkdirSync(join(t, 'docs')); writeFileSync(join(t, 'src', 'a.ts'), 'a\n'); writeFileSync(join(t, 'src', 'b.ts'), 'b\nb\nb\n'); writeFileSync(join(t, 'docs', 'x.md'), 'x\n');
+    gx('add -A'); gx('commit -q -m base'); gx('rm -q src/a.ts'); gx('mv src/b.ts docs/b.md');
+    const sp = stagedPaths(t); for (const f of ['src/a.ts', 'src/b.ts', 'docs/b.md']) if (!sp.includes(f)) { fail++; console.error('FAIL 스테이징 경로 누락', f, sp); }
+    if (!judge({ branch: 'main', staged: sp }).length) { fail++; console.error('FAIL main에서 제품 파일 삭제·이동 미차단'); }
+  } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2)`);
   process.exit(fail ? 1 : 0);
 }
 
 const g = (c) => execSync(`git ${c}`, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 let branch = ''; try { branch = g('branch --show-current'); } catch { process.exit(0); }
 if (!branch) process.exit(0);   // detached — 병합·리베이스 중간 상태는 판정하지 않는다
-const staged = g('-c core.quotepath=false diff --cached --name-only --diff-filter=ACMR').split('\n').filter(Boolean);
+const staged = stagedPaths(ROOT);
 const hy = existsSync(join(ROOT, 'harness.yaml')) ? readFileSync(join(ROOT, 'harness.yaml'), 'utf8') : '';
 const base = ((hy.match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '').match(/^\s*base:\s*(\S+)/m)?.[1] || 'main';
 const id = (branch.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];

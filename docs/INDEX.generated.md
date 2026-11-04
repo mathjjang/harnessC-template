@@ -1,4 +1,4 @@
-<!-- 생성물: node .harness/scripts/build-index.mjs · 2026-11-03 · 손으로 편집하지 않는다 -->
+<!-- 생성물: node .harness/scripts/build-index.mjs · 2026-11-04 · 손으로 편집하지 않는다 -->
 # 기록 카탈로그
 
 ## runbook (10)
@@ -11,7 +11,7 @@
 - [meeting-prep](.harness/runbooks/meeting-prep.md) — 코어 · 외부 조직과의 회의를 준비할 때 — "회의 준비", "안건 정리", "미팅 자료"
 - [mockup](.harness/runbooks/mockup.md) — 코어 · 확정 목업이 있는 화면을 구현·수정할 때, "목업대로 됐는가"를 판정할 때, 공유 CSS·토큰 변경이나 릴리스 전 시각 회귀를
 - [qa](.harness/runbooks/qa.md) — 코어 · 목업 저장소에 검수 접수(qa/QA-…)가 들어왔을 때, 오류 건을 가져와 고치고 검증·회신할 때, "검수 건 처리", "QA
-- [review](.harness/runbooks/review.md) — 코어 · FDR 리뷰·재리뷰를 리뷰 서브에이전트에게 맡길 때(risk low·medium) — "리뷰해줘", "재리뷰", "review
+- [review](.harness/runbooks/review.md) — 코어 · 구현 세션이 자기 FDR(risk low·medium)의 리뷰·재리뷰를 새 문맥 리뷰 서브에이전트에게 맡길 때 — "서브에이전
 - [work](.harness/runbooks/work.md) — 코어 · 파일을 고치는 작업을 시작할 때(FDR 구현·RFC spike·PLAN 통합), 끝낼 때, spike를 FDR로 승격할 때, 
 
 ## 증거 — 기록별 evidence/ 모아 보기 (0)

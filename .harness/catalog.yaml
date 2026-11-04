@@ -36,7 +36,7 @@ tools:
     command: node .harness/scripts/lint.mjs
     enforcement: gate
     self_test: node .harness/scripts/lint.mjs --self-test
-    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR·scope 겹침) §11(HO 상태·잔존 브랜치) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
+    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR·scope 겹침·risk 값 low|medium|high 소문자 — 비어 있으면 ci가 low로 읽는다) §11(HO 상태·잔존 브랜치) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
   - name: build-index.mjs
     status: active
     command: node .harness/scripts/build-index.mjs [--check]
@@ -108,13 +108,13 @@ tools:
     command: (pre-commit) node .harness/scripts/check-branch-record.mjs
     enforcement: gate
     self_test: node .harness/scripts/check-branch-record.mjs --self-test
-    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 선언 없음(브랜치 이름이 기록)
+    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 스테이징 경로는 삭제·이동 전 경로까지(--no-renames). 선언 없음(브랜치 이름이 기록). 고치지 않는 것(사유) — 루트 파일(NON_PRODUCT의 ^[^/]+$)은 제품 경로로 보지 않는다. 영향은 루트 제품 파일(package.json·main.py 등)이 제품 경로 판정 전부(main 직접 커밋·fdr scope·ho/mtg/inc/retro 제품 코드 금지·plan 직접 커밋 금지·ci ⑧·rep/ 면제)에서 빠지는 것이다. 이 경우를 잡는 게이트는 없다. 지금 허용 목록(루트에서 제품이 아닌 파일만 나열)으로 바꾸지 않는 까닭은 프로젝트마다 루트 설정 파일이 달라 허용 목록이 프로젝트 몫이 되기 때문이다. 코어가 정하면 sync 받은 프로젝트에서 루트 설정 파일의 main 직접 수정이 오탐으로 막힌다. 허용 목록 전환(프로젝트 확장 지점 포함)은 다음 REP 후보
   - name: ci.mjs
     status: active
     command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)
     enforcement: gate
     self_test: node .harness/scripts/ci.mjs --self-test
-    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정(통과/조건부+조건 · 리뷰어≠작성자 · 리뷰 서브에이전트(리뷰어 칸 표지 — 자기 신고, 표지 없이 쓴 것은 못 잡는다)면 evidence/review/ 라운드마다 brief·report 짝(빈 파일·공백만인 파일·폴더 제외, 꼬리 대소문자 무시)과 risk≤medium(§5) · 템플릿 저장소의 rep/<slug> PR은 init.mjs·.harness/tiers가 있고 바뀐 파일에 제품 경로가 없을 때만 브랜치=기록 검사 면제(§9). 지시문에 결론 없음·06 판정=report 판정·독립성 한계 칸·재판정 때 새 라운드는 report 등급(리뷰 패키지 표본 감사) · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 무효 — 리뷰어 쓰기 차단 훅이 없는 런타임의 하한). pre-commit 우회를 막는다
+    rule: .harness/HARNESS.md §11 · runbooks/work.md — 서버 쪽 게이트. lint·생성물·입구 신선도(+템플릿이면 코어 self-test) · PR이면 브랜치=기록·scope·임시 파일·리뷰 판정. 변경 경로는 삭제·이동 전 경로까지(--no-renames — 브랜치·scope·⑧·rep/ 면제 판정에 모두 넣고, 임시 파일 검사만 삭제 제외. 제품 경로인지는 NON_PRODUCT가 정하므로 루트 파일은 어느 판정에서도 제품 경로가 아니다 — check-branch-record 사유). 리뷰 판정은 통과/조건부+조건 · 리뷰어≠작성자 · 리뷰 서브에이전트(리뷰어 줄의 이름 조각에 표지 — 「· 라벨:」 메모 조각은 보지 않는다)면 evidence/review/ 라운드마다 brief·report 짝(빈 파일·공백·보이지 않는 문자(Default_Ignorable·U+2800·한글 채움)만인 파일·폴더 제외, 꼬리 대소문자 무시)과 risk≤medium(§5), 재판정이면 마지막 제품 코드 커밋 뒤에 새 report 경로(옛 report를 고친 것은 아니다) · 템플릿 저장소의 rep/<slug> PR은 init.mjs·.harness/tiers(보조 표지 — 실질 방어는 다음 조건)가 있고 바뀐 파일에 제품 경로가 없을 때만 브랜치=기록 검사 면제(§9) · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 무효 — 리뷰어 쓰기 차단 훅이 없는 런타임의 하한. pre-commit 우회를 막는다. report 등급(리뷰 패키지 표본 감사) — 지시문에 결론 없음 · 06 판정=report 판정 · 독립성 한계 칸 · 새 report가 그 재판정의 근거인지. 고치지 않는 것(사유) — ① 표지는 자기 신고라 표지 없이 쓴 서브에이전트 리뷰는 못 잡는다. 리뷰어가 어떤 실행체였는지는 저장소에 흔적이 없고, evidence/review/ 유무로 거꾸로 추정하면 다른 세션 리뷰어가 같은 자리에 둔 보고를 오탐할 수 있다. 하한은 리뷰어≠작성자와 ⑧이다 ② 표본 감사를 HR 큐에 자동으로 올리지 않는다. HR은 rules/human-only.yaml 축(프로젝트 소유)에 있을 때만 쓰는데 코어는 그 축을 모르고, 표본 비율도 프로젝트 정책이다. 표본 감사는 §5 medium의 리뷰 패키지 사람 열람(비차단)에 얹힌다
   - name: check-clutter.mjs
     status: active
     command: node .harness/scripts/check-clutter.mjs [--report|--archive|--gc <days>|--rebaseline] [--apply]

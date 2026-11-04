@@ -25,6 +25,10 @@ const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || 
 
 /** 리뷰어 칸의 서브에이전트 표지 — 양식의 정해진 꼴은 「reviewer 서브에이전트 (<모델>)」. 띄어 쓴 꼴·영문(sub-agent·subagent)도 같은 표지로 본다 */
 export const SUBAGENT = /서브\s*에이전트|sub-?agent/i;
+/** 표지를 찾는 자리 — 리뷰어 줄을 ·로 나눈 조각 중 첫 조각(이름)과 「라벨:」로 시작하지 않는 조각. 「· 일자: …」「· 메모: 서브에이전트 아님」 같은 메모 조각은 보지 않는다(오탐). 「reviewer · 서브에이전트 (m)」은 그대로 잡는다 */
+export const markerPart = (line) => line.split('·').filter((seg, i) => i === 0 || !/^\s*[^\s:：]+\s*[:：]/.test(seg)).join('·');
+/** 증거로 세는 글 — 공백·보이지 않는 문자(유니코드 Default_Ignorable_Code_Point 전부 · 점자 공백 U+2800 · 한글 채움 U+3164·U+115F·U+1160·U+FFA0)만 든 파일은 빈 파일과 같다 */
+export const hasText = (t) => /\S/u.test(t.replace(/[\p{Default_Ignorable_Code_Point}\u2800\u3164\u115F\u1160\uFFA0]/gu, ''));
 
 /** 리뷰 칸 해석 — 파일 원문(standard 06-review.md · lite fdr.md)에서 판정 줄·리뷰어 */
 function parseReview(raw, std) {
@@ -48,7 +52,7 @@ export function reviewOf(dir) {
 }
 
 /** ⑧ 판정 뒤 제품 코드 — commits: 오래된 것부터 [{ sha, files }] · showAt(sha, 경로) → 그 커밋의 파일 원문. 판정(판정 줄·리뷰어)이 마지막으로 바뀐 커밋이 기준 */
-export function afterVerdict(commits, reviewPath, std, showAt) {
+export function afterVerdict(commits, reviewPath, std, showAt, roundDir = '') {
   let key = ''; let at = -1;
   commits.forEach((c, i) => { if (!c.files.includes(reviewPath)) return; const r = parseReview(showAt(c.sha, reviewPath) || '', std); const k = r.verdictLine && r.reviewer ? `${r.verdictLine}|${r.reviewer}` : ''; if (k !== key) { key = k; at = k ? i : -1; } });
   if (at < 0) return [];
@@ -56,17 +60,25 @@ export function afterVerdict(commits, reviewPath, std, showAt) {
   const mixed = product(commits[at].files); if (mixed.length) p.push(`리뷰: 판정과 제품 코드를 한 커밋(${commits[at].sha.slice(0, 7)})에 섞었다: ${mixed.slice(0, 3).join(', ')} — 판정 커밋에는 리뷰 기록만`);
   const later = commits.slice(at + 1).filter((c) => product(c.files).length);
   if (later.length) p.push(`리뷰: 판정 뒤에 제품 코드가 바뀌었다(${later.slice(0, 3).map((c) => c.sha.slice(0, 7)).join(', ')}) — 판정 무효, 리뷰어(다른 세션 또는 리뷰 서브에이전트)가 다시 판정`);
+  if (roundDir) {   // 리뷰 서브에이전트 재판정 — 마지막 제품 코드 커밋 뒤에 새 report 경로(그 전 커밋에 없던 report*.md)가 있어야 한다. 판정 줄만 다시 쓴 재판정을 막는다
+    const isReport = (f) => f.startsWith(roundDir + '/') && /^report(-[a-z0-9-]+)?\.md$/i.test(f.slice(roundDir.length + 1));
+    let last = -1; commits.forEach((c, i) => { if (i <= at && product(c.files).length) last = i; });
+    if (last >= 0) {
+      const before = new Set(commits.slice(0, last + 1).flatMap((c) => c.files.filter(isReport)));
+      if (!commits.slice(last + 1).some((c) => c.files.some((f) => isReport(f) && !before.has(f)))) p.push(`리뷰: 서브에이전트 판정에 마지막 제품 코드 커밋(${commits[last].sha.slice(0, 7)}) 뒤의 새 라운드 보고가 없다 — 새 brief-r<N>.md·report-r<N>.md를 남기고 다시 판정`);
+    }
+  }
   return p;
 }
 
 /** PR 판정 — 반환 [문제] */
-export function prProblems(root, { base, head, changed, commits = null, showAt = null }) {
+export function prProblems(root, { base, head, changed, deleted = [], commits = null, showAt = null }) {
   const p = [];
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
   // 템플릿 저장소의 규칙 변경(REP, HARNESS §9) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 실질 방어는 "바뀐 파일에 제품 경로가 없다"(main 직접 커밋 허용 범위와 같다). init.mjs·.harness/tiers는 보조 표지 — prune 안 한 프로젝트에도 남는다
   const templateRep = existsSync(join(root, 'init.mjs')) && existsSync(join(root, '.harness', 'tiers')) && /^rep\/[a-z0-9-]+$/.test(head) && changed.every((f) => NON_PRODUCT.test(f));
   if (!templateRep) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false })) p.push(`브랜치·scope: ${x}`);
-  for (const f of changed.filter((f) => isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
+  for (const f of changed.filter((f) => !deleted.includes(f) && isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
   const m = head.match(/^(fdr|plan)\/([A-Z]+-\d{6}-[a-z0-9-]+)$/);
   if (m) {
     const id = m[2]; const dir = join(root, recordDir(id), id);
@@ -77,27 +89,35 @@ export function prProblems(root, { base, head, changed, commits = null, showAt =
     else if (r.verdict === '조건부' && !r.condition) p.push(`리뷰: ${id} 조건부인데 조건이 없다 — "조건부(조건: …)"`);
     if (r.verdict && !r.reviewer) p.push(`리뷰: ${id} 리뷰어(모델) 칸이 비었다`);
     if (r.verdict && r.reviewer && r.author && r.reviewer === r.author) p.push(`리뷰: ${id} 리뷰어(${r.reviewer})가 작성자와 같다 — 고친 쪽은 자기 검증자가 될 수 없다`);
-    if (r.verdict && SUBAGENT.test(r.reviewerLine)) {   // 리뷰 서브에이전트(HARNESS §5) — low·medium만, 라운드마다 지시문·보고 원문 짝. 표지는 리뷰어 칸의 자기 신고(표지 없이 쓴 것은 못 잡는다 — catalog)
+    const sub = Boolean(r.verdict) && SUBAGENT.test(markerPart(r.reviewerLine));
+    if (sub) {   // 리뷰 서브에이전트(HARNESS §5) — low·medium만, 라운드마다 지시문·보고 원문 짝. 표지는 리뷰어 칸의 자기 신고(표지 없이 쓴 것은 못 잡는다 — catalog)
       if (r.risk === 'high') p.push(`리뷰: ${id} risk high는 리뷰 서브에이전트를 리뷰어로 인정하지 않는다 — 다른 세션 리뷰 + 사람 사인오프`);
       const ev = join(dir, 'evidence', 'review');
-      const files = existsSync(ev) ? readdirSync(ev, { withFileTypes: true }).filter((e) => e.isFile() && /\S/.test(readFileSync(join(ev, e.name), 'utf8'))).map((e) => e.name) : [];   // 빈 파일·공백만인 파일·폴더는 세지 않는다
+      const files = existsSync(ev) ? readdirSync(ev, { withFileTypes: true }).filter((e) => e.isFile() && hasText(readFileSync(join(ev, e.name), 'utf8'))).map((e) => e.name) : [];   // 빈 파일·공백(영폭 포함)만인 파일·폴더는 세지 않는다
       const rounds = (k) => new Set(files.map((f) => { const m = f.match(new RegExp(`^${k}(-[a-z0-9-]+)?\\.md$`, 'i')); return m ? (m[1] || '').toLowerCase() : null; }).filter((x) => x !== null));   // brief.md ↔ report.md · brief-r2.md ↔ report-r2.md(꼬리 대소문자 무시)
       const b = rounds('brief'); const rp = rounds('report');
       if (!b.size || !rp.size) p.push(`리뷰: ${id} 리뷰어가 서브에이전트인데 evidence/review/에 지시문(brief*.md)·보고 원문(report*.md)이 없다(빈 파일·폴더는 세지 않는다)`);
       else { const odd = [...[...b].filter((x) => !rp.has(x)).map((x) => `brief${x}.md`), ...[...rp].filter((x) => !b.has(x)).map((x) => `report${x}.md`)]; if (odd.length) p.push(`리뷰: ${id} 서브에이전트 리뷰의 라운드 짝이 맞지 않는다 — ${odd.join(', ')}의 짝이 없다(라운드마다 brief-<꼬리>.md · report-<꼬리>.md)`); }
     }
     if (r.risk === 'high' && !/\S/.test(r.signoff.replace(/[()（）]/g, ''))) p.push(`리뷰: ${id} risk high — 사람 사인오프(이름·날짜)가 없다`);
-    if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt)); }
+    if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt, sub ? `${recordDir(id)}/${id}/evidence/review` : '')); }
   }
   return p;
 }
 
 /** 판정 뒤 제품 코드(⑧)는 커밋 순서로 본다 — ranges 중 처음 되는 범위의 { commits(오래된 것부터 [{sha, files}]), showAt }. CI(PR)와 work.mjs finish(ff)가 같이 쓴다 */
 export function commitHistory(root, ranges) {
-  const lg = ranges.map((r) => sh(`git -c core.quotepath=false log --reverse --format=%x01%H --name-only "${r}"`, root)).find((x) => x.ok);
+  const lg = ranges.map((r) => sh(`git -c core.quotepath=false log --reverse --no-renames --format=%x01%H --name-only "${r}"`, root)).find((x) => x.ok);
   const commits = lg ? lg.out.split('\x01').filter((s) => s.trim()).map((s) => { const [sha, ...fs] = s.trim().split('\n'); return { sha: sha.trim(), files: fs.map((f) => f.trim()).filter(Boolean) }; }) : null;
   const showAt = (sha, path) => { const r = sh(`git show "${sha}:${path}"`, root); return r.ok ? r.out : ''; };
   return { commits, showAt };
+}
+
+/** PR 변경 경로 — 삭제와 이동 전 경로까지(--no-renames: 이동은 삭제+추가). 제품 경로 판정(⑤ 브랜치·scope · ⑧ · rep/ 면제)은 전부, 임시 파일(⑥)은 삭제를 뺀 것만. CI와 work.mjs finish(ff)가 같이 쓴다 */
+export function changedFiles(root, range) {
+  const all = sh(`git -c core.quotepath=false diff --name-only --no-renames "${range}"`, root); if (!all.ok) return all;
+  const del = sh(`git -c core.quotepath=false diff --name-only --no-renames --diff-filter=D "${range}"`, root);
+  return { ok: true, changed: all.out.split('\n').filter(Boolean), deleted: del.ok ? del.out.split('\n').filter(Boolean) : [] };
 }
 
 function sh(cmd, cwd = ROOT) { try { return { ok: true, out: execSync(cmd, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' ? undefined : '/bin/bash' }).trim() }; } catch (e) { return { ok: false, out: `${e.stdout || ''}${e.stderr || ''}`.trim() || e.message }; } }
@@ -120,10 +140,10 @@ export function run(root = ROOT, { base = '', head = '' } = {}) {
   if (head) {
     const b = base || 'main';
     let changed = [];
-    const d = sh(`git -c core.quotepath=false diff --name-only --diff-filter=ACMR "origin/${b}...HEAD"`, root); const d2 = d.ok ? d : sh(`git -c core.quotepath=false diff --name-only --diff-filter=ACMR "${b}...HEAD"`, root);
+    const d = changedFiles(root, `origin/${b}...HEAD`); const d2 = d.ok ? d : changedFiles(root, `${b}...HEAD`);
     if (!d2.ok) step('PR 변경 파일', d2); else {
-      changed = d2.out.split('\n').filter(Boolean);
-      const p = prProblems(root, { base: b, head, changed, ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
+      changed = d2.changed;
+      const p = prProblems(root, { base: b, head, changed, deleted: d2.deleted, ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
   }
   const failed = results.filter((r) => !r.ok);
   if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## harness\n\n${results.map((r) => `- ${r.ok ? '✅' : '❌'} ${r.name}${r.ok ? '' : `\n\n\`\`\`\n${r.out.slice(0, 3000)}\n\`\`\``}`).join('\n')}\n`); } catch { /* */ } }
@@ -166,7 +186,16 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     w('init.mjs', '//'); w('.harness/tiers/S/harness.yaml', 'x');
     if (prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md', 'init.mjs', '.harness/tiers/S/harness.yaml'] }).length) fails.push('템플릿 REP 브랜치 오탐');
     if (!prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md', 'src/a/x.ts'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('init.mjs·tiers가 있어도 rep/ 브랜치의 제품 코드 미차단');
-    rmSync(join(t, 'init.mjs')); rmSync(join(t, '.harness', 'tiers'), { recursive: true, force: true });
+    if (!prProblems(t, { base: 'main', head: 'rep/Bad_Slug', changed: ['.harness/HARNESS.md'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('rep/ 슬러그 형식 밖 미차단');
+    rmSync(join(t, '.harness', 'tiers'), { recursive: true, force: true });   // 보조 표지 하나씩 — 둘 다 있어야 면제
+    if (!prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('init.mjs만 있는 저장소의 rep/ 브랜치 미차단');
+    rmSync(join(t, 'init.mjs')); w('.harness/tiers/S/harness.yaml', 'x');
+    if (!prProblems(t, { base: 'main', head: 'rep/x', changed: ['.harness/HARNESS.md'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('tiers만 있는 저장소의 rep/ 브랜치 미차단');
+    rmSync(join(t, '.harness', 'tiers'), { recursive: true, force: true });
+    // N3 — 리뷰어 줄 메모 조각의 표지는 보지 않는다 · D5 — 영폭 문자만 든 파일은 증거가 아니다
+    lite('FDR-260101-subn', { verdict: '통과', reviewer: 'codex (다른 세션) · 메모: 서브에이전트 아님' }); if (PR('FDR-260101-subn').length) fails.push('메모 속 표지 오탐: ' + PR('FDR-260101-subn').join(' | '));
+    lite('FDR-260101-subz', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subz', 'brief.md', '\u200B\u200C\u2060\uFEFF\n'); SUBEV('FDR-260101-subz', 'report.md'); if (!NOEV('FDR-260101-subz')) fails.push('영폭 문자만인 파일을 증거로 셈');
+    for (const [k, ch] of [['h', '\u3164'], ['p', '\u2800']]) { lite(`FDR-260101-subf${k}`, { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV(`FDR-260101-subf${k}`, 'brief.md', ch.repeat(3) + '\n'); SUBEV(`FDR-260101-subf${k}`, 'report.md'); if (!NOEV(`FDR-260101-subf${k}`)) fails.push(`채움 문자(U+${ch.codePointAt(0).toString(16).toUpperCase()})만인 파일을 증거로 셈`); }
     lite('FDR-260101-subw', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subw', 'brief.md', ' \n\t\n'); SUBEV('FDR-260101-subw', 'report.md'); if (!NOEV('FDR-260101-subw')) fails.push('공백만인 파일을 증거로 셈');
     lite('FDR-260101-subu', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subu', 'brief-R2.md'); SUBEV('FDR-260101-subu', 'report-r2.md'); if (PR('FDR-260101-subu').length) fails.push('꼬리 대소문자 짝 오탐: ' + PR('FDR-260101-subu').join(' | '));
     lite('FDR-260101-subhi', { verdict: '통과', reviewer: 'reviewer subagent (m)', risk: 'high', signoff: '김 · 2026-01-02' }); w('docs/features/FDR-260101-subhi/evidence/review/brief-r1.md', 'b'); w('docs/features/FDR-260101-subhi/evidence/review/report-r1.md', 'r');
@@ -191,9 +220,32 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PRc([c('v1', RP, 'src/a/x.ts')]).some((x) => /섞었다/.test(x))) fails.push('판정·코드 한 커밋 미차단');
     if (PRc([c('v1', RP), c('a3', 'docs/features/FDR-260101-ok/evidence/r.txt')]).length) fails.push('판정 뒤 기록만 오탐');
     if (PRc([c('v1', RP), c('a4', RP), c('a5', 'src/a/x.ts'), c('v2', RP)]).length) fails.push('재판정 뒤 오탐');
+    // #7 서브에이전트 재판정 — 마지막 제품 코드 커밋 뒤에 새 report 경로. sha 첫 글자 w = 다시 쓴 판정 줄
+    const SP = 'docs/features/FDR-260101-sub/fdr.md'; const EVD = 'docs/features/FDR-260101-sub/evidence/review'; const sj = readFileSync(join(t, SP), 'utf8');
+    const sShow = (sha) => (sha[0] === 'v' ? sj : sha[0] === 'w' ? sj.replace('- 판정: 통과', '- 판정: 통과 (재판정)') : sj.replace('- 판정: 통과', '- 판정: 통과 | 재작업 | 조건부'));
+    const PRs = (commits) => prProblems(t, { base: 'main', head: 'fdr/FDR-260101-sub', changed: ['src/a/x.ts', SP], commits, showAt: sShow });
+    const NR = (commits) => PRs(commits).some((x) => /새 라운드 보고가 없다/.test(x));
+    if (PRs([c('a1', 'src/a/x.ts'), c('v1', SP, `${EVD}/brief.md`, `${EVD}/report.md`)]).length) fails.push('서브에이전트 첫 판정 오탐: ' + PRs([c('a1', 'src/a/x.ts'), c('v1', SP, `${EVD}/brief.md`, `${EVD}/report.md`)]).join(' | '));
+    if (!NR([c('a0', `${EVD}/brief.md`, `${EVD}/report.md`), c('v1', SP), c('a2', 'src/a/x.ts'), c('w2', SP)])) fails.push('새 라운드 없는 재판정 미차단');
+    if (!NR([c('a0', `${EVD}/brief.md`, `${EVD}/report.md`), c('v1', SP), c('a2', 'src/a/x.ts'), c('a3', `${EVD}/report.md`), c('w2', SP)])) fails.push('옛 report를 고친 재판정 미차단');
+    if (PRs([c('a0', `${EVD}/brief.md`, `${EVD}/report.md`), c('v1', SP), c('a2', 'src/a/x.ts'), c('a3', `${EVD}/brief-r2.md`, `${EVD}/report-r2.md`), c('w2', SP)]).length) fails.push('새 라운드 재판정 오탐');
+    // D4 — 삭제·이동 전 경로도 changed(제품 경로 판정), 임시 파일 검사는 삭제 제외 · 커밋 이력도 --no-renames
+    const g = mkdtempSync(join(tmpdir(), 'ci-git-')); const gx = (cmd) => execSync(`git -c user.name=t -c user.email=t@t ${cmd}`, { cwd: g, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+    try {
+      gx('init -q -b main'); mkdirSync(join(g, 'src'), { recursive: true }); mkdirSync(join(g, 'docs'), { recursive: true });
+      writeFileSync(join(g, 'src', 'a.ts'), 'a\n'); writeFileSync(join(g, 'src', 'b.ts'), 'b\nb\nb\n'); writeFileSync(join(g, 'docs', '.tmp-probe.mjs'), 'x\n'); writeFileSync(join(g, 'docs', 'x.md'), 'x\n'); writeFileSync(join(g, 'init.mjs'), '//\n'); mkdirSync(join(g, '.harness', 'tiers', 'S'), { recursive: true }); writeFileSync(join(g, '.harness', 'tiers', 'S', 'h.yaml'), 'x\n');
+      gx('add -A'); gx('commit -q -m base'); gx('switch -q -c rep/x'); gx('rm -q src/a.ts docs/.tmp-probe.mjs'); gx('mv src/b.ts docs/b.md'); gx('commit -q -m move');
+      const cf = changedFiles(g, 'main...HEAD');
+      for (const f of ['src/a.ts', 'src/b.ts', 'docs/b.md']) if (!cf.ok || !cf.changed.includes(f)) fails.push(`삭제·이동 경로 누락: ${f} (${cf.ok ? cf.changed.join(',') : cf.out})`);
+      const gp = prProblems(g, { base: 'main', head: 'rep/x', changed: cf.changed || [], deleted: cf.deleted || [] });
+      if (!gp.some((x) => /기록 ID 형식/.test(x))) fails.push('rep/ 브랜치의 제품 파일 삭제·이동 미차단');
+      if (gp.some((x) => /임시 파일/.test(x))) fails.push('임시 파일 삭제를 임시 파일로 셈');
+      const hist = commitHistory(g, ['main..HEAD']);
+      if (!(hist.commits || []).some((x) => x.files.includes('src/b.ts'))) fails.push('커밋 이력에 이동 전 경로 누락');
+    } finally { rmSync(g, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 18(짝·라운드·빈 파일·공백 파일·폴더·꼬리 대소문자·표지 변형 3·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 3(제품 코드 차단) · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 22(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 6(제품 코드 차단·슬러그·보조 표지 2) · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5 · 서브에이전트 재판정 새 라운드 4 · 삭제·이동 경로 git 4)');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {
