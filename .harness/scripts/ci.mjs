@@ -165,7 +165,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
   const w = (p, s) => { mkdirSync(dirname(join(t, p)), { recursive: true }); writeFileSync(join(t, p), s); };
   const lite = (id, { risk = 'low', verdict = '통과 | 재작업 | 조건부', reviewer = '', author = 'dev(a)', signoff = '' } = {}) => w(`docs/features/${id}/fdr.md`, `---\nid: ${id}\nstatus: shipped\nrisk: ${risk}\nscope: [src/a/**]\n---\n\n# ${id}\n\n- 작성: ${author} · 2026-01-01\n\n## 4. Test\n\n## 5. Review (접점 ②)\n\n- 리뷰어(모델): ${reviewer}\n- 판정: ${verdict}\n- 사람 사인오프(risk high): ${signoff}\n\n## 세션 로그\n`);
   try {
-    w('harness.yaml', 'work:\n  base: main\n  root_files: [pyproject.toml]\n');   // 루트 파일 확장(프로젝트) — 코어 기본 + pyproject.toml
+    w('harness.yaml', 'work:\n  base: main\n  root_files: [pyproject.toml, src/b/out.ts]\n');   // 루트 파일 확장(프로젝트) — 코어 기본 + pyproject.toml. 하위 경로(src/b/out.ts)는 버려져야 한다 — 아래 scope 밖·판정 뒤 시험이 그대로 잡는다
     const PR = (id, changed = [`src/a/x.ts`, `docs/features/${id}/fdr.md`]) => prProblems(t, { base: 'main', head: `fdr/${id}`, changed });
     lite('FDR-260101-blank'); if (!PR('FDR-260101-blank').some((x) => /판정 없음/.test(x))) fails.push('양식 그대로 = 판정 없음');
     lite('FDR-260101-ok', { verdict: '통과', reviewer: 'reviewer(b)' }); if (PR('FDR-260101-ok').length) fails.push('통과 오탐: ' + PR('FDR-260101-ok').join(' | '));
@@ -237,6 +237,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PRc([c('v1', RP, 'src/a/x.ts')]).some((x) => /섞었다/.test(x))) fails.push('판정·코드 한 커밋 미차단');
     if (PRc([c('v1', RP), c('a3', 'docs/features/FDR-260101-ok/evidence/r.txt')]).length) fails.push('판정 뒤 기록만 오탐');
     if (!PRc([c('v1', RP), c('a3', 'package.json')]).some((x) => /판정 뒤/.test(x))) fails.push('판정 뒤 루트 제품 파일 미차단');
+    if (!PRc([c('v1', RP), c('a3', 'harness.yaml', 'src/b/out.ts')]).some((x) => /판정 뒤/.test(x))) fails.push('work.root_files에 넣은 하위 경로가 판정 뒤 검사에서 빠짐');
     if (PRc([c('v1', RP), c('a3', 'pyproject.toml', 'README.md')]).length) fails.push('판정 뒤 코어·확장 루트 파일 오탐');
     if (PRc([c('v1', RP), c('a4', RP), c('a5', 'src/a/x.ts'), c('v2', RP)]).length) fails.push('재판정 뒤 오탐');
     // #7 서브에이전트 재판정 — 마지막 제품 코드 커밋 뒤에 새 report 경로. sha 첫 글자 w = 다시 쓴 판정 줄
@@ -270,7 +271,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     } finally { rmSync(g, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · scope 밖 3(루트 파일 2) · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 7(루트 파일 2) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · scope 밖 3(루트 파일 2) · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {

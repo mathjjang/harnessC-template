@@ -17,12 +17,16 @@ import { RECORD_PATH_RE, recordDir, recordRel } from './lib/records.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const NON_PRODUCT_DIR = /^(docs|rules|mockups|\.harness|\.claude|\.agents|\.gemini|\.github|\.scratch|\.worktrees|collab)\//;   // 문서·규칙·목업(embedded)·장치(런타임 입구 포함)
-/** 제품이 아닌 루트 파일 — 코어 기본은 템플릿 루트의 규칙·설정 파일. 프로젝트의 루트 설정 파일(.editorconfig·.mcp.json …)은 harness.yaml work.root_files에 */
-export const CORE_ROOT_FILES = ['.gitattributes', '.gitignore', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'LICENSE', 'README.md', 'harness.yaml', 'init.mjs'];
+/** 제품이 아닌 루트 파일 — 코어 기본은 템플릿 루트의 규칙·설정 파일과 런타임·편집기 설정(.mcp.json — .claude/와 같은 성격 · .editorconfig). 그 밖의 프로젝트 루트 설정 파일은 harness.yaml work.root_files에 */
+export const CORE_ROOT_FILES = ['.gitattributes', '.gitignore', '.editorconfig', '.mcp.json', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'LICENSE', 'README.md', 'harness.yaml', 'init.mjs'];
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 const workBlock = (root) => (rd(join(root, 'harness.yaml')).match(/^work:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
-/** harness.yaml work.root_files: [a, b] — 제품이 아닌 루트 파일(프로젝트 확장) */
-export const rootFiles = (root) => { const m = workBlock(root).match(/^\s*root_files:\s*\[([^\]]*)\]/m); return m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : []; };
+/** harness.yaml work.root_files: [a, b] 원문 항목 — lint ⑲가 루트가 아닌 항목을 거부한다 */
+export const rootFileEntries = (root) => { const m = workBlock(root).match(/^\s*root_files:\s*\[([^\]]*)\]/m); return m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : []; };
+/** 루트 파일이 아닌 항목(경로 구분자 / \ 가 든 것) — 하위 경로를 등재해 제품 경로 판정(scope·⑧)을 끄지 못하게 버린다 */
+export const notRootEntry = (s) => /[/\\]/.test(s);
+/** 제품이 아닌 루트 파일(프로젝트 확장) — 루트가 아닌 항목은 버린다 */
+export const rootFiles = (root) => rootFileEntries(root).filter((s) => !notRootEntry(s));
 /** 제품 경로가 아닌지 — { test(경로) }. extra: 더 허용할 루트 파일 */
 export const nonProduct = (extra = []) => { const files = new Set([...CORE_ROOT_FILES, ...extra]); return { test: (p) => NON_PRODUCT_DIR.test(p) || files.has(p) }; };
 /** 코어 기본만(프로젝트 확장 없음). 프로젝트 판정은 nonProductOf(root) */
@@ -117,8 +121,10 @@ if (process.argv.includes('--self-test')) {
     if (!judge({ branch: 'main', staged: sp }).length) { fail++; console.error('FAIL main에서 제품 파일 삭제·이동 미차단'); }
     // pre-commit 판정(precommit) — 루트 파일 확장(work.root_files) · 템플릿 rep/ 면제(ci와 같은 조건)
     const P = (branch, staged) => precommit(t, { branch, staged }).length;
-    writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".editorconfig"]   # x\n');
-    if (P('main', ['pyproject.toml', '.editorconfig']) || P('main', ['README.md'])) { fail++; console.error('FAIL work.root_files·코어 루트 파일 오탐'); }
+    writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
+    if (P('main', ['pyproject.toml', '.npmrc']) || P('main', ['README.md', '.mcp.json', '.editorconfig'])) { fail++; console.error('FAIL work.root_files·코어 루트 파일 오탐'); }
+    if (!P('main', ['src/a.ts']) || !P('main', ['lib/x.ts'])) { fail++; console.error('FAIL work.root_files의 하위 경로(src/a.ts·lib\\x.ts)를 제품 경로에서 뺌'); }
+    if (rootFiles(t).join() !== 'pyproject.toml,.npmrc' || rootFileEntries(t).length !== 4) { fail++; console.error('FAIL rootFiles 하위 경로 버림', rootFiles(t), rootFileEntries(t)); }
     if (!P('main', ['package.json'])) { fail++; console.error('FAIL 다른 절의 root_files를 읽음(package.json 미차단)'); }
     if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL 템플릿 아닌 저장소의 rep/ 커밋 미차단'); }
     writeFileSync(join(t, 'init.mjs'), '//\n'); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL init.mjs만 있는 저장소의 rep/ 커밋 미차단'); }
@@ -128,7 +134,7 @@ if (process.argv.includes('--self-test')) {
     if (!P('rep/Bad_Slug', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL rep/ 슬러그 형식 밖 미차단'); }
     rmSync(join(t, 'init.mjs')); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL tiers만 있는 저장소의 rep/ 커밋 미차단'); }
   } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 2 · rep/ 면제 6)`);
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 4(하위 경로 버림 2) · rep/ 면제 6)`);
   process.exit(fail ? 1 : 0);
 }
 
