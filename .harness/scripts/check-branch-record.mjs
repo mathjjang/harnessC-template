@@ -28,7 +28,7 @@ const unquote = (s) => { s = s.trim(); if (s.length > 1 && s[0] === '"' && s.end
 const flowItems = (s) => { const out = []; let cur = ''; let q = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (q) { cur += c; if (c === '\\' && q === '"') cur +=s[++i] ?? ''; else if (c === q) q = ''; } else if (c === '"' || c === "'") { q = c; cur += c; } else if (c === ',') { out.push(cur); cur = ''; } else cur += c; } out.push(cur); return out.map(unquote).filter(Boolean); };
 /** harness.yaml 원문의 work 절 — { base, rootFiles(원문 항목), values(키→스칼라), lists(키→목록), errors }. pre-commit·ci·lint·work.mjs config가 같이 쓴다.
  *  CRLF·BOM, 절 안의 빈 줄·0열 주석, 흐름 목록([a, b] — 더 깊이 들여쓴 줄로 이어 쓰기 포함)·블록 목록(- x)·따옴표 스칼라를 읽는다.
- *  읽지 못한 줄(키 형식 아님·들여쓰기 다름·탭·닫히지 않은 [·목록 아닌 root_files·work 절 둘)은 버리지 않고 errors로 알린다(lint ⑲) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. YAML 전체가 아니라 work 절에 쓰는 형식만 */
+ *  읽지 못한 줄(키 형식 아님·들여쓰기 다름·탭·닫히지 않은 [·] 뒤 글·목록 아닌 root_files·같은 키 두 번·블록 스칼라(| > — 값으로 쓰지 않고 본문은 건너뛴다)·work 절 둘)은 버리지 않고 errors로 알린다(lint ⑲ 실패 · work.mjs config는 멈춘다) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. YAML 전체가 아니라 work 절에 쓰는 형식만 */
 export function parseWork(text) {
   const out = { base: '', rootFiles: [], errors: [], values: {}, lists: {} };
   const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
@@ -66,7 +66,7 @@ export function parseWork(text) {
         const li = b.match(/^\s*-(?:\s+(.*))?$/); if (li) { if (unquote(li[1] || '')) items.push(unquote(li[1] || '')); } else out.errors.push(`work.${key} 목록 항목이 아니다(${b.trim()}) — "- 값" 또는 [a, b]`);
       }
       out.lists[key] = items; i = j - 1;
-    } else if (/^[|>][-+0-9]*$/.test(v.trim())) { out.errors.push(`work.${key} 블록 스칼라(${v.trim()})는 읽지 않는다 — 한 줄 값으로 쓴다(값은 기본값)`); owner = true; }
+    } else if (/^[|>][-+0-9]*$/.test(v.trim())) { out.errors.push(`work.${key} 블록 스칼라(${v.trim()})는 읽지 않는다 — 한 줄 값으로 쓴다`); owner = true; }
     else out.values[key] = unquote(v);
   }
   out.base = out.values.base || '';
@@ -210,6 +210,7 @@ if (process.argv.includes('--self-test')) {
       // r4 R4-1 — 같은 키가 두 번이면 errors(뒤 값만 남는 것을 숨기지 않는다)
       ['work:\n  root_files: [a.toml]\n  root_files: [b.toml]\n', '', 'b.toml', 1],
       ['work:\n  merge: ff\n  merge: pr\n', '', '', 1],
+      ['work:\n  setup: |2\n', '', '', 1],   // r5 R5-1 — 들여쓰기 표시가 붙은 블록 스칼라(본문 없음)도 errors
     ];
     // r4 R4-2·R4-3 — 블록 스칼라는 값으로 쓰지 않고(errors 1건) 본문(탭 포함)은 건너뛴다 · 다음 키에서 건너뛰기를 끝낸다(그 뒤 깊은 줄은 들여쓰기 오류)
     { const r = parseWork('work:\n  setup: |\n    pnpm i\n    \tmake\n  dir: a\n    merge: pr\n');
@@ -230,7 +231,7 @@ if (process.argv.includes('--self-test')) {
     if (!P('rep/Bad_Slug', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL rep/ 슬러그 형식 밖 미차단'); }
     rmSync(join(t, 'init.mjs')); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL tiers만 있는 저장소의 rep/ 커밋 미차단'); }
   } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 22(해석 실패 15) · 블록 스칼라 1 · values·lists 1 · work.base 1 · rep/ 면제 6)`);
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 23(해석 실패 16) · 블록 스칼라 1 · values·lists 1 · work.base 1 · rep/ 면제 6)`);
   process.exit(fail ? 1 : 0);
 }
 
