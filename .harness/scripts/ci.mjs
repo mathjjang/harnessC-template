@@ -27,8 +27,8 @@ const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || 
 export const SUBAGENT = /서브\s*에이전트|sub-?agent/i;
 /** 표지를 찾는 자리 — 리뷰어 줄을 ·로 나눈 조각 중 첫 조각(이름)과 「라벨:」로 시작하지 않는 조각. 「· 일자: …」「· 메모: 서브에이전트 아님」 같은 메모 조각은 보지 않는다(오탐). 「reviewer · 서브에이전트 (m)」은 그대로 잡는다 */
 export const markerPart = (line) => line.split('·').filter((seg, i) => i === 0 || !/^\s*[^\s:：]+\s*[:：]/.test(seg)).join('·');
-/** 증거로 세는 글 — 공백·영폭 문자(U+200B~U+200D·U+2060·U+FEFF·U+00AD·U+180E)만 든 파일은 빈 파일과 같다 */
-export const hasText = (t) => /\S/.test(t.replace(/[\u200B-\u200D\u2060\uFEFF\u00AD\u180E]/g, ''));
+/** 증거로 세는 글 — 공백·보이지 않는 문자(유니코드 Default_Ignorable_Code_Point 전부 · 점자 공백 U+2800 · 한글 채움 U+3164·U+115F·U+1160·U+FFA0)만 든 파일은 빈 파일과 같다 */
+export const hasText = (t) => /\S/u.test(t.replace(/[\p{Default_Ignorable_Code_Point}\u2800\u3164\u115F\u1160\uFFA0]/gu, ''));
 
 /** 리뷰 칸 해석 — 파일 원문(standard 06-review.md · lite fdr.md)에서 판정 줄·리뷰어 */
 function parseReview(raw, std) {
@@ -195,6 +195,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     // N3 — 리뷰어 줄 메모 조각의 표지는 보지 않는다 · D5 — 영폭 문자만 든 파일은 증거가 아니다
     lite('FDR-260101-subn', { verdict: '통과', reviewer: 'codex (다른 세션) · 메모: 서브에이전트 아님' }); if (PR('FDR-260101-subn').length) fails.push('메모 속 표지 오탐: ' + PR('FDR-260101-subn').join(' | '));
     lite('FDR-260101-subz', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subz', 'brief.md', '\u200B\u200C\u2060\uFEFF\n'); SUBEV('FDR-260101-subz', 'report.md'); if (!NOEV('FDR-260101-subz')) fails.push('영폭 문자만인 파일을 증거로 셈');
+    for (const [k, ch] of [['h', '\u3164'], ['p', '\u2800']]) { lite(`FDR-260101-subf${k}`, { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV(`FDR-260101-subf${k}`, 'brief.md', ch.repeat(3) + '\n'); SUBEV(`FDR-260101-subf${k}`, 'report.md'); if (!NOEV(`FDR-260101-subf${k}`)) fails.push(`채움 문자(U+${ch.codePointAt(0).toString(16).toUpperCase()})만인 파일을 증거로 셈`); }
     lite('FDR-260101-subw', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subw', 'brief.md', ' \n\t\n'); SUBEV('FDR-260101-subw', 'report.md'); if (!NOEV('FDR-260101-subw')) fails.push('공백만인 파일을 증거로 셈');
     lite('FDR-260101-subu', { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV('FDR-260101-subu', 'brief-R2.md'); SUBEV('FDR-260101-subu', 'report-r2.md'); if (PR('FDR-260101-subu').length) fails.push('꼬리 대소문자 짝 오탐: ' + PR('FDR-260101-subu').join(' | '));
     lite('FDR-260101-subhi', { verdict: '통과', reviewer: 'reviewer subagent (m)', risk: 'high', signoff: '김 · 2026-01-02' }); w('docs/features/FDR-260101-subhi/evidence/review/brief-r1.md', 'b'); w('docs/features/FDR-260101-subhi/evidence/review/report-r1.md', 'r');
@@ -244,7 +245,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     } finally { rmSync(g, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 20(짝·라운드·빈 파일·공백 파일·영폭 파일·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 6(제품 코드 차단·슬러그·보조 표지 2) · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5 · 서브에이전트 재판정 새 라운드 4 · 삭제·이동 경로 git 4)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·조건부 · 서브에이전트 22(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 6(제품 코드 차단·슬러그·보조 표지 2) · standard 2 · scope 밖 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 5 · 서브에이전트 재판정 새 라운드 4 · 삭제·이동 경로 git 4)');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {
