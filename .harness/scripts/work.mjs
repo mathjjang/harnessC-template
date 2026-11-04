@@ -211,8 +211,13 @@ export async function promote(root, rfcId, slug, title, { agent = '(모델 미�
 export function list(root) {
   const c = config(root); const d = join(root, c.dir);
   if (!existsSync(d)) return [];
-  return readdirSync(d).filter((n) => existsSync(join(d, n, '.git'))).map((n) => { const r = record(root, n); return { id: n, status: r ? r.status : '(기록 없음)', closed: r ? r.closed : true, dirty: !clean(join(d, n)) }; });
+  // 닫힘은 main 체크아웃의 기록으로만 본다. start로 연 기록은 finish(PR 병합) 전까지 브랜치에만 있다 — main에 없다고 닫힘으로 보면 활성 worktree를 지운다
+  return readdirSync(d).filter((n) => existsSync(join(d, n, '.git'))).map((n) => {
+    const wt = join(d, n); const r = record(root, n); const rb = r ? null : record(wt, n);
+    return { id: n, status: r ? r.status : rb ? `${rb.status} (기록이 브랜치에만)` : '(기록 없음)', closed: r ? r.closed : false, unknown: !r && !rb, dirty: !clean(wt) };
+  });
 }
+const onBranch = (root, b, id) => { try { return git(root, `ls-tree --name-only "${b}" -- "${recordRel(id)}"`, { quiet: true }).length > 0; } catch { return false; } };
 /**
  * 원격 기본 브랜치 보호(gh api) — 직접 push 금지 · 필수 검사 harness(.github/workflows/harness.yml) · 필수 승인 N(티어 기본 S 0 · M 1 · L 2) · force-push·삭제 금지.
  * GitHub Free의 비공개 저장소는 보호 규칙을 쓸 수 없다(403) — 그때도 CI 실패 표시는 남지만 병합을 막지는 못한다고 알린다.
@@ -233,10 +238,12 @@ export function mergedPrBranches(root) {
 export function gc(root, { apply = false, merged = mergedPrBranches(root) } = {}) {
   const c = config(root);
   const out = [];
-  for (const w of list(root).map((x) => (merged.has(branchOf(x.id)) ? { ...x, closed: true, status: `${x.status} · PR 병합됨` } : x))) if (w.closed) { if (w.dirty) out.push({ ...w, action: 'skip(dirty)' }); else { if (apply) { git(root, `worktree remove "${join(root, c.dir, w.id)}"`, { quiet: true }); if (branchExists(root, branchOf(w.id))) git(root, `branch -D "${branchOf(w.id)}"`, { quiet: true }); } out.push({ ...w, action: apply ? 'removed' : 'would-remove' }); } }
+  for (const w of list(root).map((x) => (merged.has(branchOf(x.id)) ? { ...x, closed: true, status: `${x.status} · PR 병합됨` } : x))) if (!w.closed && w.unknown) out.push({ ...w, action: 'skip(기록 없음 — 손으로 확인)' }); else if (w.closed) { if (w.dirty) out.push({ ...w, action: 'skip(dirty)' }); else { if (apply) { git(root, `worktree remove "${join(root, c.dir, w.id)}"`, { quiet: true }); if (branchExists(root, branchOf(w.id))) git(root, `branch -D "${branchOf(w.id)}"`, { quiet: true }); } out.push({ ...w, action: apply ? 'removed' : 'would-remove' }); } }
   for (const b of git(root, 'branch --list "fdr/*" "rfc/*" "ho/*" "plan/*" "mtg/*"').split('\n').map((s) => s.replace(/^\*?\s*/, '')).filter(Boolean)) {
     const id = b.split('/')[1]; const r = record(root, id);
-    if ((!r || r.closed || merged.has(b)) && !existsSync(join(root, c.dir, id))) { if (apply) git(root, `branch -D "${b}"`, { quiet: true }); out.push({ id, status: r ? r.status : '(기록 없음)', action: apply ? 'branch-deleted' : 'would-delete-branch' }); }
+    if (existsSync(join(root, c.dir, id))) continue;   // worktree가 있는 브랜치는 위 고리가 판정한다
+    if ((r && r.closed) || merged.has(b)) { if (apply) git(root, `branch -D "${b}"`, { quiet: true }); out.push({ id, status: r ? r.status : '(기록 없음) · PR 병합됨', action: apply ? 'branch-deleted' : 'would-delete-branch' }); }
+    else if (!r) out.push({ id, status: onBranch(root, b, id) ? '(기록이 브랜치에만)' : '(기록 없음)', action: 'skip(main에 기록 없음 — 손으로 확인)' });   // 지우는 쪽을 기본으로 두지 않는다 — push 안 한 커밋은 reflog에만 남는다
   }
   return out;
 }
@@ -304,6 +311,21 @@ if (process.argv.includes('--self-test')) {
     writeFileSync(join(tmp, FDR_DIR, p.fdr, 'fdr.md'), rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')).replace(/^status:.*$/m, 'status: closed')); g('add -A'); g('commit -q -m close');
     const gcr = gc(tmp); if (!gcr.some((x) => x.id === p.fdr && x.action === 'would-remove')) fails.push('gc: 닫힌 기록의 worktree 미검출');
     gc(tmp, { apply: true, merged: new Set() }); if (existsSync(join(tmp, '.worktrees', p.fdr)) || g('branch --list fdr/*')) fails.push('gc --apply 미정리');
+    // automation BL-261104-harness-gc-branch-only-record — 기록이 브랜치에만 있는 활성 worktree(PR 병합 전)·main에도 브랜치에도 기록이 없는 것·worktree 없는 브랜치를 gc --apply가 지우지 않는다
+    { const { create: mk } = await import(pathToFileURL(join(tmp, '.harness', 'scripts', 'new-doc.mjs')).href);
+      const b1 = mk(tmp, 'fdr', 'branch-only', '브랜치에만', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m b1');
+      const wb = start(tmp, b1.id); const rel = relative(tmp, b1.path).split(sep).join('/');
+      g(`rm -rq "${rel}"`); g('commit -q -m "record only on branch"');   // main에는 없고 브랜치에만(start → finish 전과 같은 상태)
+      const r1 = gc(tmp, { apply: true, merged: new Set() });
+      if (!existsSync(wb.path) || !g(`branch --list "fdr/${b1.id}"`) || r1.some((x) => x.id === b1.id)) fails.push('gc: 기록이 브랜치에만 있는 활성 worktree를 지움 ' + JSON.stringify(r1));
+      if (!/\(기록이 브랜치에만\)/.test((list(tmp).find((x) => x.id === b1.id) || {}).status || '')) fails.push('list: 브랜치에만 있는 기록 상태 미표시');
+      g(`rm -rq "${rel}"`, wb.path); g('commit -q -m "no record anywhere"', wb.path);
+      const r2 = gc(tmp, { apply: true, merged: new Set() });
+      if (!existsSync(wb.path) || !r2.some((x) => x.id === b1.id && /^skip\(기록 없음/.test(x.action))) fails.push('gc: 기록이 어디에도 없는 worktree를 건너뛰지 않음 ' + JSON.stringify(r2));
+      g(`worktree remove "${wb.path}"`);
+      const r3 = gc(tmp, { apply: true, merged: new Set() });
+      if (!g(`branch --list "fdr/${b1.id}"`) || !r3.some((x) => x.id === b1.id && /^skip\(main에 기록 없음/.test(x.action))) fails.push('gc: main에 기록 없는 브랜치를 지움 ' + JSON.stringify(r3));
+      gc(tmp, { apply: true, merged: new Set([`fdr/${b1.id}`]) }); if (g(`branch --list "fdr/${b1.id}"`)) fails.push('gc: 병합된 PR 브랜치(main에 기록 없음) 미정리'); }
     // PR 모드 — 원격(bare)에 push · PR 본문(기록에서) · 병합된 PR은 gc가 정리 · 보호 규칙(dry)
     const bare = join(tmp, '..', '.work-selftest-remote.git'); rmSync(bare, { recursive: true, force: true }); execSync(`git init -q --bare "${bare}"`, { stdio: 'ignore' });
     g(`remote add origin "${bare}"`); g('push -q -u origin main');
