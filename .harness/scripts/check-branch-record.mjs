@@ -41,15 +41,18 @@ export function parseWork(text) {
   const ind = (l) => l.match(/^ */)[0].length;
   const first = body.find((l) => l.trim()); if (!first) return out;
   const keyInd = ind(first);
-  let owner = false;   // 앞 키가 블록 스칼라(| >)면 더 깊은 줄은 그 값이다
+  let owner = false;   // 앞 키가 블록 스칼라(| >)면 더 깊은 줄은 그 값이다(읽지 않고 건너뛴다 — 탭이 들어 있어도)
+  const seen = new Set();
   for (let i = 0; i < body.length; i++) {
     const l = body[i]; if (!l.trim()) continue;
+    if (owner && /^ +/.test(l) && ind(l) > keyInd) continue;
     if (/^ *\t/.test(l)) { out.errors.push(`work 절 들여쓰기에 탭이 있다(${l.trim()}) — 공백만`); continue; }
-    if (ind(l) !== keyInd) { if (!(owner && ind(l) > keyInd)) out.errors.push(`work 절 들여쓰기가 맞지 않는 줄(${l.trim()}) — 키는 ${keyInd}칸`); continue; }
+    if (ind(l) !== keyInd) { out.errors.push(`work 절 들여쓰기가 맞지 않는 줄(${l.trim()}) — 키는 ${keyInd}칸`); continue; }
     owner = false;
     const m = l.match(/^\s*([A-Za-z_][\w-]*):(?:\s+(.*))?$/);
     if (!m) { out.errors.push(`work 절 키로 읽지 못한 줄(${l.trim()}) — "키: 값"(따옴표 없는 키 · 콜론 바로 뒤 공백)`); continue; }
     const [, key, v = ''] = m;
+    if (seen.has(key)) out.errors.push(`work.${key} 키가 두 번 나온다 — 뒤의 값만 남는다`); seen.add(key);
     if (v.startsWith('[')) {
       let s = v; let j = i; while (!s.includes(']') && j + 1 < body.length && (!body[j + 1].trim() || ind(body[j + 1]) > keyInd)) s += ' ' + body[++j].trim();
       const close = s.indexOf(']');
@@ -63,7 +66,7 @@ export function parseWork(text) {
         const li = b.match(/^\s*-(?:\s+(.*))?$/); if (li) { if (unquote(li[1] || '')) items.push(unquote(li[1] || '')); } else out.errors.push(`work.${key} 목록 항목이 아니다(${b.trim()}) — "- 값" 또는 [a, b]`);
       }
       out.lists[key] = items; i = j - 1;
-    } else if (/^[|>][-+]?$/.test(v.trim())) { out.values[key] = v.trim(); owner = true; }
+    } else if (/^[|>][-+0-9]*$/.test(v.trim())) { out.errors.push(`work.${key} 블록 스칼라(${v.trim()})는 읽지 않는다 — 한 줄 값으로 쓴다(값은 기본값)`); owner = true; }
     else out.values[key] = unquote(v);
   }
   out.base = out.values.base || '';
@@ -203,8 +206,14 @@ if (process.argv.includes('--self-test')) {
       ['work:\n  base: main\nwork:\n  root_files: [a.toml]\n', 'main', '', 1],
       ['work:\n  root_files: [a.toml] x\n', '', 'a.toml', 1],
       ['work:\n  root_files: [a.toml\n  base: dev\n  link: [x]\n', 'dev', '', 1],
-      ['work:\n  setup: |\n    echo root_files: [z]\n  root_files: [a.toml]\n', '', 'a.toml', 0],
+      ['work:\n  setup: |\n    echo root_files: [z]\n  root_files: [a.toml]\n', '', 'a.toml', 1],
+      // r4 R4-1 — 같은 키가 두 번이면 errors(뒤 값만 남는 것을 숨기지 않는다)
+      ['work:\n  root_files: [a.toml]\n  root_files: [b.toml]\n', '', 'b.toml', 1],
+      ['work:\n  merge: ff\n  merge: pr\n', '', '', 1],
     ];
+    // r4 R4-2·R4-3 — 블록 스칼라는 값으로 쓰지 않고(errors 1건) 본문(탭 포함)은 건너뛴다 · 다음 키에서 건너뛰기를 끝낸다(그 뒤 깊은 줄은 들여쓰기 오류)
+    { const r = parseWork('work:\n  setup: |\n    pnpm i\n    \tmake\n  dir: a\n    merge: pr\n');
+      if ('setup' in r.values || r.values.dir !== 'a' || r.errors.length !== 2 || !r.errors.some((e) => /블록 스칼라/.test(e)) || !r.errors.some((e) => /맞지 않는 줄\(merge: pr\)/.test(e))) { fail++; console.error('FAIL parseWork 블록 스칼라·건너뛰기 끝', r); } }
     for (const [s, base, rf, ne] of pw) { const r = parseWork(s); if (r.base !== base || r.rootFiles.join('|') !== rf || (r.errors.length > 0) !== (ne > 0)) { fail++; console.error('FAIL parseWork', JSON.stringify(s), r); } }
     { const r = parseWork('work:\n  dir: ../wt   # x\n  merge: "pr"\n  link: [.env.local, "a b"]\n  setup: ""\n'); if (r.values.dir !== '../wt' || r.values.merge !== 'pr' || r.lists.link.join('|') !== '.env.local|a b' || r.values.setup !== '' || r.errors.length) { fail++; console.error('FAIL parseWork values·lists', r); } }
     writeFileSync(join(t, 'harness.yaml'), 'work:\r\n  base: main\r\n\r\n  root_files:\r\n    - pyproject.toml\r\n');
@@ -221,7 +230,7 @@ if (process.argv.includes('--self-test')) {
     if (!P('rep/Bad_Slug', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL rep/ 슬러그 형식 밖 미차단'); }
     rmSync(join(t, 'init.mjs')); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL tiers만 있는 저장소의 rep/ 커밋 미차단'); }
   } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 20(해석 실패 12) · values·lists 1 · work.base 1 · rep/ 면제 6)`);
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 22(해석 실패 15) · 블록 스칼라 1 · values·lists 1 · work.base 1 · rep/ 면제 6)`);
   process.exit(fail ? 1 : 0);
 }
 

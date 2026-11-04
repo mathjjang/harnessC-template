@@ -26,9 +26,10 @@ const DEFAULT_ROOT = join(HERE, '..', '..');
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
 
-/** harness.yaml work 절 — pre-commit·ci·lint와 같은 해석(check-branch-record parseWork). 해석 실패는 lint ⑲가 알린다 */
+/** harness.yaml work 절 — pre-commit·ci·lint와 같은 해석(check-branch-record parseWork). 읽지 못한 줄이 있으면 멈춘다(lint ⑲와 같은 사유) — 그 키가 조용히 기본값(dir .worktrees·merge ff 등)으로 떨어지지 않게 */
 export function config(root) {
   const w = parseWork(rd(join(root, 'harness.yaml')));
+  if (w.errors.length) throw new Error(`harness.yaml work 절을 읽지 못했다 — 고친 뒤 다시(lint ⑲):\n- ${w.errors.join('\n- ')}`);
   const v = (k, d) => (Object.prototype.hasOwnProperty.call(w.values, k) ? w.values[k] : d);
   return { dir: v('dir', '.worktrees'), base: v('base', 'main'), merge: v('merge', 'ff'), link: w.lists.link || [], setup: v('setup', '') };
 }
@@ -141,11 +142,16 @@ export function markShipped(wt, id) {
   return true;
 }
 
+/** 제품 경로 판정(np) — base 쪽 harness.yaml의 work.root_files. base에서 읽지 못하면(ref·파일 없음) 코어 기본만(막는 쪽) — 작업 트리(head) 것으로 대신하지 않는다 */
+export function baseNp(wt, base) {
+  let by = ''; try { by = execSync(`git show "${base}:harness.yaml"`, { cwd: wt, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch { /* 코어 기본만 */ }
+  return nonProductOfYaml(by);
+}
+
 /** ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(ci.mjs reviewProblems): 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 판정 무효(⑧). 제품 경로는 CI처럼 base 쪽 harness.yaml의 work.root_files로 본다(브랜치가 스스로 등재한 루트 파일은 면제되지 않는다). 우회 플래그 없음 */
 export function reviewGuard(wt, id, base) {
   const h = commitHistory(wt, [`${base}..HEAD`]); if (!h.commits) throw new Error(`${id} 커밋 이력을 읽지 못했다(${base}..HEAD)`);   // 브랜치·scope는 pre-commit이 커밋마다 봤다 — 여기서는 리뷰 판정만(변경 파일 목록이 필요 없다)
-  let by = ''; try { by = execSync(`git show "${base}:harness.yaml"`, { cwd: wt, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch { /* base에 없으면 코어 기본만 */ }
-  const rv = reviewProblems(wt, { head: branchOf(id), ...h, np: nonProductOfYaml(by) });
+  const rv = reviewProblems(wt, { head: branchOf(id), ...h, np: baseNp(wt, base) });
   if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션 또는 risk low·medium의 리뷰 서브에이전트):\n- ${rv.join('\n- ')}`);
 }
 
@@ -268,7 +274,9 @@ if (process.argv.includes('--self-test')) {
     if (f1.merged !== 'records-only' || existsSync(join(tmp, 'src', 'spike.ts')) || !/Concluded/.test(rd(join(tmp, RFC_DIR, 'RFC-260101-spike', 'rfc.md')))) fails.push(`finish(rfc): 기록만 반입이어야 함 (${f1.merged})`);
     if (g('branch --list rfc/RFC-260101-spike')) fails.push('finish: rfc 브랜치 잔존');
     // r3 R3-4 — config는 parseWork와 같은 해석: CRLF·절 안 빈 줄에서도 base·merge를 읽는다(옛 정규식은 main·ff로 떨어졌다)
-    { const cd = join(tmp, '.scratch', 'cfg'); mkdirSync(cd, { recursive: true }); writeFileSync(join(cd, 'harness.yaml'), 'work:\r\n  dir: wt\r\n\r\n  base: dev\r\n  merge: pr\r\n  link:\r\n    - .env.local\r\n'); const c = config(cd); if (c.base !== 'dev' || c.merge !== 'pr' || c.dir !== 'wt' || c.link.join() !== '.env.local' || c.setup !== '') fails.push('config: CRLF·빈 줄·블록 목록 해석 ' + JSON.stringify(c)); rmSync(cd, { recursive: true, force: true }); }
+    { const cd = join(tmp, '.scratch', 'cfg'); mkdirSync(cd, { recursive: true }); writeFileSync(join(cd, 'harness.yaml'), 'work:\r\n  dir: wt\r\n\r\n  base: dev\r\n  merge: pr\r\n  link:\r\n    - .env.local\r\n'); const c = config(cd); if (c.base !== 'dev' || c.merge !== 'pr' || c.dir !== 'wt' || c.link.join() !== '.env.local' || c.setup !== '') fails.push('config: CRLF·빈 줄·블록 목록 해석 ' + JSON.stringify(c));
+      writeFileSync(join(cd, 'harness.yaml'), 'work:\n  base: main\n   merge: pr\n'); try { config(cd); fails.push('config: 읽지 못한 줄(merge)을 기본값 ff로 넘김'); } catch (e) { if (!/work 절을 읽지 못했다/.test(e.message)) fails.push('config 거부 사유: ' + e.message); }
+      rmSync(cd, { recursive: true, force: true }); }
     // ff에도 리뷰 하한 — 판정 없이 gates로 finish하면 거부, 판정(리뷰어≠작성자)을 적으면 통과. lint는 임시 저장소에서 못 돌므로 리뷰 검사만 보는 경로로
     const fdrMd = join(p.path, FDR_DIR, p.fdr, 'fdr.md');
     try { reviewGuard(p.path, p.fdr, "main"); fails.push('ff: 판정 없이 통과'); } catch (e) { if (!/판정 없음/.test(e.message)) fails.push('ff 리뷰 거부 사유: ' + e.message); }
@@ -284,6 +292,9 @@ if (process.argv.includes('--self-test')) {
     try { reviewGuard(p.path, p.fdr, "main"); fails.push('ff: 스스로 등재한 루트 파일의 판정 뒤 변경 통과'); } catch (e) { if (!/판정 뒤에 제품 코드/.test(e.message)) fails.push('ff ⑧(스스로 등재) 거부 사유: ' + e.message); }
     writeFileSync(fdrMd, rd(fdrMd).replace(/- 판정: 통과 \(재판정[^\n]*\n/, '- 판정: 통과 (재판정 2026-01-03 · pyproject.toml 재확인)\n')); g('add -A', p.path); g('commit -q -m review3', p.path);
     try { reviewGuard(p.path, p.fdr, "main"); } catch (e) { fails.push('ff: 세 번째 판정 뒤에도 거부 — ' + e.message); }
+    // r4 R4-2 — base에서 harness.yaml을 못 읽으면 코어 기본만(작업 트리가 등재한 pyproject.toml도 제품) · 읽으면 base 것
+    if (baseNp(p.path, 'no-such-ref').test('pyproject.toml') || !baseNp(p.path, 'no-such-ref').test('README.md')) fails.push('baseNp: base를 못 읽을 때 작업 트리 root_files를 씀');
+    if (baseNp(p.path, 'HEAD').test('pyproject.toml') !== true) fails.push('baseNp: 그 ref의 harness.yaml을 읽지 않음');
     const f2 =finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
