@@ -102,13 +102,13 @@ tools:
     command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]
     enforcement: generate
     self_test: node .harness/scripts/work.mjs --self-test
-    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트·리뷰 판정(ci reviewProblems와 같은 하한) 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반
+    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트·리뷰 판정(ci reviewProblems와 같은 하한 — 제품 경로도 CI처럼 base 쪽 work.root_files로 본다) 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반. work 설정(config)은 parseWork로 읽는다(pre-commit·ci·lint와 같은 해석)
   - name: check-branch-record.mjs
     status: active
     command: (pre-commit) node .harness/scripts/check-branch-record.mjs
     enforcement: gate
     self_test: node .harness/scripts/check-branch-record.mjs --self-test
-    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지 · 템플릿 저장소의 rep/<slug>는 스테이징에 제품 경로가 없을 때만 통과(templateRep — ci와 같은 조건 · §9). 스테이징 경로는 삭제·이동 전 경로까지(--no-renames). 선언 없음(브랜치 이름이 기록). 제품 경로가 아닌 것(nonProductOf) — docs·rules·mockups·장치 폴더와, 루트 파일은 코어 기본(.gitattributes·.gitignore·.editorconfig·.mcp.json·AGENTS.md·CLAUDE.md·GEMINI.md·LICENSE·README.md·harness.yaml·init.mjs)과 harness.yaml work.root_files(프로젝트 확장 · 등재는 ADR)만. work.root_files의 하위 경로(/·\ 든 항목)는 버린다 — 넣으면 scope·⑧이 꺼지므로(lint ⑲가 실패시킨다). 그 밖의 루트 파일(package.json·main.py 등)은 제품 경로라 main 직접 커밋·fdr scope·ho/mtg/inc/retro·plan·ci ⑧·rep/ 면제 판정에 모두 걸린다. sync 받은 프로젝트의 루트 설정 파일이 코어 기본에 없으면 main 직접 수정이 막힌다 — work.root_files에 등재. work 절 해석(parseWork)은 CRLF·BOM·절 안의 빈 줄·0열 주석·흐름 목록(여러 줄 포함)·블록 목록(- x)·따옴표를 읽고(base:도 같은 해석), 읽지 못한 값은 errors로 lint ⑲에 넘긴다 — YAML 전체 파서가 아니라 work 절에 쓰는 형식만
+    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지 · 템플릿 저장소의 rep/<slug>는 스테이징에 제품 경로가 없을 때만 통과(templateRep — ci와 같은 조건 · §9). 스테이징 경로는 삭제·이동 전 경로까지(--no-renames). 선언 없음(브랜치 이름이 기록). 제품 경로가 아닌 것(nonProductOf) — docs·rules·mockups·장치 폴더와, 루트 파일은 코어 기본(.gitattributes·.gitignore·.editorconfig·.mcp.json·AGENTS.md·CLAUDE.md·GEMINI.md·LICENSE·README.md·harness.yaml·init.mjs)과 harness.yaml work.root_files(프로젝트 확장 · 등재는 ADR)만. work.root_files의 하위 경로(/·\ 든 항목)는 버린다 — 넣으면 scope·⑧이 꺼지므로(lint ⑲가 실패시킨다). 그 밖의 루트 파일(package.json·main.py 등)은 제품 경로라 main 직접 커밋·fdr scope·ho/mtg/inc/retro·plan·ci ⑧·rep/ 면제 판정에 모두 걸린다. sync 받은 프로젝트의 루트 설정 파일이 코어 기본에 없으면 main 직접 수정이 막힌다 — work.root_files에 등재. work 절 해석(parseWork — pre-commit·ci·lint·work.mjs config가 같이 쓴다)은 CRLF·BOM·절 안의 빈 줄·0열 주석·흐름 목록(더 깊이 들여쓴 줄로 이어 쓰기)·블록 목록(- x)·블록 스칼라(| >)·따옴표 스칼라를 읽고, 읽지 못한 줄(키 형식 아님 — 콜론 앞 공백·따옴표 키·콜론 뒤 공백 없음, 들여쓰기 다름, 탭, 닫히지 않은 [, ] 뒤 글, 목록 아닌 root_files, work 절 둘)은 errors로 lint ⑲에 넘긴다 — YAML 전체 파서가 아니라 work 절에 쓰는 형식만
   - name: ci.mjs
     status: active
     command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)

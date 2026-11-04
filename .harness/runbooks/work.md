@@ -17,7 +17,7 @@ pack: 코어
 브랜치 <type>/<ID>       fdr/FDR-… · rfc/RFC-… · plan/PLAN-… · ho/HO-… (이름은 ID에서 — 직접 만들지 않는다)
 ```
 
-`harness.yaml work:` — `dir`(기본 `.worktrees`) · `base`(`main`) · `merge`(`ff` S티어 / `pr` M·L) · `link`(gitignore된 로컬 재료, 예 `.env.local`) · `setup`(worktree 생성 후 1회 명령, 예 `pnpm install`).
+`harness.yaml work:` — `dir`(기본 `.worktrees`) · `base`(`main`) · `merge`(`ff` S티어 / `pr` M·L) · `link`(gitignore된 로컬 재료, 예 `.env.local`) · `setup`(worktree 생성 후 1회 명령, 예 `pnpm install`) · `root_files`(제품 경로가 아닌 루트 파일 추가 — 파일 이름만, 등재는 ADR · HARNESS §11). 해석은 pre-commit·ci·lint와 같고(check-branch-record parseWork), 읽지 못한 줄은 lint ⑲가 알린다.
 
 ## 1. FDR 구현
 

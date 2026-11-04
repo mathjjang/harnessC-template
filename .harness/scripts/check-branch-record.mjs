@@ -26,37 +26,49 @@ const uncomment = (s) => { let q = ''; for (let i = 0; i < s.length; i++) { cons
 const unquote = (s) => { s = s.trim(); if (s.length > 1 && s[0] === '"' && s.endsWith('"')) return s.slice(1, -1).replace(/\\(["\\])/g, '$1'); if (s.length > 1 && s[0] === "'" && s.endsWith("'")) return s.slice(1, -1).replace(/''/g, "'"); return s; };
 /** 흐름 목록 [a, "b,c"] 항목 — 따옴표 안 쉼표는 나누지 않는다 */
 const flowItems = (s) => { const out = []; let cur = ''; let q = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; if (q) { cur += c; if (c === '\\' && q === '"') cur +=s[++i] ?? ''; else if (c === q) q = ''; } else if (c === '"' || c === "'") { q = c; cur += c; } else if (c === ',') { out.push(cur); cur = ''; } else cur += c; } out.push(cur); return out.map(unquote).filter(Boolean); };
-/** harness.yaml 원문의 work 절 — { base, rootFiles(원문 항목), errors }. CRLF·BOM, 절 안의 빈 줄·0열 주석, 흐름 목록([a, b] — 여러 줄 포함)·블록 목록(- x)을 읽는다. 읽지 못한 값은 버리지 않고 errors로 알린다(lint ⑲) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다 */
+/** harness.yaml 원문의 work 절 — { base, rootFiles(원문 항목), values(키→스칼라), lists(키→목록), errors }. pre-commit·ci·lint·work.mjs config가 같이 쓴다.
+ *  CRLF·BOM, 절 안의 빈 줄·0열 주석, 흐름 목록([a, b] — 더 깊이 들여쓴 줄로 이어 쓰기 포함)·블록 목록(- x)·따옴표 스칼라를 읽는다.
+ *  읽지 못한 줄(키 형식 아님·들여쓰기 다름·탭·닫히지 않은 [·목록 아닌 root_files·work 절 둘)은 버리지 않고 errors로 알린다(lint ⑲) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. YAML 전체가 아니라 work 절에 쓰는 형식만 */
 export function parseWork(text) {
-  const out = { base: '', rootFiles: [], errors: [] };
+  const out = { base: '', rootFiles: [], errors: [], values: {}, lists: {} };
   const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
-  const at = lines.findIndex((l) => /^work:\s*$/.test(uncomment(l)));
-  if (at < 0) { if (lines.some((l) => /^work:/.test(l))) out.errors.push('work: 뒤에 값이 있다 — 들여쓴 키 블록으로 쓴다'); return out; }
+  const heads = lines.flatMap((l, i) => (/^work:/.test(l) ? [i] : []));
+  if (heads.length > 1) out.errors.push(`work: 절이 ${heads.length}개다 — 하나로 합친다(앞 절만 읽는다)`);
+  if (!heads.length) return out;
+  const at = heads[0];
+  if (!/^work:\s*$/.test(uncomment(lines[at]))) { out.errors.push('work: 뒤에 값이 있다 — 들여쓴 키 블록으로 쓴다'); return out; }
   const body = []; for (let i = at + 1; i < lines.length && !/^[^\s#]/.test(lines[i]); i++) body.push(uncomment(lines[i]).replace(/\s+$/, ''));
   const ind = (l) => l.match(/^ */)[0].length;
   const first = body.find((l) => l.trim()); if (!first) return out;
   const keyInd = ind(first);
+  let owner = false;   // 앞 키가 블록 스칼라(| >)면 더 깊은 줄은 그 값이다
   for (let i = 0; i < body.length; i++) {
-    const l = body[i]; if (!l.trim() || ind(l) !== keyInd) continue;
-    const m = l.match(/^\s*([A-Za-z_][\w-]*):(?:\s+(.*))?$/); if (!m) continue;
+    const l = body[i]; if (!l.trim()) continue;
+    if (/^ *\t/.test(l)) { out.errors.push(`work 절 들여쓰기에 탭이 있다(${l.trim()}) — 공백만`); continue; }
+    if (ind(l) !== keyInd) { if (!(owner && ind(l) > keyInd)) out.errors.push(`work 절 들여쓰기가 맞지 않는 줄(${l.trim()}) — 키는 ${keyInd}칸`); continue; }
+    owner = false;
+    const m = l.match(/^\s*([A-Za-z_][\w-]*):(?:\s+(.*))?$/);
+    if (!m) { out.errors.push(`work 절 키로 읽지 못한 줄(${l.trim()}) — "키: 값"(따옴표 없는 키 · 콜론 바로 뒤 공백)`); continue; }
     const [, key, v = ''] = m;
-    if (key === 'base') out.base = unquote(v);
-    if (key !== 'root_files') continue;
     if (v.startsWith('[')) {
-      let s = v; let j = i; while (!s.includes(']') && j + 1 < body.length) s += ' ' + body[++j].trim();
+      let s = v; let j = i; while (!s.includes(']') && j + 1 < body.length && (!body[j + 1].trim() || ind(body[j + 1]) > keyInd)) s += ' ' + body[++j].trim();
       const close = s.indexOf(']');
-      if (close < 0) out.errors.push('work.root_files [ … ]가 닫히지 않았다');
-      else { out.rootFiles.push(...flowItems(s.slice(1, close))); if (s.slice(close + 1).trim()) out.errors.push(`work.root_files ] 뒤에 글이 있다(${s.slice(close + 1).trim()})`); }
+      if (close < 0) out.errors.push(`work.${key} [ … ]가 닫히지 않았다`);
+      else { out.lists[key] = flowItems(s.slice(1, close)); if (s.slice(close + 1).trim()) out.errors.push(`work.${key} ] 뒤에 글이 있다(${s.slice(close + 1).trim()})`); }
       i = j;
     } else if (!v.trim()) {
-      let j = i + 1;
+      const items = []; let j = i + 1;
       for (; j < body.length; j++) {
         const b = body[j]; if (!b.trim()) continue; if (ind(b) <= keyInd && !/^\s*-(\s|$)/.test(b)) break;
-        const li = b.match(/^\s*-(?:\s+(.*))?$/); if (li) { if (unquote(li[1] || '')) out.rootFiles.push(unquote(li[1] || '')); } else out.errors.push(`work.root_files 목록 항목이 아니다(${b.trim()}) — "- 파일" 또는 [a, b]`);
+        const li = b.match(/^\s*-(?:\s+(.*))?$/); if (li) { if (unquote(li[1] || '')) items.push(unquote(li[1] || '')); } else out.errors.push(`work.${key} 목록 항목이 아니다(${b.trim()}) — "- 값" 또는 [a, b]`);
       }
-      i = j - 1;
-    } else out.errors.push(`work.root_files가 목록이 아니다(${v.trim()}) — [a, b] 또는 "- 파일"`);
+      out.lists[key] = items; i = j - 1;
+    } else if (/^[|>][-+]?$/.test(v.trim())) { out.values[key] = v.trim(); owner = true; }
+    else out.values[key] = unquote(v);
   }
+  out.base = out.values.base || '';
+  out.rootFiles = out.lists.root_files || [];
+  if ('root_files' in out.values) out.errors.push(`work.root_files가 목록이 아니다(${out.values.root_files}) — [a, b] 또는 "- 파일"`);
   return out;
 }
 const workOf = (root) => parseWork(rd(join(root, 'harness.yaml')));
@@ -182,10 +194,23 @@ if (process.argv.includes('--self-test')) {
       ['work:\n  root_files:\n    a.toml\n', '', '', 1],
       ['work: {root_files: [a]}\n', '', '', 1],
       ['mockup:\n  root_files: [a]\n', '', '', 0],
+      // r3 R3-1 — 경고 없이 []가 되던 형식은 errors / 블록 스칼라 안의 가짜 키는 오인하지 않는다
+      ['work:\n  root_files : [a.toml]\n', '', '', 1],
+      ['work:\n  "root_files": [a.toml]\n', '', '', 1],
+      ['work:\n  root_files:[a.toml]\n', '', '', 1],
+      ['work:\n  base: main\n    root_files: [a.toml]\n', 'main', '', 1],
+      ['work:\n  base: main\n \troot_files: [a.toml]\n', 'main', '', 1],
+      ['work:\n  base: main\nwork:\n  root_files: [a.toml]\n', 'main', '', 1],
+      ['work:\n  root_files: [a.toml] x\n', '', 'a.toml', 1],
+      ['work:\n  root_files: [a.toml\n  base: dev\n  link: [x]\n', 'dev', '', 1],
+      ['work:\n  setup: |\n    echo root_files: [z]\n  root_files: [a.toml]\n', '', 'a.toml', 0],
     ];
     for (const [s, base, rf, ne] of pw) { const r = parseWork(s); if (r.base !== base || r.rootFiles.join('|') !== rf || (r.errors.length > 0) !== (ne > 0)) { fail++; console.error('FAIL parseWork', JSON.stringify(s), r); } }
+    { const r = parseWork('work:\n  dir: ../wt   # x\n  merge: "pr"\n  link: [.env.local, "a b"]\n  setup: ""\n'); if (r.values.dir !== '../wt' || r.values.merge !== 'pr' || r.lists.link.join('|') !== '.env.local|a b' || r.values.setup !== '' || r.errors.length) { fail++; console.error('FAIL parseWork values·lists', r); } }
     writeFileSync(join(t, 'harness.yaml'), 'work:\r\n  base: main\r\n\r\n  root_files:\r\n    - pyproject.toml\r\n');
     if (P('main', ['pyproject.toml'])) { fail++; console.error('FAIL CRLF·빈 줄·블록 목록 root_files를 pre-commit이 못 읽음'); }
+    writeFileSync(join(t, 'harness.yaml'), 'work:\n  base: dev\n');
+    if (!P('dev', ['src/a.ts']) || P('dev', ['docs/x.md'])) { fail++; console.error('FAIL pre-commit이 work.base(dev)를 읽지 않음 — base의 문서 커밋을 기록 아닌 브랜치로 거부'); }
     writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
     if (!P('main', ['package.json'])) { fail++; console.error('FAIL 다른 절의 root_files를 읽음(package.json 미차단)'); }
     if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL 템플릿 아닌 저장소의 rep/ 커밋 미차단'); }
@@ -196,7 +221,7 @@ if (process.argv.includes('--self-test')) {
     if (!P('rep/Bad_Slug', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL rep/ 슬러그 형식 밖 미차단'); }
     rmSync(join(t, 'init.mjs')); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL tiers만 있는 저장소의 rep/ 커밋 미차단'); }
   } catch (e) { fail++; console.error('FAIL 예외', e.message); } finally { rmSync(t, { recursive: true, force: true }); }
-  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 11(해석 실패 4) · rep/ 면제 6)`);
+  console.log(fail ? `self-test FAIL (${fail})` : `self-test OK (브랜치·경로 ${cases.length}건 · glob · 삭제·이동 스테이징 2 · pre-commit 루트 파일 확장 5(하위 경로 버림 2·CRLF 블록 목록 1) · work 절 해석 20(해석 실패 12) · values·lists 1 · work.base 1 · rep/ 면제 6)`);
   process.exit(fail ? 1 : 0);
 }
 

@@ -130,6 +130,14 @@ export function changedFiles(root, range) {
   return { ok: true, changed: all.out.split('\n').filter(Boolean), deleted: del.ok ? del.out.split('\n').filter(Boolean) : [] };
 }
 
+/** PR 판정 묶음(run이 쓴다) — 변경 파일(origin/<base> 먼저)·base 쪽 harness.yaml(work.root_files — 없으면 코어 기본만)·커밋 이력을 git에서 읽어 prProblems. 반환 { problems, n } | { failed } */
+export function prCheck(root, b, head) {
+  const d = changedFiles(root, `origin/${b}...HEAD`); const d2 = d.ok ? d : changedFiles(root, `${b}...HEAD`);
+  if (!d2.ok) return { failed: d2 };
+  const by = [`origin/${b}`, b].map((r) => sh(`git show "${r}:harness.yaml"`, root)).find((r) => r.ok);
+  return { n: d2.changed.length, problems: prProblems(root, { base: b, head, changed: d2.changed, deleted: d2.deleted, baseYaml: by ? by.out : '', ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }) };
+}
+
 function sh(cmd, cwd = ROOT) { try { return { ok: true, out: execSync(cmd, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' ? undefined : '/bin/bash' }).trim() }; } catch (e) { return { ok: false, out: `${e.stdout || ''}${e.stderr || ''}`.trim() || e.message }; } }
 
 export function run(root = ROOT, { base = '', head = '' } = {}) {
@@ -148,13 +156,8 @@ export function run(root = ROOT, { base = '', head = '' } = {}) {
     step('코어 self-test', { ok: !fails.length, out: fails.join('\n') });
   }
   if (head) {
-    const b = base || 'main';
-    let changed = [];
-    const d = changedFiles(root, `origin/${b}...HEAD`); const d2 = d.ok ? d : changedFiles(root, `${b}...HEAD`);
-    if (!d2.ok) step('PR 변경 파일', d2); else {
-      changed = d2.changed;
-      const by = [`origin/${b}`, b].map((r) => sh(`git show "${r}:harness.yaml"`, root)).find((r) => r.ok);   // base 쪽 work.root_files — 없으면 코어 기본만
-      const p = prProblems(root, { base: b, head, changed, deleted: d2.deleted, baseYaml: by ? by.out : '', ...commitHistory(root, [`origin/${b}..HEAD`, `${b}..HEAD`]) }); step(`PR 판정 (${head} → ${b} · 파일 ${changed.length})`, { ok: !p.length, out: p.join('\n') }); }
+    const b = base || 'main'; const r = prCheck(root, b, head);
+    if (r.failed) step('PR 변경 파일', r.failed); else step(`PR 판정 (${head} → ${b} · 파일 ${r.n})`, { ok: !r.problems.length, out: r.problems.join('\n') });
   }
   const failed = results.filter((r) => !r.ok);
   if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## harness\n\n${results.map((r) => `- ${r.ok ? '✅' : '❌'} ${r.name}${r.ok ? '' : `\n\n\`\`\`\n${r.out.slice(0, 3000)}\n\`\`\``}`).join('\n')}\n`); } catch { /* */ } }
@@ -224,6 +227,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PRb('', ['pyproject.toml']).some((x) => /scope 밖/.test(x))) fails.push('head만 등재한 루트 파일(base에 없음)을 scope에서 면제');
     if (!PRb('work:\n  root_files: [other.cfg]\n', ['pyproject.toml']).some((x) => /scope 밖/.test(x))) fails.push('base에 없는 루트 파일을 head 등재로 면제');
     if (PRb('work:\r\n  root_files:\r\n    - pyproject.toml\r\n', ['pyproject.toml']).length) fails.push('base가 등재한 루트 파일 오탐');
+    if (!PRb('work:\n  root_files: [src/b/out.ts]\n', ['src/b/out.ts']).some((x) => /scope 밖/.test(x))) fails.push('base의 root_files 하위 경로를 버리지 않음');
     if (!PRb('', ['docs/features/FDR-260101-ok/fdr.md'], [{ sha: 'v1', files: ['docs/features/FDR-260101-ok/fdr.md'], added: [] }, { sha: 'a2', files: ['pyproject.toml'], added: [] }]).some((x) => /판정 뒤/.test(x))) fails.push('판정 뒤 head만 등재한 루트 파일 미차단');
     // N2 — 제어(Cc)·서식(Cf)·사용 영역(Co) 문자만인 파일도 증거가 아니다
     for (const [k, s] of [['c', '\u0000\u0001\u007F\u0085'], ['f', '؀￹\u{13430}'], ['o', '\u{F0000}']]) { lite(`FDR-260101-subc${k}`, { verdict: '통과', reviewer: 'reviewer 서브에이전트 (m)' }); SUBEV(`FDR-260101-subc${k}`, 'brief.md', s + '\n'); SUBEV(`FDR-260101-subc${k}`, 'report.md'); if (!NOEV(`FDR-260101-subc${k}`)) fails.push(`${{ c: '제어', f: '서식', o: '사용 영역' }[k]} 문자만인 파일을 증거로 셈`); }
@@ -281,9 +285,22 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
       if (!(hist.commits || []).some((x) => x.files.includes('src/b.ts'))) fails.push('커밋 이력에 이동 전 경로 누락');
       if (!(hist.commits || []).some((x) => x.added.includes('docs/b.md') && !x.added.includes('src/a.ts') && x.files.includes('src/a.ts') && !x.added.includes('docs/x.md') && x.files.includes('docs/x.md'))) fails.push('커밋 이력의 추가(A) 경로 판별 틀림(삭제·수정은 추가가 아니다): ' + JSON.stringify(hist.commits));
     } finally { rmSync(g, { recursive: true, force: true }); }
+    // N1·r3 R3-2 — run의 연결부(prCheck)가 base 쪽 harness.yaml을 읽는다: head만 등재한 pyproject.toml은 scope 밖, base에 등재된 뒤에는 면제
+    const g2 = mkdtempSync(join(tmpdir(), 'ci-git2-')); const g2x = (cmd) => execSync(`git -c user.name=t -c user.email=t@t ${cmd}`, { cwd: g2, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+    try {
+      const FD = 'docs/features/FDR-260101-gb'; mkdirSync(join(g2, FD), { recursive: true });
+      writeFileSync(join(g2, FD, 'fdr.md'), readFileSync(join(t, 'docs/features/FDR-260101-ok/fdr.md'), 'utf8').replace(/FDR-260101-ok/g, 'FDR-260101-gb'));
+      writeFileSync(join(g2, 'harness.yaml'), 'work:\n  base: main\n  root_files: []\n');
+      g2x('init -q -b main'); g2x('add -A'); g2x('commit -q -m base'); g2x('switch -q -c fdr/FDR-260101-gb');
+      writeFileSync(join(g2, 'harness.yaml'), 'work:\n  base: main\n  root_files: [pyproject.toml]\n'); writeFileSync(join(g2, 'pyproject.toml'), 'x\n'); g2x('add -A'); g2x('commit -q -m head');
+      const SC = (r) => (r.problems || []).some((x) => /scope 밖.*pyproject|pyproject.*scope 밖/.test(x));
+      const r1 = prCheck(g2, 'main', 'fdr/FDR-260101-gb'); if (r1.failed || !SC(r1)) fails.push('run 연결부가 head의 root_files로 판정(head만 등재한 pyproject.toml 면제): ' + JSON.stringify(r1));
+      g2x('switch -q main'); g2x('checkout -q fdr/FDR-260101-gb -- harness.yaml'); g2x('commit -q -m reg'); g2x('switch -q fdr/FDR-260101-gb'); g2x('merge -q main -m m');
+      const r2 = prCheck(g2, 'main', 'fdr/FDR-260101-gb'); if (r2.failed || SC(r2)) fails.push('run 연결부가 base에 등재된 루트 파일을 막음: ' + JSON.stringify(r2));
+    } finally { rmSync(g2, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·미할당·비문자·결합 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · 보이는 한 글자 5 · scope 밖 3(루트 파일 2) · base 쪽 root_files 4(scope 3·판정 뒤 1) · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·미할당·비문자·결합 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · 보이는 한 글자 5 · scope 밖 3(루트 파일 2) · base 쪽 root_files 5(scope 3·하위 경로 1·판정 뒤 1) · run 연결부 prCheck git 2 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {
