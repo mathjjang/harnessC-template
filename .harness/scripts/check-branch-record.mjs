@@ -117,7 +117,7 @@ if (process.argv.includes('--self-test')) {
     if (!judge({ branch: 'main', staged: sp }).length) { fail++; console.error('FAIL main에서 제품 파일 삭제·이동 미차단'); }
     // pre-commit 판정(precommit) — 루트 파일 확장(work.root_files) · 템플릿 rep/ 면제(ci와 같은 조건)
     const P = (branch, staged) => precommit(t, { branch, staged }).length;
-    writeFileSync(join(t, 'harness.yaml'), 'work:\n  base: main\n  root_files: [pyproject.toml, ".editorconfig"]   # x\n\nmockup:\n  root_files: [package.json]\n');
+    writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".editorconfig"]   # x\n');
     if (P('main', ['pyproject.toml', '.editorconfig']) || P('main', ['README.md'])) { fail++; console.error('FAIL work.root_files·코어 루트 파일 오탐'); }
     if (!P('main', ['package.json'])) { fail++; console.error('FAIL 다른 절의 root_files를 읽음(package.json 미차단)'); }
     if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL 템플릿 아닌 저장소의 rep/ 커밋 미차단'); }
