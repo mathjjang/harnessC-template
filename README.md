@@ -162,6 +162,8 @@ node .harness/scripts/sync-core.mjs
 | 목업 대조 | `/mockup-diff` | 스킬 `mockup-diff` | `/mockup-diff` |
 | 검수 건 처리 | `/qa` | 스킬 `qa` | `/qa` |
 | 회의 준비, 회의록 반영 | `/meeting-prep`, `/meeting-ingest` | 스킬 | 커맨드 |
+| 리뷰 맡기기(구현 세션, risk low·medium) | `/subagent-review` | 스킬 `subagent-review` | `/subagent-review` |
+| 다른 세션과 주고받기, 다른 세션 리뷰어로 리뷰 | `/handoff`(리뷰어는 `reviewer` 에이전트) | 스킬 `handoff` | `/handoff` |
 
 Gemini CLI는 처음 열 때 폴더를 신뢰한다고 승인해야 프로젝트 커맨드를 불러온다.
 

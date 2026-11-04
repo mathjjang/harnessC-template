@@ -29,7 +29,7 @@ summary: 구현 세션이 FDR 리뷰를 새 문맥 리뷰 서브에이전트에�
 
 ## 2. 판정
 
-- `evidence/review/`에 라운드마다 brief·report 짝. CI(ci.mjs SUBAGENT)는 리뷰어(모델) 줄의 이름 조각(`· 일자:`·`· 메모:`처럼 「라벨:」로 시작하는 조각은 빼고)에 서브에이전트 표지(서브에이전트·서브 에이전트·sub-agent·subagent)가 있으면 라운드마다 짝(빈 파일·공백·보이지 않는 문자만·폴더 제외)과 risk≤medium을 검사한다. 판정 뒤 코드가 바뀌어 다시 판정하면 새 라운드(brief-r<N>·report-r<N>)를 둔다 — CI는 마지막 제품 코드 커밋 뒤에 그 전에 없던 report 경로가 커밋됐는지 본다(옛 report를 고쳐 쓴 것은 새 라운드가 아니다). 그 report가 그 판정의 근거인지는 보지 않는다(report 등급).
+- `evidence/review/`에 라운드마다 brief·report 짝. CI(ci.mjs SUBAGENT)는 리뷰어(모델) 줄의 이름 조각(`· 일자:`·`· 메모:`처럼 「라벨:」로 시작하는 조각은 빼고)에 서브에이전트 표지(서브에이전트·서브 에이전트·sub-agent·subagent)가 있으면 라운드마다 짝(빈 파일·공백·보이지 않는 문자만·폴더 제외)과 risk≤medium을 검사한다. 판정 뒤 코드가 바뀌어 다시 판정하면 새 라운드(brief-r<N>·report-r<N>)를 둔다 — CI는 마지막 제품 코드 커밋 뒤에 새로 추가된 report 경로(base에도 그 커밋까지에도 없던 것)가 있는지 본다(옛 report·base에 있던 report를 고쳐 쓴 것, brief만 둔 것은 새 라운드가 아니다). 그 report가 그 판정의 근거인지는 보지 않는다(report 등급).
 - 06 차단 결함마다 "리뷰어 확인" 또는 제외 사유.
 
 ## 3. 실패 시
