@@ -108,7 +108,7 @@ tools:
     command: (pre-commit) node .harness/scripts/check-branch-record.mjs
     enforcement: gate
     self_test: node .harness/scripts/check-branch-record.mjs --self-test
-    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 스테이징 경로는 삭제·이동 전 경로까지(--no-renames). 선언 없음(브랜치 이름이 기록). 고치지 않는 것(사유) — 루트 파일(NON_PRODUCT의 ^[^/]+$)은 제품 경로로 보지 않는다. 영향은 루트 제품 파일(package.json·main.py 등)이 세 검사 모두에서 빠지는 것이다 — main 직접 커밋 게이트 · fdr 브랜치 scope 검사 · ci ⑧(판정 뒤 제품 코드면 판정 무효). 이 경우를 잡는 게이트는 없다. 지금 허용 목록(루트에서 제품이 아닌 파일만 나열)으로 바꾸지 않는 까닭은 프로젝트마다 루트 설정 파일이 달라 허용 목록이 프로젝트 몫이 되기 때문이다. 코어가 정하면 sync 받은 프로젝트에서 루트 설정 파일의 main 직접 수정이 오탐으로 막힌다. 허용 목록 전환(프로젝트 확장 지점 포함)은 다음 REP 후보
+    rule: .harness/HARNESS.md §11 — main에 제품 코드 직접 커밋 금지 · fdr 브랜치는 scope 안만 · 다른 기록 수정 금지. 스테이징 경로는 삭제·이동 전 경로까지(--no-renames). 선언 없음(브랜치 이름이 기록). 고치지 않는 것(사유) — 루트 파일(NON_PRODUCT의 ^[^/]+$)은 제품 경로로 보지 않는다. 영향은 루트 제품 파일(package.json·main.py 등)이 제품 경로 판정 전부(main 직접 커밋·fdr scope·ho/mtg/inc/retro 제품 코드 금지·plan 직접 커밋 금지·ci ⑧·rep/ 면제)에서 빠지는 것이다. 이 경우를 잡는 게이트는 없다. 지금 허용 목록(루트에서 제품이 아닌 파일만 나열)으로 바꾸지 않는 까닭은 프로젝트마다 루트 설정 파일이 달라 허용 목록이 프로젝트 몫이 되기 때문이다. 코어가 정하면 sync 받은 프로젝트에서 루트 설정 파일의 main 직접 수정이 오탐으로 막힌다. 허용 목록 전환(프로젝트 확장 지점 포함)은 다음 REP 후보
   - name: ci.mjs
     status: active
     command: node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]   # GitHub Actions .github/workflows/harness.yml (잡 이름 harness)
