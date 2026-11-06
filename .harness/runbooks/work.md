@@ -75,6 +75,7 @@ git pull && node .harness/scripts/work.mjs gc --apply  # 병합된 PR의 worktre
 ## 5. 수명
 
 - 세션 카드가 열린 worktree와 닫힌 기록의 잔존을 보여 준다. `work.mjs list` · `gc --apply`.
+- gc는 **main 체크아웃의 기록이 닫혔거나 PR이 병합된 것만** 지운다. 기록이 아직 브랜치에만 있으면(start → PR 병합 전) 활성으로 보고, main에도 브랜치에도 기록이 없으면 `skip(… 손으로 확인)`으로 남긴다 — 지우는 쪽을 기본으로 두지 않는다.
 - 기록이 closed/abandoned/Concluded인데 브랜치나 worktree가 남으면 lint ⑮ 위반 — 커밋이 막힌다.
 - `.scratch/`에 worktree를 두지 않는다(14일 gc 대상).
 

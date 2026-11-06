@@ -102,7 +102,7 @@ tools:
     command: node .harness/scripts/work.mjs start <ID> | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]
     enforcement: generate
     self_test: node .harness/scripts/work.mjs --self-test
-    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트·리뷰 판정(ci reviewProblems와 같은 하한 — 제품 경로도 CI처럼 base 쪽 work.root_files로 본다) 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반. work 설정(config)은 parseWork로 읽고, 읽지 못한 줄이 있으면 멈춘다(기본값으로 조용히 떨어지지 않게). 고치지 않는 것(사유) — base 쪽 root_files 등재는 harness.yaml이 코어 기본(제품 경로 아님)이라 main 직접 커밋으로 넣을 수 있다. ff(S)에서는 그 직접 커밋이 "따로 병합"이 된다. 등재는 main 이력에 따로 남고 "등재는 ADR"은 리뷰 규범이다 — 게이트로 만들려면 ADR 존재 검사를 따로 RFC로
+    rule: .harness/HARNESS.md §11 — 기록=브랜치=worktree(.worktrees/<ID>). rfc/*는 기록만 반입·코드 병합 안 함. fdr/*는 게이트·리뷰 판정(ci reviewProblems와 같은 하한 — 제품 경로도 CI처럼 base 쪽 work.root_files로 본다) 후 ff(S) 또는 PR(M·L). promote는 spike squash 재기반. gc는 main 기록이 닫혔거나 PR이 병합된 worktree·브랜치만 지운다(기록이 브랜치에만 있으면 활성, 어디에도 없으면 skip — 지우기를 기본으로 두지 않는다). work 설정(config)은 parseWork로 읽고, 읽지 못한 줄이 있으면 멈춘다(기본값으로 조용히 떨어지지 않게). 고치지 않는 것(사유) — base 쪽 root_files 등재는 harness.yaml이 코어 기본(제품 경로 아님)이라 main 직접 커밋으로 넣을 수 있다. ff(S)에서는 그 직접 커밋이 "따로 병합"이 된다. 등재는 main 이력에 따로 남고 "등재는 ADR"은 리뷰 규범이다 — 게이트로 만들려면 ADR 존재 검사를 따로 RFC로
   - name: check-branch-record.mjs
     status: active
     command: (pre-commit) node .harness/scripts/check-branch-record.mjs
