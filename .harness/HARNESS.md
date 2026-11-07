@@ -39,7 +39,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 - ID = `<TYPE>-<YYMMDD>-<slug>` (예 `FDR-261016-customs-api`). 등록부·번호 대역 없음. 같은 날 같은 슬러그만 충돌(`-2`).
 - 생성은 `node .harness/scripts/new-doc.mjs <fdr|adr|rfc|plan|inc|retro|ho|pg|qa|hr|bl|runbook|spec|mtg|dec> <slug> "<제목>"`. 손 복사 금지. 생성기가 자리를 고르고 귀속 머리·manifest·세션 로그·`evidence/`를 만든다.
 - `MTG`(회의)·`DEC`(외부 조직과의 합의 결정)는 협업 저장소(`harness.yaml references` role `collab`)에 만든다(`--ref collab`). ADR은 내부 결정이며 DEC를 인용한다. 역방향 인용은 훅이 거부. 절차: `.harness/runbooks/collab.md`.
-- 인덱스 `docs/INDEX.generated.md`·`docs/specs/index.md`·`docs/queue/INDEX.generated.md`는 생성물. 손 편집 금지.
+- 인덱스 `docs/INDEX.generated.md`·`docs/specs/index.md`·`docs/queue/INDEX.generated.md`는 생성물. 손 편집 금지. 두 `*.generated.md`는 로컬 전용(gitignore — 세션 시작 카드·`build-index`가 만든다, 커밋하면 병합마다 충돌 · lint ⑳), `specs/index.md`만 커밋한다.
 
 ## 4. FDR 프로파일 (티어가 기본값)
 

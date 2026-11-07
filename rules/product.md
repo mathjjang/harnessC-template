@@ -11,4 +11,4 @@
 - 요구사항: `docs/requirements/` (`harness.yaml` `requirements.mode`가 separate-repo면 그 저장소)
 - 현재 동작: `docs/specs/`
 - 기록: `docs/decisions/`(ADR) · `docs/research/`(RFC) · `docs/features/`(FDR) · `docs/handoffs/`(HO) · `docs/records/`(PLAN·MTG·INC·RETRO)
-- 증거: 각 기록 폴더의 `evidence/` (모아 보기: `docs/INDEX.generated.md` 증거 절) · 도메인 규칙: `rules/domain/`
+- 증거: 각 기록 폴더의 `evidence/` (모아 보기: 로컬 `docs/INDEX.generated.md` 증거 절 — `build-index`가 만든다) · 도메인 규칙: `rules/domain/`

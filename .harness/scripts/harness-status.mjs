@@ -90,11 +90,24 @@ function card(root) {
   return lines.join('\n');
 }
 
+/** 로컬 전용 생성 인덱스만 다시 만든다(build-index --local) — 추적 생성물(specs/index.md)은 건드리지 않는다. 실패해도 카드는 낸다 */
+export function refreshLocalIndexes(root) { try { const bi = join(root, '.harness', 'scripts', 'build-index.mjs'); if (existsSync(bi)) execSync(`"${process.execPath}" "${bi}" --root "${root}" --local`, { stdio: 'ignore', timeout: 20000 }); } catch { /* */ } }
+
 if (process.argv.includes('--self-test')) {
   const out = card(ROOT);
   const n = out.split('\n').length;
-  const ok = /harnessC/.test(out) && n >= 5 && n <= 8;
-  console.log(ok ? `self-test OK (카드 ${n}줄)` : 'self-test FAIL\n' + out);
+  let ok = /harnessC/.test(out) && n >= 5 && n <= 8;
+  // 세션 시작이 로컬 인덱스를 만든다(--local — 추적 생성물은 그대로): 스크립트 사본을 둔 모형 저장소에서
+  const { mkdirSync, rmSync, writeFileSync, copyFileSync } = await import('node:fs');
+  const t = join(ROOT, '.harness', '.status-selftest'); rmSync(t, { recursive: true, force: true });
+  for (const d of ['.harness/scripts/lib', 'docs/queue', 'docs/specs']) mkdirSync(join(t, d), { recursive: true });
+  for (const f of ['build-index.mjs', 'lib/records.mjs', 'lib/generated-index.mjs']) copyFileSync(join(ROOT, '.harness', 'scripts', f), join(t, '.harness', 'scripts', f));
+  writeFileSync(join(t, 'docs', 'specs', 'index.md'), '손댐\n'); refreshLocalIndexes(t);
+  const made = existsSync(join(t, 'docs', 'INDEX.generated.md')) && existsSync(join(t, 'docs', 'queue', 'INDEX.generated.md')) && readFileSync(join(t, 'docs', 'specs', 'index.md'), 'utf8') === '손댐\n';
+  rmSync(t, { recursive: true, force: true }); if (!made) ok = false;
+  console.log(ok ? `self-test OK (카드 ${n}줄 · 로컬 인덱스 생성·추적 생성물 그대로)` : 'self-test FAIL\n' + out + (made ? '' : '\n로컬 인덱스 미생성 또는 추적 생성물을 고침'));
   process.exit(ok ? 0 : 1);
 }
+// 로컬 전용 생성 인덱스(docs/INDEX.generated.md 등 — git에 없다)를 세션마다 새로 만든다. 실패해도 카드는 낸다
+refreshLocalIndexes(ROOT);
 console.log(card(ROOT));

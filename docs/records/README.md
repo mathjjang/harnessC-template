@@ -1,6 +1,6 @@
 # docs/records — 그 밖의 기록 (역사 · 고치지 않는다)
 
-`<TYPE>-<YYMMDD>-<slug>`. 자주 여는 네 종류는 자기 폴더에 있다 — ADR `../decisions/` · RFC `../research/` · FDR `../features/` · HO `../handoffs/`. 전체 목록은 `../INDEX.generated.md`.
+`<TYPE>-<YYMMDD>-<slug>`. 자주 여는 네 종류는 자기 폴더에 있다 — ADR `../decisions/` · RFC `../research/` · FDR `../features/` · HO `../handoffs/`. 전체 목록은 `../INDEX.generated.md`(로컬 전용 — git에 없고 세션 시작 카드·`build-index`가 만든다).
 
 | 접두 | 종류 | 형태 |
 |---|---|---|

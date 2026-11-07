@@ -8,6 +8,7 @@
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
 //       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가 ⑲ harness.yaml work.root_files가 루트 파일 이름만인가
+//       ⑳ 로컬 생성 인덱스(lib/generated-index.mjs LOCAL)가 .gitignore에 있고 추적되지 않는가 — 추적하면 병합마다 같은 줄이 충돌한다
 //       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { parseReferences } from './lib/refs.mjs';
 import { hashCore } from './lib/core-files.mjs';
+import { localIndexProblems } from './lib/generated-index.mjs';
 import { DOCS_DIRS, listRecords } from './lib/records.mjs';
 import { checkMockup } from './mockup-diff.mjs';
 import { rootFileEntries, notRootEntry, workErrors } from './check-branch-record.mjs';
@@ -84,6 +86,8 @@ export function lint(root) {
     try { git(`check-ignore -q -- "${rel}"`); } catch { problems.push(`참조 저장소 ${r.path}가 .gitignore에 없다 — 중첩 체크아웃은 개발 저장소가 추적하면 안 된다`); }
     try { if (git(`ls-files -- "${rel}"`).trim()) problems.push(`참조 저장소 ${r.path}의 파일이 개발 저장소에 추적되고 있다 — git rm --cached`); } catch { /* */ }
   }
+  // ⑳ 로컬 생성 인덱스 — 추적·미등재면 위반(옮기는 명령을 같이 보인다). 검사 본체는 build-index --self-test가 임시 git 저장소로 시험한다(이 self-test 표본은 git 밖)
+  for (const x of localIndexProblems(root)) problems.push(x);
   // ⑨ human-run 큐(HR-)의 axis
   const axes = new Set([...rd(join(root, 'rules', 'human-only.yaml')).matchAll(/^\s*-\s*id:\s*(\S+)/gm)].map((m) => m[1]));
   const qdir = join(root, 'docs', 'queue');
@@ -207,7 +211,11 @@ if (process.argv.includes('--self-test')) {
   // ⑫ 부정: manifest 해시와 다른 코어 파일
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
-  const want = ['BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
+  // ⑳ 연결부: 위 표본은 git 밖이라 ⑳이 돌지 않는다 — 로컬 인덱스를 추적하는 작은 git 저장소에서 lint()가 실제로 알리는지(검사 본체는 build-index --self-test)
+  { const t2 = join(HERE, '..', '.lint-selftest-git'); rmSync(t2, { recursive: true, force: true }); mkdirSync(join(t2, 'docs'), { recursive: true }); writeFileSync(join(t2, 'docs', 'INDEX.generated.md'), '<!-- 생성물 -->\n');
+    try { execSync('git init -q -b main', { cwd: t2, stdio: 'ignore' }); execSync('git add -A', { cwd: t2, stdio: 'ignore' }); p.push(...lint(t2).filter((x) => x.startsWith('로컬 생성 인덱스 docs/INDEX.generated.md'))); } catch { /* 아래 미검출로 드러난다 */ }
+    rmSync(t2, { recursive: true, force: true }); }
+  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
   const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 6건 · 기록 자리 3곳 · 프로젝트 도구)`);

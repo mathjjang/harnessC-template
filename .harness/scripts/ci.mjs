@@ -3,7 +3,7 @@
 //
 //   node .harness/scripts/ci.mjs [--base <브랜치>] [--head <브랜치>]     (Actions: HARNESS_CI_BASE=github.base_ref · HARNESS_CI_HEAD=github.head_ref)
 //
-// 언제나: ① lint ② build-index --check ③ harness-build --check ④ (템플릿 저장소면) 코어 전 self-test
+// 언제나: ① lint ② build-index --check(추적 생성물만 — 두 *.generated.md는 로컬 전용) ③ harness-build --check ④ (템플릿 저장소면) 코어 전 self-test
 // PR일 때(head가 있으면): ⑤ 브랜치=기록 · scope — check-branch-record 판정을 PR 변경 파일 전체에 ⑥ 임시 파일 ⑦ 리뷰 판정 — fdr/*·plan/* PR은
 //   그 기록의 리뷰 판정이 `통과`(또는 `조건부` + 조건)여야 하고, risk high면 사람 사인오프가 있어야 병합 가능. 리뷰어는 구현자와 달라야 한다(리뷰어 칸 ≠ 작성 머리).
 //   ⑧ 판정 뒤 제품 코드 — 판정이 마지막으로 바뀐 커밋에 제품 경로가 섞였거나, 그 뒤 커밋이 제품 경로를 바꾸면 판정 무효(다시 리뷰). 런타임과 무관한 하한:

@@ -8,4 +8,4 @@
 | `BL-` | 지금 하면 안 되는 것 (사실·왜·해소 조건·하지 말 것) | `new-doc.mjs bl …` |
 
 머리말 공통 스키마: `id · source · severity · blocking · owner · due · state(open|decided|closed) · decision · sync`.
-집계는 `INDEX.generated.md`(`node .harness/scripts/build-index.mjs`). 결정 전에는 어느 정본도 고치지 않는다. HR은 환경별 세션으로 묶어 처리한다.
+집계는 `INDEX.generated.md`(`node .harness/scripts/build-index.mjs` — 로컬 전용, git에 없다. 세션 시작 카드가 다시 만든다). 결정 전에는 어느 정본도 고치지 않는다. HR은 환경별 세션으로 묶어 처리한다.
