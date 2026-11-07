@@ -9,3 +9,6 @@ node_modules/
 docs/*/*/evidence/runs/*.out
 .DS_Store
 Thumbs.db
+# 로컬 생성 인덱스 — build-index가 만든다, 커밋하지 않는다(REP local-generated-index · lint ⑳)
+docs/INDEX.generated.md
+docs/queue/INDEX.generated.md

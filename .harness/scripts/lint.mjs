@@ -8,6 +8,7 @@
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
 //       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가 ⑲ harness.yaml work.root_files가 루트 파일 이름만인가
+//       ⑳ 로컬 생성 인덱스(lib/generated-index.mjs LOCAL)가 .gitignore에 있고 추적되지 않는가 — 추적하면 병합마다 같은 줄이 충돌한다
 //       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
 // 검사하지 않는 것: 증거의 내용이 맞는지, 리뷰 판정이 타당한지 — 형식·존재·연결만 본다. "lint OK"는 그 범위의 통과다.
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { parseReferences } from './lib/refs.mjs';
 import { hashCore } from './lib/core-files.mjs';
+import { localIndexProblems } from './lib/generated-index.mjs';
 import { DOCS_DIRS, listRecords } from './lib/records.mjs';
 import { checkMockup } from './mockup-diff.mjs';
 import { rootFileEntries, notRootEntry, workErrors } from './check-branch-record.mjs';
@@ -84,6 +86,8 @@ export function lint(root) {
     try { git(`check-ignore -q -- "${rel}"`); } catch { problems.push(`참조 저장소 ${r.path}가 .gitignore에 없다 — 중첩 체크아웃은 개발 저장소가 추적하면 안 된다`); }
     try { if (git(`ls-files -- "${rel}"`).trim()) problems.push(`참조 저장소 ${r.path}의 파일이 개발 저장소에 추적되고 있다 — git rm --cached`); } catch { /* */ }
   }
+  // ⑳ 로컬 생성 인덱스 — 추적·미등재면 위반(옮기는 명령을 같이 보인다). 검사 본체는 build-index --self-test가 임시 git 저장소로 시험한다(이 self-test 표본은 git 밖)
+  for (const x of localIndexProblems(root)) problems.push(x);
   // ⑨ human-run 큐(HR-)의 axis
   const axes = new Set([...rd(join(root, 'rules', 'human-only.yaml')).matchAll(/^\s*-\s*id:\s*(\S+)/gm)].map((m) => m[1]));
   const qdir = join(root, 'docs', 'queue');

@@ -97,4 +97,6 @@ if (process.argv.includes('--self-test')) {
   console.log(ok ? `self-test OK (카드 ${n}줄)` : 'self-test FAIL\n' + out);
   process.exit(ok ? 0 : 1);
 }
+// 로컬 전용 생성 인덱스(docs/INDEX.generated.md 등 — git에 없다)를 세션마다 새로 만든다. 실패해도 카드는 낸다
+try { const bi = join(ROOT, '.harness', 'scripts', 'build-index.mjs'); if (existsSync(bi)) execSync(`"${process.execPath}" "${bi}" --root "${ROOT}"`, { stdio: 'ignore', timeout: 20000 }); } catch { /* */ }
 console.log(card(ROOT));

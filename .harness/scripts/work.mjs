@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join, resolve, relative, basename, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RECORD_DIRS, recordDir, recordRel } from './lib/records.mjs';
+import { LOCAL_INDEXES, TRACKED_INDEXES } from './lib/generated-index.mjs';
 import { reviewProblems, commitHistory } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(⑦·⑧)
 import { parseWork, nonProductOfYaml } from './check-branch-record.mjs';
 
@@ -129,8 +130,8 @@ export function markShipped(wt, id) {
   writeFileSync(f, rd(f).replace(/^status:\s*(draft|in-progress)\b/m, 'status: shipped').replace(/^updated:.*$/m, `updated: ${new Date().toISOString().slice(0, 10)}`));
   const rel = relative(wt, f).split(sep).join('/');
   const paths = [rel];
-  const bi = join(wt, '.harness', 'scripts', 'build-index.mjs');   // 상태가 인덱스에 찍힌다 — 같이 갱신하지 않으면 pre-commit(build-index --check)이 거부한다
-  if (existsSync(bi)) { execSync(`"${process.execPath}" "${bi}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of ['docs/INDEX.generated.md', 'docs/specs/index.md', 'docs/queue/INDEX.generated.md']) if (existsSync(join(wt, g2))) paths.push(g2); }
+  const bi = join(wt, '.harness', 'scripts', 'build-index.mjs');   // 추적하는 생성물만 같이 커밋한다 — 두 *.generated.md는 로컬 전용(lib/generated-index.mjs · 커밋하면 브랜치끼리 충돌)
+  if (existsSync(bi)) { execSync(`"${process.execPath}" "${bi}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of TRACKED_INDEXES) if (existsSync(join(wt, g2))) paths.push(g2); }
   const q = paths.map((p) => `"${p}"`).join(' ');
   git(wt, `add -- ${q}`);
   try { git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- ${q}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true }); }
@@ -252,10 +253,10 @@ if (process.argv.includes('--self-test')) {
   const tmp = join(HERE, '..', '.work-selftest'); rmSync(tmp, { recursive: true, force: true });
   const RFC_DIR = RECORD_DIRS.RFC, FDR_DIR = RECORD_DIRS.FDR;
   mkdirSync(join(tmp, RFC_DIR), { recursive: true }); mkdirSync(join(tmp, '.harness', 'scripts'), { recursive: true });
-  for (const f of ['new-doc.mjs', 'build-index.mjs', 'lib/refs.mjs', 'lib/records.mjs', 'lib/upstream.mjs']) { mkdirSync(dirname(join(tmp, '.harness', 'scripts', f)), { recursive: true }); writeFileSync(join(tmp, '.harness', 'scripts', f), readFileSync(join(HERE, f))); }
+  for (const f of ['new-doc.mjs', 'build-index.mjs', 'lib/refs.mjs', 'lib/records.mjs', 'lib/upstream.mjs', 'lib/generated-index.mjs']) { mkdirSync(dirname(join(tmp, '.harness', 'scripts', f)), { recursive: true }); writeFileSync(join(tmp, '.harness', 'scripts', f), readFileSync(join(HERE, f))); }
   execSync(`xcopy /E /I /Q "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}" >nul 2>&1 || cp -r "${join(DEFAULT_ROOT, '.harness', 'templates')}" "${join(tmp, '.harness', 'templates')}"`, { shell: true, stdio: 'ignore' });
   writeFileSync(join(tmp, 'harness.yaml'), 'tier: S\nwork:   # 머리 줄 주석도 허용\n  dir: .worktrees\n  base: main\n  merge: ff\n  link: [.env.local]\n');
-  writeFileSync(join(tmp, '.env.local'), 'SECRET=1\n'); writeFileSync(join(tmp, '.gitignore'), '.env.local\n');
+  writeFileSync(join(tmp, '.env.local'), 'SECRET=1\n'); writeFileSync(join(tmp, '.gitignore'), ['.env.local', ...LOCAL_INDEXES].join('\n') + '\n');
   writeFileSync(join(tmp, 'tsconfig.json'), '{ "compilerOptions": {}, "exclude": ["node_modules"] }\n'); writeFileSync(join(tmp, '.eslintignore'), 'dist/\n');
   mkdirSync(join(tmp, RFC_DIR, 'RFC-260101-spike'), { recursive: true }); writeFileSync(join(tmp, RFC_DIR, 'RFC-260101-spike', 'rfc.md'), '# RFC\n\n- 상태: Open\n- 작성: t\n');
   const g = (c, cwd = tmp) => execSync(`git ${c}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -305,7 +306,8 @@ if (process.argv.includes('--self-test')) {
     const f2 =finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
-    if (!/shipped/.test(rd(join(tmp, 'docs', 'INDEX.generated.md'))) || g('status --porcelain')) fails.push('finish(fdr): shipped 표시가 인덱스와 함께 커밋되지 않았다');
+    if (g('status --porcelain')) fails.push('finish(fdr): 병합 뒤 작업 트리가 깨끗하지 않다 — ' + g('status --porcelain'));
+    if (LOCAL_INDEXES.some((r) => g(`ls-files -- "${r}"`))) fails.push('finish(fdr): 로컬 생성 인덱스를 커밋했다');
     if (existsSync(join(tmp, '.worktrees', p.fdr))) fails.push('finish: worktree 잔존');
     const w2 = start(tmp, p.fdr); writeFileSync(join(w2.path, 'src', 'b.ts'), 'b'); g('add -A', w2.path); g('commit -q -m b', w2.path);
     writeFileSync(join(tmp, FDR_DIR, p.fdr, 'fdr.md'), rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')).replace(/^status:.*$/m, 'status: closed')); g('add -A'); g('commit -q -m close');

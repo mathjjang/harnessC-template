@@ -36,13 +36,13 @@ tools:
     command: node .harness/scripts/lint.mjs
     enforcement: gate
     self_test: node .harness/scripts/lint.mjs --self-test
-    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR·scope 겹침·risk 값 low|medium|high 소문자 — 비어 있으면 ci가 low로 읽는다) §11(HO 상태·잔존 브랜치·⑲ work.root_files는 루트 파일 이름만 — / \ 든 항목·폴더·와일드카드·. ..·구분자 닮은 글자·앞뒤 공백은 실패, work 절 해석 실패(목록 아님·닫히지 않음 등)도 실패) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
+    rule: .harness/HARNESS.md §1(도구 참조·예산·고정 폴더) §8(귀속·중복·생성물) §5(HR axis) §4·§6(closed FDR·scope 겹침·risk 값 low|medium|high 소문자 — 비어 있으면 ci가 low로 읽는다) §11(HO 상태·잔존 브랜치·⑲ work.root_files는 루트 파일 이름만 — / \ 든 항목·폴더·와일드카드·. ..·구분자 닮은 글자·앞뒤 공백은 실패, work 절 해석 실패(목록 아님·닫히지 않음 등)도 실패) §3(⑳ 로컬 생성 인덱스 docs/INDEX.generated.md·docs/queue/INDEX.generated.md는 .gitignore에 있고 추적되지 않는다 — 목록·검사는 lib/generated-index.mjs) §9(코어 무결성) — 형식·존재·연결만. 내용 타당성은 리뷰어
   - name: build-index.mjs
     status: active
     command: node .harness/scripts/build-index.mjs [--check]
     enforcement: generate
     self_test: node .harness/scripts/build-index.mjs --self-test
-    rule: .harness/HARNESS.md §3·§7 — 기록(종류별)·스펙·큐·증거 생성 인덱스
+    rule: .harness/HARNESS.md §3·§7 — 기록(종류별)·스펙·큐·증거 생성 인덱스. 두 *.generated.md는 로컬 전용(gitignore · 세션 시작 카드가 다시 만든다), docs/specs/index.md만 커밋 — --check는 추적 생성물만 본다. 머리 줄에 날짜 없음
   - name: check-session-log.mjs
     status: active
     command: node .harness/scripts/check-session-log.mjs

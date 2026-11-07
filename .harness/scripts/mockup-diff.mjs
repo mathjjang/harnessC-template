@@ -241,7 +241,7 @@ export async function run(root, fdrId, { states = [], agent = '(모델 미확인
   const rp = join(built.config.paths.json_report, 'jsonReport.json');
   const report = existsSync(rp) ? JSON.parse(rd(rp)) : { tests: [] };
   const results = record(root, fdrId, { report, built, agent, cfg, fontsDir });
-  const bi = join(root, '.harness', 'scripts', 'build-index.mjs');   // 증거가 늘었다 — 생성 인덱스를 같이 갱신해야 커밋이 된다(pre-commit build-index --check)
+  const bi = join(root, '.harness', 'scripts', 'build-index.mjs');   // 증거가 늘었다 — 생성 인덱스를 다시 만든다(증거 절은 로컬 인덱스 · 추적 생성물은 pre-commit build-index --check가 본다)
   if (existsSync(bi)) { try { execSync(`"${process.execPath}" "${bi}"`, { cwd: root, stdio: 'ignore' }); } catch { /* 인덱스는 pre-commit이 다시 묻는다 */ } }
   for (const e of results.scenarios) console.log(`  ${e.status.padEnd(8)} ${e.state}${e.mismatchPct !== undefined ? `  ${Number(e.mismatchPct).toFixed(4)}%` : ''}${e.error ? '  ' + e.error : ''}${e.warning ? '  ⚠ ' + e.warning : ''}`);
   return results;
