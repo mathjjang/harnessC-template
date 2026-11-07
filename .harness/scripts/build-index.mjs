@@ -65,8 +65,8 @@ function queueIndex() {
 }
 
 const BUILDERS = { 'docs/INDEX.generated.md': mainIndex, 'docs/specs/index.md': specsIndex, 'docs/queue/INDEX.generated.md': queueIndex };
-const targets = [...LOCAL_INDEXES, ...TRACKED_INDEXES].map((rel) => [rel, BUILDERS[rel]]);
-const strip = (s) => s.replace(/ · \d{4}-\d{2}-\d{2} ·/, ' ·');   // 옛 머리 줄(날짜 있음)과도 같게 본다 — sync 직후 --check가 날짜만으로 실패하지 않게
+const targets = [...LOCAL_INDEXES, ...(process.argv.includes('--local') ? [] : TRACKED_INDEXES)].map((rel) => [rel, BUILDERS[rel]]);   // --local: 로컬 전용만(세션 시작 카드 — 추적 파일을 건드려 작업 트리를 더럽히지 않게)
+const strip = (s) => s.replace(/^(<!--[^\n]*?) · \d{4}-\d{2}-\d{2} ·/, '$1 ·');   // 옛 머리 줄(날짜 있음)과도 같게 본다 — sync 직후 --check가 날짜만으로 실패하지 않게. 첫 줄 주석 안만
 
 if (process.argv.includes('--self-test')) {
   // 임시 git 저장소: 셋을 만든다 · 머리에 날짜 없음 · --check는 추적 생성물만 본다 · 로컬 인덱스 추적·미등재를 잡는다(lint ⑳과 같은 함수)
@@ -75,6 +75,7 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, 'docs/features/FDR-260101-a/fdr.md'), '---\nid: FDR-260101-a\nstatus: draft\n---\n# FDR-260101-a · 가\n');
   writeFileSync(join(tmp, 'docs/queue/BL-260101-b.md'), '---\nid: BL-260101-b\nstate: open\n---\n# 나\n');
   writeFileSync(join(tmp, 'docs/specs/cap/spec.md'), '# cap\n### Requirement: x\n');
+  writeFileSync(join(tmp, 'docs/specs/cond.md'), '# 조건 · 2026-01-02 · 문서\n');   // 생성 본문에 " · 날짜 ·"가 든다 — 날짜 지우기가 첫 줄 밖을 건드리면 옛 머리 줄 비교가 틀린다
   const run = (a = '') => { try { execSync(`"${process.execPath}" "${join(HERE, 'build-index.mjs')}" --root "${tmp}" ${a}`, { stdio: 'ignore' }); return 0; } catch (e) { return e.status ?? 1; } };
   const g = (c) => execSync(`git ${c}`, { cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   const fails = [];
@@ -87,9 +88,13 @@ if (process.argv.includes('--self-test')) {
     if (run('--check') !== 0) fails.push('--check: 로컬 인덱스가 낡았다고 실패(추적 생성물만 봐야)');
     const sp = join(tmp, 'docs/specs/index.md'); const fresh = rd(sp);
     writeFileSync(sp, fresh.replace(' · 손으로', ' · 2026-01-01 · 손으로'));
-    if (run('--check') !== 0) fails.push('--check: 옛 날짜 머리 줄만 다른데 실패');
+    if (run('--check') !== 0) fails.push('--check: 옛 날짜 머리 줄만 다른데 실패(본문에 날짜가 든 조건 문서 제목이 있다)');
+    writeFileSync(sp, fresh.replace('2026-01-02', '2026-01-03'));
+    if (run('--check') !== 1) fails.push('--check: 본문 날짜가 달라졌는데 통과(첫 줄 밖을 지웠다)');
     writeFileSync(sp, fresh + '손댐\n');
     if (run('--check') !== 1) fails.push('--check: 추적 생성물(specs/index.md)이 낡았는데 통과');
+    rmSync(join(tmp, 'docs/INDEX.generated.md')); writeFileSync(sp, '손댐\n');
+    if (run('--local') !== 0 || !existsSync(join(tmp, 'docs/INDEX.generated.md')) || rd(sp) !== '손댐\n') fails.push('--local: 로컬만 만들고 추적 생성물은 그대로여야');
     run();
     g('add -A');   // .gitignore 없음 → 로컬 인덱스가 추적된다
     const p1 = localIndexProblems(tmp);
@@ -103,7 +108,7 @@ if (process.argv.includes('--self-test')) {
     if (!LOCAL_INDEXES.every((r) => existsSync(join(tmp, r)))) fails.push('rm --cached가 파일을 지움');
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL\n- ' + fails.join('\n- ') : `self-test OK (생성 3 · 날짜 없음 · --check 추적 ${TRACKED_INDEXES.length}개만 · 로컬 ${LOCAL_INDEXES.length}개 추적·미등재 검출)`);
+  console.log(fails.length ? 'self-test FAIL\n- ' + fails.join('\n- ') : `self-test OK (생성 3 · 날짜 없음 · --check 추적 ${TRACKED_INDEXES.length}개만·첫 줄 날짜만 무시 · --local · 로컬 ${LOCAL_INDEXES.length}개 추적·미등재 검출)`);
   process.exit(fails.length ? 1 : 0);
 }
 

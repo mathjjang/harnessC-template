@@ -156,12 +156,37 @@ export function reviewGuard(wt, id, base) {
   if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션 또는 risk low·medium의 리뷰 서브에이전트):\n- ${rv.join('\n- ')}`);
 }
 
+/** 이행 전에 연 브랜치(REP local-generated-index): 브랜치가 아직 추적하는 로컬 생성 인덱스의 작업 트리 변경(세션 카드·markShipped가 다시 만든 것)은 버린다 — 커밋할 대상이 아니다 */
+function settleLocalIndexes(wt) {
+  const dirty = LOCAL_INDEXES.filter((r) => git(wt, `ls-files -- "${r}"`) && git(wt, `status --porcelain -- "${r}"`));
+  if (dirty.length) git(wt, `checkout -- ${dirty.map((r) => `"${r}"`).join(' ')}`, { quiet: true });
+}
+
+/** base 위로 rebase. base가 로컬 생성 인덱스를 추적 해제한 뒤라 그 파일만 충돌하면(브랜치 커밋이 고친 것 — modify/delete) 지우는 쪽으로 풀고 계속한다.
+ *  그 커밋이 인덱스만 고쳤으면 빈 커밋이 되어 건너뛴다. 다른 파일이 충돌하면 rebase를 되돌리고 멈춘다(예전과 같다) */
+function rebaseOnto(root, wt, base) {
+  const env = { GIT_EDITOR: 'true' };
+  const stop = () => { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } return new Error(`${base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); };
+  const inRebase = () => ['rebase-merge', 'rebase-apply'].some((d) => existsSync(resolve(wt, git(wt, `rev-parse --git-path ${d}`))));
+  const list = (cmd) => git(wt, cmd).split('\n').filter(Boolean);
+  try { git(wt, `rebase "${base}"`, { quiet: true }); return; } catch { /* 아래에서 판정 */ }
+  for (let i = 0; i < 1000 && inRebase(); i++) {
+    const un = list('diff --name-only --diff-filter=U');
+    if (un.some((f) => !LOCAL_INDEXES.includes(f))) throw stop();
+    if (un.length) git(wt, `rm -q --cached -- ${un.map((f) => `"${f}"`).join(' ')}`, { quiet: true });
+    try { git(wt, 'rebase --continue', { env, quiet: true }); }
+    catch { if (!list('diff --name-only --diff-filter=U').length && !list('diff --cached --name-only').length) { try { git(wt, 'rebase --skip', { env, quiet: true }); } catch { /* 다음 커밋에서 또 멈췄다 — 되풀이 */ } } }
+  }
+  if (inRebase()) throw stop();
+}
+
 export function finish(root, id, { gates = true, gh = true } = {}) {
   const c = config(root);
   const r = record(root, id) || { id, type: id.split('-')[0] };
   const branch = branchOf(id);
   const wt = join(root, c.dir, id);
   if (!existsSync(wt)) throw new Error(`열린 worktree가 없다: ${relative(root, wt)}`);
+  settleLocalIndexes(wt);
   if (!clean(wt)) throw new Error(`worktree에 미커밋 변경이 있다 — 커밋하거나 버린 뒤 finish`);
   if (git(root, 'branch --show-current') !== c.base) throw new Error(`본 트리가 ${c.base}가 아니다: ${git(root, 'branch --show-current')}`);
   if (!clean(root)) throw new Error(`본 트리에 미커밋 변경이 있다 — 병합 전에 정리`);
@@ -170,7 +195,8 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
   if (['FDR', 'PLAN'].includes(r.type)) {
     markShipped(wt, id);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
     // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
-    try { git(wt, `rebase "${c.base}"`, { quiet: true }); } catch { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } throw new Error(`${c.base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); }
+    settleLocalIndexes(wt);   // markShipped의 build-index가 브랜치가 아직 추적하는 로컬 인덱스를 다시 썼다 — 버려야 rebase가 시작된다
+    rebaseOnto(root, wt, c.base);
     if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
     if (gates && c.merge !== 'pr') reviewGuard(wt, id, c.base);   // ff(S)에도 PR과 같은 하한 — 혼자여도 검사는 다른 세션(또는 risk low·medium 리뷰 서브에이전트)이 한다
     if (c.merge === 'pr') {
@@ -328,6 +354,29 @@ if (process.argv.includes('--self-test')) {
       const r3 = gc(tmp, { apply: true, merged: new Set() });
       if (!g(`branch --list "fdr/${b1.id}"`) || !r3.some((x) => x.id === b1.id && /^skip\(main에 기록 없음/.test(x.action))) fails.push('gc: main에 기록 없는 브랜치를 지움 ' + JSON.stringify(r3));
       gc(tmp, { apply: true, merged: new Set([`fdr/${b1.id}`]) }); if (g(`branch --list "fdr/${b1.id}"`)) fails.push('gc: 병합된 PR 브랜치(main에 기록 없음) 미정리'); }
+    // REP local-generated-index 전환기 — 인덱스를 추적하던 때 연 브랜치(인덱스만 고친 커밋 + 코드와 같이 고친 커밋)를, main이 추적 해제한 뒤 finish하면 스스로 풀고 ff
+    { const { create: mk } = await import(pathToFileURL(join(tmp, '.harness', 'scripts', 'new-doc.mjs')).href);
+      const t1 = mk(tmp, 'fdr', 'transition', '전환기', { agent: 't', profile: 'lite' });
+      mkdirSync(join(tmp, 'docs', 'queue'), { recursive: true });   // build-index는 폴더가 있을 때만 쓴다
+      execSync(`"${process.execPath}" "${join(tmp, '.harness', 'scripts', 'build-index.mjs')}"`, { cwd: tmp, stdio: 'ignore' });
+      g('add -A'); g(`add -f -- ${LOCAL_INDEXES.join(' ')}`); g('commit -q -m "옛 방식: 인덱스 추적"');
+      const wt1 = start(tmp, t1.id);
+      writeFileSync(join(wt1.path, LOCAL_INDEXES[0]), rd(join(wt1.path, LOCAL_INDEXES[0])) + '브랜치 1\n'); g('commit -qam "인덱스만"', wt1.path);
+      writeFileSync(join(wt1.path, LOCAL_INDEXES[1]), rd(join(wt1.path, LOCAL_INDEXES[1])) + '브랜치 2\n'); writeFileSync(join(wt1.path, 'src', 't.ts'), 't'); g('add -A', wt1.path); g('commit -q -m "코드 + 인덱스"', wt1.path);
+      writeFileSync(join(wt1.path, LOCAL_INDEXES[0]), rd(join(wt1.path, LOCAL_INDEXES[0])) + '세션 카드가 다시 씀\n');   // 미커밋 — finish가 버려야
+      g(`rm -q --cached -- ${LOCAL_INDEXES.join(' ')}`); g('commit -q -m "이행: 로컬 인덱스 추적 해제"');
+      let ft; try { ft = finish(tmp, t1.id, { gates: false }); } catch (e) { fails.push('전환기 finish 거부: ' + e.message); }
+      if (ft && (ft.merged !== 'ff' || !existsSync(join(tmp, 'src', 't.ts')))) fails.push('전환기: ff 병합·코드 반입 ' + JSON.stringify(ft));
+      if (LOCAL_INDEXES.some((r) => g(`ls-files -- "${r}"`))) fails.push('전환기: 병합 뒤 main이 로컬 인덱스를 다시 추적');
+      if (g('status --porcelain')) fails.push('전환기: 병합 뒤 작업 트리 ' + g('status --porcelain'));
+      if (!/^status: shipped/m.test(rd(join(t1.path, 'fdr.md')))) fails.push('전환기: 기록이 shipped가 아니다');
+      // 다른 파일 충돌은 예전처럼 멈춘다(rebase 되돌림)
+      const t2 = mk(tmp, 'fdr', 'conflict', '충돌', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m t2');
+      const wt2 = start(tmp, t2.id); writeFileSync(join(wt2.path, 'src', 't.ts'), 'branch'); g('commit -qam b', wt2.path);
+      writeFileSync(join(tmp, 'src', 't.ts'), 'main'); g('commit -qam m');
+      try { finish(tmp, t2.id, { gates: false }); fails.push('전환기: 코드 충돌을 넘김'); } catch (e) { if (!/rebase 충돌/.test(e.message)) fails.push('코드 충돌 거부 사유: ' + e.message); }
+      if (['rebase-merge', 'rebase-apply'].some((d) => existsSync(resolve(wt2.path, g(`rev-parse --git-path ${d}`, wt2.path))))) fails.push('전환기: 멈춘 뒤 rebase가 진행 중으로 남음');
+      g(`worktree remove --force "${wt2.path}"`); g(`branch -D "fdr/${t2.id}"`); }
     // PR 모드 — 원격(bare)에 push · PR 본문(기록에서) · 병합된 PR은 gc가 정리 · 보호 규칙(dry)
     const bare = join(tmp, '..', '.work-selftest-remote.git'); rmSync(bare, { recursive: true, force: true }); execSync(`git init -q --bare "${bare}"`, { stdio: 'ignore' });
     g(`remote add origin "${bare}"`); g('push -q -u origin main');

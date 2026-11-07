@@ -21,11 +21,15 @@
 
 - `docs/INDEX.generated.md`와 `docs/queue/INDEX.generated.md`는 **로컬 전용**으로 한다.
   - `.gitignore`에 넣고 커밋하지 않는다.
-  - `build-index`와 세션 시작 카드(`harness-status`)가 만든다.
+  - `build-index`와 세션 시작 카드(`harness-status` → `build-index --local`, 추적 파일은 건드리지 않는다)가 만든다.
 - `docs/specs/index.md`는 커밋을 유지한다. 스펙이 바뀔 때만 바뀌기 때문이다. `--check`는 이 파일만 본다.
 - 세 파일 모두 머리 줄에 날짜를 쓰지 않는다. `--check`는 옛 날짜가 든 머리 줄도 같은 것으로 본다. 그래야 sync 직후 날짜 차이만으로 실패하지 않는다.
 - lint ⑳: 로컬 인덱스가 git에 추적되거나 `.gitignore`에 없으면 위반이다. 위반 메시지에 옮기는 명령을 함께 보인다.
 - `work.mjs finish`는 추적 생성물만 같이 커밋한다.
+- 전환기: 이행 전에 연 브랜치는 finish가 스스로 푼다.
+  - 브랜치가 아직 추적하는 로컬 인덱스의 미커밋 변경은 버린다.
+  - rebase 충돌이 로컬 인덱스뿐이면 추적 해제 쪽으로 풀고 계속한다. 인덱스만 고친 커밋은 비어서 건너뛴다.
+  - 다른 파일이 충돌하면 예전처럼 rebase를 되돌리고 멈춘다.
 - 하지 않는 것:
   - 인덱스 내용이나 형식은 바꾸지 않는다.
   - merge driver를 쓰지 않는다. GitHub 병합 단추에서는 merge driver가 돌지 않아서 PR이 계속 충돌로 보인다.
@@ -49,7 +53,8 @@
 - 프로젝트 이행(sync-core 뒤 한 번):
   - `.gitignore`에 두 줄을 넣는다.
   - `git rm --cached -- docs/INDEX.generated.md docs/queue/INDEX.generated.md`를 실행한다. 파일은 남는다.
-  - `node .harness/scripts/build-index.mjs`를 돌리고 커밋한다.
+  - `node .harness/scripts/build-index.mjs`를 돌리고 `docs/specs/index.md`(머리 줄 날짜가 빠진다)를 같은 커밋에 넣는다.
+  - 열린 기록 브랜치는 손대지 않아도 된다. finish가 전환기 충돌을 푼다(§2).
   - 하지 않으면 lint ⑳이 pre-commit과 CI를 막는다.
 - 되돌릴 때: 새 ADR을 쓰고 `.gitignore`에서 두 줄을 뺀 뒤 두 파일을 다시 커밋한다. 비용은 낮다.
 - 검증:
