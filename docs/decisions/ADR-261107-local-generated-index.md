@@ -1,6 +1,6 @@
 # ADR-261107-local-generated-index: 생성 인덱스 두 개를 git에서 빼고 로컬에서만 만든다
 
-- 상태: Proposed
+- 상태: Accepted
 - 작성: Claude Code (claude-opus-5-5) · 2026-11-07
 - 강제 등급: gate — 집행 수단: `.harness/catalog.yaml` lint.mjs ⑳ (목록·검사 `lib/generated-index.mjs`) · build-index.mjs `--check`(추적 생성물만)
 - 위험: low
@@ -78,3 +78,4 @@
 | 날짜 | 에이전트(모델) | 수정 부위 | 요지 |
 |---|---|---|---|
 | 2026-11-07 | Claude Code (claude-opus-5-5) | 전체 | 최초 작성 |
+| 2026-11-07 | Claude Code (claude-opus-5-5) | 상태 | Accepted — PR #5 병합(사용자 승인 2026-11-07) · 릴리스 v0.4.6 |
