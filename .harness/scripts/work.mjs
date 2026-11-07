@@ -123,15 +123,17 @@ export function openPr(root, id, { branch, base, gh = true } = {}) {
 }
 
 /** 브랜치(worktree)의 FDR 기록을 draft|in-progress → shipped로 올리고 커밋한다(이미 shipped·closed면 그대로) */
-export function markShipped(wt, id) {
+export function markShipped(wt, id, root = wt) {
   if (!/^FDR-/.test(id)) return false;
   const r = record(wt, id); if (!r || !/^(draft|in-progress)$/.test(r.status)) return false;
   const f = existsSync(join(r.path, 'manifest.yaml')) ? join(r.path, 'manifest.yaml') : join(r.path, 'fdr.md');
   writeFileSync(f, rd(f).replace(/^status:\s*(draft|in-progress)\b/m, 'status: shipped').replace(/^updated:.*$/m, `updated: ${new Date().toISOString().slice(0, 10)}`));
   const rel = relative(wt, f).split(sep).join('/');
   const paths = [rel];
-  const bi = join(wt, '.harness', 'scripts', 'build-index.mjs');   // 추적하는 생성물만 같이 커밋한다 — 두 *.generated.md는 로컬 전용(lib/generated-index.mjs · 커밋하면 브랜치끼리 충돌)
-  if (existsSync(bi)) { execSync(`"${process.execPath}" "${bi}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of TRACKED_INDEXES) if (existsSync(join(wt, g2))) paths.push(g2); }
+  // 추적하는 생성물만 같이 커밋한다 — 두 *.generated.md는 로컬 전용(lib/generated-index.mjs · 커밋하면 브랜치끼리 충돌).
+  // 본 트리(root)의 build-index로 만든다 — 이행 전 브랜치에 남은 옛 스크립트는 머리 줄에 날짜를 써 main과 같은 줄에서 충돌한다
+  const bi = [root, wt].map((d) => join(d, '.harness', 'scripts', 'build-index.mjs')).find(existsSync);
+  if (bi) { execSync(`"${process.execPath}" "${bi}" --root "${wt}"`, { cwd: wt, stdio: 'ignore' }); for (const g2 of TRACKED_INDEXES) if (existsSync(join(wt, g2))) paths.push(g2); }
   const q = paths.map((p) => `"${p}"`).join(' ');
   git(wt, `add -- ${q}`);
   try { git(wt, `commit -q -m "${id} shipped (work.mjs finish)" -- ${q}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true }); }
@@ -162,22 +164,37 @@ function settleLocalIndexes(wt) {
   if (dirty.length) git(wt, `checkout -- ${dirty.map((r) => `"${r}"`).join(' ')}`, { quiet: true });
 }
 
-/** base 위로 rebase. base가 로컬 생성 인덱스를 추적 해제한 뒤라 그 파일만 충돌하면(브랜치 커밋이 고친 것 — modify/delete) 지우는 쪽으로 풀고 계속한다.
- *  그 커밋이 인덱스만 고쳤으면 빈 커밋이 되어 건너뛴다. 다른 파일이 충돌하면 rebase를 되돌리고 멈춘다(예전과 같다) */
+/** base 위로 rebase. 생성 인덱스만 충돌하면 스스로 풀고 계속한다(REP local-generated-index 전환기):
+ *  - 로컬 인덱스(base가 추적 해제 — modify/delete): 지우는 쪽으로
+ *  - 추적 인덱스(specs/index.md — 생성물이라 어느 쪽도 정본이 아니다): base 쪽을 택하고, rebase가 끝나면 본 트리 build-index로 다시 만들어 차이가 있으면 커밋
+ *  그 커밋이 인덱스만 고쳤으면 빈 커밋이 되어 건너뛴다. 다른 파일이 충돌하거나 rebase가 시작조차 못 하면 되돌리고 멈춘다(예전과 같다) */
 function rebaseOnto(root, wt, base) {
   const env = { GIT_EDITOR: 'true' };
   const stop = () => { try { git(wt, 'rebase --abort', { quiet: true }); } catch { /* */ } return new Error(`${base} 위로 rebase 충돌 — worktree ${relative(root, wt)}에서 풀고 다시 finish`); };
   const inRebase = () => ['rebase-merge', 'rebase-apply'].some((d) => existsSync(resolve(wt, git(wt, `rev-parse --git-path ${d}`))));
   const list = (cmd) => git(wt, cmd).split('\n').filter(Boolean);
-  try { git(wt, `rebase "${base}"`, { quiet: true }); return; } catch { /* 아래에서 판정 */ }
+  const q = (fs) => fs.map((f) => `"${f}"`).join(' ');
+  try { git(wt, `rebase "${base}"`, { quiet: true }); return; } catch { if (!inRebase()) throw stop(); }   // 시작 전 거부(덮어쓸 미추적 파일 등)는 충돌이 아니다 — 넘기지 않는다
+  let regen = false;
   for (let i = 0; i < 1000 && inRebase(); i++) {
     const un = list('diff --name-only --diff-filter=U');
-    if (un.some((f) => !LOCAL_INDEXES.includes(f))) throw stop();
-    if (un.length) git(wt, `rm -q --cached -- ${un.map((f) => `"${f}"`).join(' ')}`, { quiet: true });
+    if (un.some((f) => !LOCAL_INDEXES.includes(f) && !TRACKED_INDEXES.includes(f))) throw stop();
+    const lo = un.filter((f) => LOCAL_INDEXES.includes(f)), tr = un.filter((f) => TRACKED_INDEXES.includes(f));
+    if (lo.length) {   // 작업 파일까지 지운다 — 남겨 두면 다음 커밋의 충돌에서 git이 그 자리를 비켜 "<경로>~<sha> …"로 써 worktree가 더러워진다. 로컬 인덱스는 build-index가 다시 만든다
+      git(wt, `rm -q -f -- ${q(lo)}`, { quiet: true });
+      for (const f of lo) { const d = join(wt, dirname(f)); if (existsSync(d)) for (const n of readdirSync(d)) if (n.startsWith(basename(f) + '~')) rmSync(join(d, n), { force: true }); }
+    }
+    if (tr.length) { git(wt, `checkout --ours -- ${q(tr)}`, { quiet: true }); git(wt, `add -- ${q(tr)}`, { quiet: true }); regen = true; }   // rebase 중 ours = base
     try { git(wt, 'rebase --continue', { env, quiet: true }); }
     catch { if (!list('diff --name-only --diff-filter=U').length && !list('diff --cached --name-only').length) { try { git(wt, 'rebase --skip', { env, quiet: true }); } catch { /* 다음 커밋에서 또 멈췄다 — 되풀이 */ } } }
   }
   if (inRebase()) throw stop();
+  if (regen) {   // base 쪽을 택한 추적 인덱스를 브랜치 기록 기준으로 다시 만든다
+    const bi = [root, wt].map((d) => join(d, '.harness', 'scripts', 'build-index.mjs')).find(existsSync);
+    if (bi) execSync(`"${process.execPath}" "${bi}" --root "${wt}"`, { cwd: wt, stdio: 'ignore' });
+    const changed = TRACKED_INDEXES.filter((f) => existsSync(join(wt, f)) && git(wt, `status --porcelain -- "${f}"`));
+    if (changed.length) git(wt, `commit -q -m "생성 인덱스 다시 만듦 — ${base} 위 rebase 뒤 (work.mjs finish)" -- ${q(changed)}`, { env: { HARNESS_WORK_FINISH: '1' }, quiet: true });
+  }
 }
 
 export function finish(root, id, { gates = true, gh = true } = {}) {
@@ -193,7 +210,7 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
   const env = { HARNESS_WORK_FINISH: '1' };
   let merged = 'none';
   if (['FDR', 'PLAN'].includes(r.type)) {
-    markShipped(wt, id);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
+    markShipped(wt, id, root);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
     // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
     settleLocalIndexes(wt);   // markShipped의 build-index가 브랜치가 아직 추적하는 로컬 인덱스를 다시 썼다 — 버려야 rebase가 시작된다
     rebaseOnto(root, wt, c.base);
@@ -357,19 +374,28 @@ if (process.argv.includes('--self-test')) {
     // REP local-generated-index 전환기 — 인덱스를 추적하던 때 연 브랜치(인덱스만 고친 커밋 + 코드와 같이 고친 커밋)를, main이 추적 해제한 뒤 finish하면 스스로 풀고 ff
     { const { create: mk } = await import(pathToFileURL(join(tmp, '.harness', 'scripts', 'new-doc.mjs')).href);
       const t1 = mk(tmp, 'fdr', 'transition', '전환기', { agent: 't', profile: 'lite' });
-      mkdirSync(join(tmp, 'docs', 'queue'), { recursive: true });   // build-index는 폴더가 있을 때만 쓴다
-      execSync(`"${process.execPath}" "${join(tmp, '.harness', 'scripts', 'build-index.mjs')}"`, { cwd: tmp, stdio: 'ignore' });
-      g('add -A'); g(`add -f -- ${LOCAL_INDEXES.join(' ')}`); g('commit -q -m "옛 방식: 인덱스 추적"');
+      for (const d of ['queue', 'specs']) mkdirSync(join(tmp, 'docs', d), { recursive: true });   // build-index는 폴더가 있을 때만 쓴다
+      const bix = () => execSync(`"${process.execPath}" "${join(tmp, '.harness', 'scripts', 'build-index.mjs')}"`, { cwd: tmp, stdio: 'ignore' });
+      const dated = (p, d) => writeFileSync(p, rd(p).replace('build-index.mjs · 손으로', `build-index.mjs · ${d} · 손으로`));   // 옛 build-index의 머리 줄
+      const SPI = join(tmp, TRACKED_INDEXES[0]);
+      bix(); dated(SPI, '2026-01-01');
+      g('add -A'); g(`add -f -- ${LOCAL_INDEXES.join(' ')}`); g('commit -q -m "옛 방식: 인덱스 추적 · 날짜 머리 줄"');
       const wt1 = start(tmp, t1.id);
+      mkdirSync(join(wt1.path, 'docs', 'specs', 'cap2'), { recursive: true }); writeFileSync(join(wt1.path, 'docs', 'specs', 'cap2', 'spec.md'), '# cap2\n### Requirement: y\n');   // 브랜치가 스펙을 더했다 — rebase 뒤 base 쪽을 택한 추적 인덱스는 다시 만들어야 맞다
+      execSync(`"${process.execPath}" "${join(tmp, '.harness', 'scripts', 'build-index.mjs')}" --root "${wt1.path}"`, { stdio: 'ignore' });
+      dated(join(wt1.path, TRACKED_INDEXES[0]), '2026-01-05'); g('add -A', wt1.path);   // 브랜치 쪽 옛 build-index가 다른 날 다시 씀
+      g('commit -qam "옛 build-index가 머리 줄 날짜를 바꿈"', wt1.path);
       writeFileSync(join(wt1.path, LOCAL_INDEXES[0]), rd(join(wt1.path, LOCAL_INDEXES[0])) + '브랜치 1\n'); g('commit -qam "인덱스만"', wt1.path);
       writeFileSync(join(wt1.path, LOCAL_INDEXES[1]), rd(join(wt1.path, LOCAL_INDEXES[1])) + '브랜치 2\n'); writeFileSync(join(wt1.path, 'src', 't.ts'), 't'); g('add -A', wt1.path); g('commit -q -m "코드 + 인덱스"', wt1.path);
       writeFileSync(join(wt1.path, LOCAL_INDEXES[0]), rd(join(wt1.path, LOCAL_INDEXES[0])) + '세션 카드가 다시 씀\n');   // 미커밋 — finish가 버려야
-      g(`rm -q --cached -- ${LOCAL_INDEXES.join(' ')}`); g('commit -q -m "이행: 로컬 인덱스 추적 해제"');
+      bix(); g(`rm -q --cached -- ${LOCAL_INDEXES.join(' ')}`); g('add -A'); g('commit -q -m "이행: 로컬 인덱스 추적 해제 · 머리 줄 날짜 제거"');
       let ft; try { ft = finish(tmp, t1.id, { gates: false }); } catch (e) { fails.push('전환기 finish 거부: ' + e.message); }
       if (ft && (ft.merged !== 'ff' || !existsSync(join(tmp, 'src', 't.ts')))) fails.push('전환기: ff 병합·코드 반입 ' + JSON.stringify(ft));
       if (LOCAL_INDEXES.some((r) => g(`ls-files -- "${r}"`))) fails.push('전환기: 병합 뒤 main이 로컬 인덱스를 다시 추적');
       if (g('status --porcelain')) fails.push('전환기: 병합 뒤 작업 트리 ' + g('status --porcelain'));
       if (!/^status: shipped/m.test(rd(join(t1.path, 'fdr.md')))) fails.push('전환기: 기록이 shipped가 아니다');
+      if (/\d{4}-\d{2}-\d{2}/.test(rd(SPI).split('\n')[0])) fails.push('전환기: 병합 뒤 specs/index.md 머리 줄에 날짜');
+      try { execSync(`"${process.execPath}" "${join(tmp, '.harness', 'scripts', 'build-index.mjs')}" --check`, { cwd: tmp, stdio: 'ignore' }); } catch { fails.push('전환기: 병합 뒤 추적 인덱스가 낡았다(다시 만들지 않음)'); }
       // 다른 파일 충돌은 예전처럼 멈춘다(rebase 되돌림)
       const t2 = mk(tmp, 'fdr', 'conflict', '충돌', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m t2');
       const wt2 = start(tmp, t2.id); writeFileSync(join(wt2.path, 'src', 't.ts'), 'branch'); g('commit -qam b', wt2.path);
