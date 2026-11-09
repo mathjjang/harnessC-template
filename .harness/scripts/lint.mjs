@@ -34,6 +34,14 @@ const frontmatter = (text) => (text.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[
 const mdStatus = (t) => (t.match(/^- 상태:\s*(\S+)/m) || [])[1] || '';
 
 function walk(dir, out = []) { if (!existsSync(dir)) return out; for (const e of readdirSync(dir, { withFileTypes: true })) { if (['node_modules', '.git'].includes(e.name)) continue; const p = join(dir, e.name); e.isDirectory() ? walk(p, out) : out.push(p); } return out; }
+/** root 기준 상대 경로(/ 구분) 중 git이 무시하는 것. git 저장소가 아니거나 git이 없으면 빈 집합(전부 검사) */
+function gitIgnored(root, files) {
+  if (!files.length) return new Set();
+  const input = files.map((f) => relative(root, f).split(sep).join('/')).join('\0') + '\0';
+  const parse = (out) => new Set(String(out || '').split('\0').filter(Boolean));
+  try { return parse(execSync('git check-ignore -z --stdin', { cwd: root, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })); }
+  catch (e) { return e.status === 1 ? new Set() : parse(e.stdout); }   // 1 = 무시되는 것 없음 · 128 = git 저장소 아님
+}
 /** 기록의 본문 파일: 단일 .md 또는 폴더의 대표 파일 */
 function recordMain(p) {
   if (!statSync(p).isDirectory()) return p;
@@ -43,8 +51,10 @@ function recordMain(p) {
 
 export function lint(root) {
   const problems = [];
-  // ① BOM
-  for (const f of walk(root).filter((f) => /\.(md|yaml|yml|json|mjs)$/.test(f))) {
+  // ① BOM — git이 무시하는 파일(받은 자료·로컬 비밀·.worktrees/ 등)은 저장소에 들어가지 않으니 보지 않는다(ADR-261109-lint-bom-gitignored)
+  const bomTargets = walk(root).filter((f) => /\.(md|yaml|yml|json|mjs)$/.test(f));
+  const ignored = gitIgnored(root, bomTargets);
+  for (const f of bomTargets.filter((f) => !ignored.has(relative(root, f).split(sep).join('/')))) {
     const b = readFileSync(f); if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) problems.push(`BOM: ${relative(root, f)}`);
   }
   // ② 도구 참조 vs 카탈로그
@@ -212,12 +222,14 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, '.harness', 'init-manifest.json'), JSON.stringify({ core: { '.harness/HARNESS.md': 'deadbeef' } }));
   const p = lint(tmp); rmSync(tmp, { recursive: true, force: true });
   // ⑳ 연결부: 위 표본은 git 밖이라 ⑳이 돌지 않는다 — 로컬 인덱스를 추적하는 작은 git 저장소에서 lint()가 실제로 알리는지(검사 본체는 build-index --self-test)
+  // ① 양성: git이 무시하는 폴더(한글 이름)의 BOM 파일은 알리지 않는다 / 부정: 무시되지 않는 BOM 파일은 git 저장소 안에서도 알린다
   { const t2 = join(HERE, '..', '.lint-selftest-git'); rmSync(t2, { recursive: true, force: true }); mkdirSync(join(t2, 'docs'), { recursive: true }); writeFileSync(join(t2, 'docs', 'INDEX.generated.md'), '<!-- 생성물 -->\n');
-    try { execSync('git init -q -b main', { cwd: t2, stdio: 'ignore' }); execSync('git add -A', { cwd: t2, stdio: 'ignore' }); p.push(...lint(t2).filter((x) => x.startsWith('로컬 생성 인덱스 docs/INDEX.generated.md'))); } catch { /* 아래 미검출로 드러난다 */ }
+    mkdirSync(join(t2, '받은 자료'), { recursive: true }); writeFileSync(join(t2, '.gitignore'), '/받은 자료/\n'); writeFileSync(join(t2, '받은 자료', 'ignored-bom.md'), '﻿# 받은 자료\n'); writeFileSync(join(t2, 'docs', 'tracked-bom.md'), '﻿# 추적\n');
+    try { execSync('git init -q -b main', { cwd: t2, stdio: 'ignore' }); execSync('git add -A', { cwd: t2, stdio: 'ignore' }); p.push(...lint(t2).filter((x) => x.startsWith('로컬 생성 인덱스 docs/INDEX.generated.md') || /^BOM: /.test(x))); } catch { /* 아래 미검출로 드러난다 */ }
     rmSync(t2, { recursive: true, force: true }); }
-  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', '카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
+  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', 'tracked-bom.md','카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x));
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x) || /ignored-bom/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 6건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
