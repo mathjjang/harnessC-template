@@ -30,6 +30,10 @@ node .harness/scripts/work.mjs finish FDR-…                   # (본 트리에
 
 - `scope:`가 비어 있으면 제품 경로 커밋이 거부된다 — 먼저 선언한다. 활성 FDR끼리 겹치면 lint ⑭가 알린다.
 - 두 FDR이 같은 파일을 고쳐야 하면: **공유 변경을 작은 lite FDR로 먼저 main에 병합**하고 둘 다 `git rebase main`. "선점 후 대기"가 아니라 "공유분을 먼저 끝낸다".
+- **제품 변경은 이미 병합됐는데 기록 커밋이 lint ⑭로 막히면**(다른 세션의 열린 FDR과 scope 겹침 — 제품 저장소가 따로면 그쪽 PR이 먼저 병합된 경우) 공유분 lite FDR이 아니라 내 FDR을 종결 단계로 올린다. ⑭는 `shipped`·`closed`를 보지 않는다(이미 main에 있어 동시 편집 위험이 없다) — ADR-261113-scope-overlap-after-merge.
+  1. 본 트리에 미커밋 기록이 있으면 `.worktrees/<ID>/`로 옮긴다(복사 → 같음 확인 → 본 트리에서 삭제). 본 트리에 in-progress manifest가 남으면 본 트리 lint가 계속 막힌다. **ADR은 옮기지 않는다** — FDR 브랜치에서는 다른 기록이라 거부된다. 본 트리 main에 따로 커밋한다.
+  2. 스펙 병합(`last_merge`·병합 이력) · 리뷰 판정·사인오프 · manifest `status: shipped`·`current_stage: close` · 07-close · `build-index` → lint 통과 → 커밋 → `finish` → 병합 뒤 main에서 closed → `gc --apply`.
+  - 하지 않는 것: 스펙 병합 없이 `status`만 올리기(겹침 회피용 상태 변경은 위반) · 상대 세션의 PR·브랜치를 대신 고치기(멈춰 있으면 사람에게 보고).
 - rebase 충돌은 그 worktree에서 풀고 다시 `finish`. 본 트리의 상태는 건드리지 않는다.
 - dev 서버·E2E는 자기 worktree에서 자기 포트로(프로젝트 런북). 실기기·단일 DB 같은 직렬 자원은 `rules/human-only.yaml` 옆에 등록하고 사용 중 표시.
 
