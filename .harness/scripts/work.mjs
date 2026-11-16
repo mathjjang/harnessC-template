@@ -17,7 +17,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, linkSync, symlinkSync, appendFileSync } from 'node:fs';
 import { dirname, join, resolve, relative, basename, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { RECORD_DIRS, recordDir, recordRel } from './lib/records.mjs';
+import { RECORD_DIRS, recordDir, recordRel, ownerOf, withOwner } from './lib/records.mjs';
 import { LOCAL_INDEXES, TRACKED_INDEXES } from './lib/generated-index.mjs';
 import { reviewProblems, commitHistory } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(⑦·⑧)
 import { parseWork, nonProductOfYaml } from './check-branch-record.mjs';
@@ -435,7 +435,7 @@ const opt = (f) => (process.argv.includes(f) ? process.argv[process.argv.indexOf
 try {
   if (cmd === 'start') { const r = start(DEFAULT_ROOT, a, { base: opt('--base') }); console.log(`${r.id} → ${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}  (cd 해서 작업 · 끝나면 work.mjs finish ${r.id})`); }
   else if (cmd === 'finish') { const r = finish(DEFAULT_ROOT, a); console.log(`${r.id}: ${r.merged}${r.note ? ' — ' + r.note : ''} · worktree·브랜치 ${r.merged === 'pr' ? '유지' : '제거'}`); }
-  else if (cmd === 'promote') { const r = await promote(DEFAULT_ROOT, a, b, c, { agent: opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)' }); console.log(`${r.from} → ${r.fdr} (${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}) — spike 커밋 1개로 재기반. 스펙 델타·테스트를 붙여 finish`); }
+  else if (cmd === 'promote') { const r = await promote(DEFAULT_ROOT, a, b, c, { agent: withOwner(opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)', ownerOf(DEFAULT_ROOT, opt('--owner'))) }); console.log(`${r.from} → ${r.fdr} (${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}) — spike 커밋 1개로 재기반. 스펙 델타·테스트를 붙여 finish`); }
   else if (cmd === 'list') { const l = list(DEFAULT_ROOT); console.log(l.length ? l.map((w) => `${w.id}  ${w.status}${w.dirty ? '  (미커밋)' : ''}${w.closed ? '  ← 닫힘: gc 대상' : ''}`).join('\n') : '열린 worktree 없음'); }
   else if (cmd === 'protect') { const n = process.argv.includes('--reviews') ? Number(opt('--reviews')) : undefined; const r = protect(DEFAULT_ROOT, { reviews: n, dryRun: process.argv.includes('--dry-run') }); console.log(`${r.applied ? '보호 적용' : '[dry-run] 보호 규칙'} ${r.base}: 필수 검사 harness · 필수 승인 ${r.rule.required_pull_request_reviews ? r.rule.required_pull_request_reviews.required_approving_review_count : 0} · 직접 push·force-push·삭제 금지`); }
   else if (cmd === 'pr-body') { console.log(prBody(DEFAULT_ROOT, a)); }

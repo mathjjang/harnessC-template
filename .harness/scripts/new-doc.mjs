@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // new-doc.mjs — 기록 생성기 (.harness/HARNESS.md §3). 템플릿 복사·ID 채번(date-slug)·귀속 머리·manifest·세션 로그를 한 동작으로.
-// 사용: node .harness/scripts/new-doc.mjs <종류> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--profile lite|standard|full] [--ref <role>|--root <경로>]
+// 사용: node .harness/scripts/new-doc.mjs <종류> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--owner <담당>] [--profile lite|standard|full] [--ref <role>|--root <경로>]
+//       귀속 머리에 담당(그 세션을 돌리는 사람)을 붙인다 — `작성: <에이전트(모델)> · 담당 <사람> · <날짜>`. 값은 --owner → HARNESS_OWNER → git config user.name. 모르면 거부. 협업 저장소 기록(mtg·dec)에는 붙이지 않는다
 //   종류: adr(→ docs/decisions) rfc(→ docs/research) fdr(→ docs/features) ho(→ docs/handoffs) plan inc retro(→ docs/records) · pg qa hr bl(→ docs/queue) · spec(→ docs/specs) · runbook(→ rules/runbooks) · mtg dec(→ 협업 저장소, --ref collab)
 //       node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--result]   핸드오프 응답(NN-<에이전트>.md) · 결과(result.md)
 // 폴더는 늘지 않는다 — 자리는 lib/records.mjs가 정한다. --self-test: 임시 루트에서 전 종류 생성 후 ID·치환·충돌(-2)·거부 확인.
@@ -8,7 +9,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, write
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findReference, refPath } from './lib/refs.mjs';
-import { RECORD_DIRS, DOCS_DIRS, recordDir } from './lib/records.mjs';
+import { RECORD_DIRS, DOCS_DIRS, recordDir, ownerOf, withOwner } from './lib/records.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -167,12 +168,16 @@ if (IS_MAIN && !process.argv.includes('--self-test')) {
   const argv = process.argv.slice(2);
   const [kind, slug, title] = argv;
   const opt = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
-  const agent = opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)';
+  const bare = opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)';
+  // 담당 — 개발 저장소 기록 전부. 협업 저장소(다른 조직이 본다)에 만드는 종류는 붙이지 않는다
+  const external = !!(KINDS[kind] && KINDS[kind].ref);
+  const agent = external ? bare : withOwner(bare, ownerOf(DEFAULT_ROOT, opt('--owner')));
+  if (!external && (kind === 'reply' || (kind && slug && title)) && !/·\s*담당\s+\S/.test(agent)) { console.error('담당을 알 수 없다 — git config user.name을 정하거나 --owner <담당>(또는 HARNESS_OWNER)을 준다. 기록 머리에 누가 한 일인지 남긴다(HARNESS §8)'); process.exit(2); }
   if (kind === 'reply') {
     try { const r = reply(DEFAULT_ROOT, slug, { agent, result: argv.includes('--result') }); console.log(`${r.id} → ${r.path}`); } catch (e) { console.error(e.message); process.exit(2); }
     process.exit(0);
   }
-  if (!kind || !slug || !title) { console.error(`사용: node .harness/scripts/new-doc.mjs <${Object.keys(KINDS).join('|')}> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--profile lite|standard|full] [--ref <role>|--root <경로>]\n     node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--result]`); process.exit(2); }
+  if (!kind || !slug || !title) { console.error(`사용: node .harness/scripts/new-doc.mjs <${Object.keys(KINDS).join('|')}> <slug> "<제목>" [--agent "<에이전트(모델)>"] [--owner <담당>] [--profile lite|standard|full] [--ref <role>|--root <경로>]\n     node .harness/scripts/new-doc.mjs reply <HO-ID> --agent "<에이전트(모델)>" [--owner <담당>] [--result]`); process.exit(2); }
   let target = opt('--root') ? resolve(DEFAULT_ROOT, opt('--root')) : undefined;
   if (opt('--ref')) {
     const ref = findReference(existsSync(join(DEFAULT_ROOT, 'harness.yaml')) ? readFileSync(join(DEFAULT_ROOT, 'harness.yaml'), 'utf8') : '', opt('--ref'));
