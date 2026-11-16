@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "node .harness/scripts/harness-status.mjs",
-            "timeout": 10,
+            "timeout": 30,
             "statusMessage": "하네스 세션 카드"
           }
         ]
