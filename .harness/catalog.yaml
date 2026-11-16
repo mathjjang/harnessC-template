@@ -24,7 +24,7 @@ tools:
     command: node .harness/scripts/harness-status.mjs
     enforcement: report
     self_test: node .harness/scripts/harness-status.mjs --self-test
-    rule: .harness/HARNESS.md §1 라우터 — 세션 시작 카드
+    rule: .harness/HARNESS.md §1 라우터 — 세션 시작 카드 · §11 base(work.base)를 origin에서 ff로 받기(5초 · 갈라짐·겹침·다른 브랜치는 경고만 · HARNESS_NO_FETCH=1 끔)
   - name: new-doc.mjs
     status: active
     command: node .harness/scripts/new-doc.mjs <kind> <slug> "<제목>" [--owner <담당>] | reply <HO-ID> --agent "<에이전트(모델)>" [--result]
