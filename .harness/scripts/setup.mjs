@@ -13,6 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { ownerOf, withOwner } from './lib/records.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -284,7 +285,7 @@ if (IS_MAIN && !process.argv.includes('--self-test')) {
     if (opt('--answers')) raw = JSON.parse(rd(resolve(opt('--answers'))));
     else if (a.includes('--interactive')) raw = await ask(reconfigure ? readSetup(root) || {} : {});
     else { console.error('사용: node .harness/scripts/setup.mjs --interactive | --answers <answers.json> [--reconfigure] [--no-actions] [--remote] [--agent "<이름>"] | --show'); process.exit(2); }
-    const r = await setup(root, raw, { agent: opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)', reconfigure, remote: a.includes('--remote'), actions: !a.includes('--no-actions') });
+    const r = await setup(root, raw, { agent: withOwner(opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)', ownerOf(root, opt('--owner'))), reconfigure, remote: a.includes('--remote'), actions: !a.includes('--no-actions') });
     const d = r.derived;
     console.log(`\n설정: tier ${d.tier}(FDR ${d.profile}) · merge ${d.merge} · 필수 승인 ${d.reviews} · gate ${d.gate_mode} · 규칙 상한 ${d.always_on_kb}KB${r.tierSource ? ` · FDR-full ← ${r.tierSource}` : ''}`);
     for (const w of d.warnings) console.log(`주의: ${w}`);

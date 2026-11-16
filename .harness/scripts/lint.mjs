@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // lint.mjs — 하네스 린트 (.harness/HARNESS.md §1·§3·§8·§9·§11). pre-commit·세션 시작·CI에서 부른다. 종료코드 1 = 위반.
 // 검사: ① UTF-8 BOM ② 규칙 파일이 참조하는 스크립트가 .harness/catalog.yaml에 active인가 ③ 상시 규칙 예산
-//       ④ 규칙 파일 간 중복 문장(정규화 후 16자 이상 동일) ⑤ 기록 머리 귀속(작성:) ⑥ 생성물 수동 편집 표식
+//       ④ 규칙 파일 간 중복 문장(정규화 후 16자 이상 동일) ⑤ 기록 머리 귀속(작성: · ID 날짜가 ids.owner_from(기본 lib/records.mjs OWNER_FROM)부터인 기록은 담당까지) ⑥ 생성물 수동 편집 표식
 //       ⑦ .harness/scripts/*.mjs 카탈로그 등재 ⑧ 중첩 참조 저장소(references)는 gitignore·미추적
 //       ⑨ human-run 큐(HR-)의 axis가 rules/human-only.yaml에 등록돼 있는가 ⑩ closed FDR에 스펙 병합 흔적·RUN 증거가 있는가
 //       ⑪ 핸드오프(HO-)의 상태가 open|taken|answered|closed이고 closed면 result.md가 있는가
@@ -20,7 +20,7 @@ import { execSync } from 'node:child_process';
 import { parseReferences } from './lib/refs.mjs';
 import { hashCore } from './lib/core-files.mjs';
 import { localIndexProblems } from './lib/generated-index.mjs';
-import { DOCS_DIRS, listRecords } from './lib/records.mjs';
+import { DOCS_DIRS, listRecords, OWNER_FROM, OWNER_RE } from './lib/records.mjs';
 import { checkMockup } from './mockup-diff.mjs';
 import { rootFileEntries, notRootEntry, workErrors } from './check-branch-record.mjs';
 
@@ -80,7 +80,19 @@ export function lint(root) {
   }
   // ⑤ 귀속 — 기록 전부 (자리는 lib/records.mjs)
   const records = listRecords(root);
-  for (const r of records) { const m = recordMain(r.path); if (!m) problems.push(`기록 본문 없음: ${r.dir}/${r.name}`); else if (!/작성[:：]/.test(rd(m).slice(0, 800))) problems.push(`귀속 머리 없음: ${relative(root, m).split(sep).join("/")}`); }
+  // 담당 — ID 날짜가 시작일부터인 기록. 협업 저장소 종류(MTG)는 대상이 아니다. standard FDR은 작성 줄이 01-spec.md에 있다(ci가 작성자를 읽는 자리)
+  const ownerFromRaw = yamlScalar(rd(join(root, 'harness.yaml')), 'owner_from').replace(/["']/g, '');
+  if (ownerFromRaw && !/^\d{6}$/.test(ownerFromRaw)) problems.push(`harness.yaml ids.owner_from(${ownerFromRaw})은 YYMMDD 여섯 자리 — 담당 검사 시작일`);
+  const ownerFrom = /^\d{6}$/.test(ownerFromRaw) ? ownerFromRaw : OWNER_FROM;
+  for (const r of records) {
+    const m = recordMain(r.path);
+    if (!m) { problems.push(`기록 본문 없음: ${r.dir}/${r.name}`); continue; }
+    if (!/작성[:：]/.test(rd(m).slice(0, 800))) { problems.push(`귀속 머리 없음: ${relative(root, m).split(sep).join("/")}`); continue; }
+    const day = (r.name.match(/^[A-Z]+-(\d{6})-/) || [])[1];
+    if (!day || day < ownerFrom || /^MTG-/.test(r.name)) continue;
+    const spec = join(r.path, '01-spec.md'); const om = /manifest\.yaml$/.test(m) && existsSync(spec) ? spec : m;
+    if (!OWNER_RE.test(rd(om).slice(0, 800))) problems.push(`담당 없음: ${relative(root, om).split(sep).join("/")} — 작성 줄은 「<에이전트(모델)> · 담당 <사람> · <날짜>」(new-doc.mjs가 git user.name으로 넣는다 · 시작일은 harness.yaml ids.owner_from)`);
+  }
   // ⑥ 생성물 표식
   for (const f of walk(join(root, 'docs')).filter((f) => /\.generated\.md$/.test(f))) if (!/생성물|generated/i.test(rd(f).slice(0, 300))) problems.push(`생성물 표식 없음: ${relative(root, f)}`);
   // ⑦ 스크립트 카탈로그 등재
@@ -200,6 +212,12 @@ if (process.argv.includes('--self-test')) {
   writeFileSync(join(tmp, '.harness', 'catalog.yaml'), 'tools:\n  - name: ghost.mjs\n    status: planned\n');
   writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-000000-x.md'), '# 머리에 귀속 없음\n');
   writeFileSync(join(tmp, 'docs', 'records', 'INC-000000-x.md'), '# 머리에 귀속 없음(records)\n');
+  // ⑤ 담당 — 부정: 시작일 뒤 기록에 담당 없음 · 담당이 에이전트 앞 / 양성: 담당 있음 · 시작일 앞 기록(위 000000들) · standard FDR은 01-spec.md
+  writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-991231-noowner.md'), '# x\n\n- 작성: t (m) · 2099-12-31\n');
+  writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-991231-ownerfirst.md'), '# x\n\n- 작성: 담당 kim · t (m) · 2099-12-31\n');
+  writeFileSync(join(tmp, 'docs', 'decisions', 'ADR-991231-ownerok.md'), '# x\n\n- 작성: t (m) · 담당 kim · 2099-12-31\n');
+  mkdirSync(join(tmp, 'docs', 'features', 'FDR-991231-stdowner'), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', 'FDR-991231-stdowner', 'manifest.yaml'), 'id: FDR-991231-stdowner\nstatus: draft\n작성: t\n'); writeFileSync(join(tmp, 'docs', 'features', 'FDR-991231-stdowner', '01-spec.md'), '# x\n\n- 작성: t (m) · 담당 kim · 2099-12-31\n');
+  mkdirSync(join(tmp, 'docs', 'features', 'FDR-991231-stdnoowner'), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', 'FDR-991231-stdnoowner', 'manifest.yaml'), 'id: FDR-991231-stdnoowner\nstatus: draft\n작성: t\n'); writeFileSync(join(tmp, 'docs', 'features', 'FDR-991231-stdnoowner', '01-spec.md'), '# x\n\n- 작성: t (m) · 2099-12-31\n');
   writeFileSync(join(tmp, 'docs', 'X.generated.md'), '# 표식 없음\n');
   writeFileSync(join(tmp, 'rules', 'human-only.yaml'), 'axes:\n  - id: external-account\n');
   writeFileSync(join(tmp, 'docs', 'queue', 'HR-000000-x.md'), '---\nid: HR-000000-x\naxis: real-device\n---\n');
@@ -227,9 +245,9 @@ if (process.argv.includes('--self-test')) {
     mkdirSync(join(t2, '받은 자료'), { recursive: true }); writeFileSync(join(t2, '.gitignore'), '/받은 자료/\n'); writeFileSync(join(t2, '받은 자료', 'ignored-bom.md'), '﻿# 받은 자료\n'); writeFileSync(join(t2, 'docs', 'tracked-bom.md'), '﻿# 추적\n');
     try { execSync('git init -q -b main', { cwd: t2, stdio: 'ignore' }); execSync('git add -A', { cwd: t2, stdio: 'ignore' }); p.push(...lint(t2).filter((x) => x.startsWith('로컬 생성 인덱스 docs/INDEX.generated.md') || /^BOM: /.test(x))); } catch { /* 아래 미검출로 드러난다 */ }
     rmSync(t2, { recursive: true, force: true }); }
-  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', 'tracked-bom.md','카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
+  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', 'tracked-bom.md','카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '담당 없음: docs/decisions/ADR-991231-noowner.md', '담당 없음: docs/decisions/ADR-991231-ownerfirst.md', '담당 없음: docs/features/FDR-991231-stdnoowner/01-spec.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
-  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x) || /ignored-bom/.test(x));
+  const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('ADR-991231-ownerok') || x.includes('FDR-991231-stdowner') || /담당 없음: .*-000000-/.test(x) || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x) || /ignored-bom/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 6건 · 기록 자리 3곳 · 프로젝트 도구)`);
   process.exit(miss.length || falsePos.length ? 1 : 0);
 }
