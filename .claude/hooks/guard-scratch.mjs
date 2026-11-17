@@ -2,7 +2,8 @@
 // guard-scratch.mjs — PreToolUse 훅 (Write|Edit|NotebookEdit · Bash). 임시 파일이 저장소를 어지럽히는 것을 **쓰기 전에** 막는다.
 //
 // 막는 것:
-//   ① 저장소 루트에 새 파일·폴더를 만드는 것 — 허용 목록(git이 추적하는 루트 항목 + 설정 root_allow + 기본 이름) 밖이면 거부
+//   ① 저장소 루트에 새 파일·폴더를 만드는 것 — 허용 목록(git이 추적하는 루트 항목 + 설정 root_allow + 기본 이름) 밖이면 거부.
+//      harness.yaml work.product(소스 위치)를 선언한 프로젝트는 막지 않는다 — 제품 경로가 정해져 있어 루트에 문서 폴더를 두어도 섞이지 않는다(HARNESS §11)
 //   ② 임시 패턴 이름(.tmp* · tmp-* · *.log · probe-* · sweep-* · watch-* · *.bak · scratch* · *~ · *-test2.*)을
 //      허용 구역(.scratch/ · evidence/ · **/evidence/** · **/_assets/** · 세션 scratchpad_dir) 밖에 만드는 것
 //   ③ Bash의 리다이렉션·tee·touch·cp·mv·mkdir·Out-File·Set-Content·New-Item 대상이 위 ①②에 해당하는 것
@@ -14,6 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { writeTargets } from '../../.harness/scripts/lib/write-targets.mjs';
 import { DOCS_DIRS } from '../../.harness/scripts/lib/records.mjs';
+import { parseWork, badProductEntry } from '../../.harness/scripts/check-branch-record.mjs';
 
 const TEMP_RE = /^(\.?tmp[-_.]?|probe-|sweep-|watch-|scratch)|(\.log|\.bak|~|-test\d+\.[a-z]+)$/i;
 const DEFAULT_ROOT_ALLOW = ['.gitignore', '.gitattributes', '.editorconfig', 'README.md', 'LICENSE', 'package.json', 'package-lock.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.json', '.env.example', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'harness.yaml', 'init.mjs', '.scratch', '.worktrees', '.harness', 'rules', 'docs', 'src', 'app', 'tests', 'scripts', 'config', 'mockups', '.claude', '.agents', '.gemini', '.github', '.vscode'];
@@ -26,6 +28,7 @@ function loadConfig(root) {
   const hy = existsSync(resolve(root, 'harness.yaml')) ? readFileSync(resolve(root, 'harness.yaml'), 'utf8') : '';
   const m = hy.match(/^scratch:[^\n]*\n((?:[ \t]+.*\n?)*)/m);
   if (m) { const list = m[1].match(/root_allow:\s*\[([^\]]*)\]/); if (list) cfg.rootAllow = list[1].split(',').map((s) => s.trim()).filter(Boolean); const d = m[1].match(/dir:\s*(\S+)/); if (d) cfg.scratchDir = d[1]; }
+  try { cfg.productDeclared = parseWork(hy).product.some((s) => !badProductEntry(s)); } catch { cfg.productDeclared = false; }
   const jp = resolve(root, '.harness', 'clutter-config.json');
   if (existsSync(jp)) { try { const j = JSON.parse(readFileSync(jp, 'utf8')); cfg.rootAllow.push(...(j.rootAllow || [])); cfg.allowDirs.push(...(j.allowDirs || [])); if (j.scratchDir) cfg.scratchDir = j.scratchDir; } catch { /* 무시 */ } }
   return cfg;
@@ -51,7 +54,7 @@ export function judge(path, { root, cwd, scratchpad, config, tracked }) {
   const top = relPosix.split('/')[0];
   const name = basename(relPosix);
   if (TEMP_RE.test(name)) return `임시 파일 이름(${name})은 ${config.scratchDir}/ 또는 세션 scratchpad에만 만든다 — 증거면 evidence/, 보존 자산이면 _assets/`;
-  if (!relPosix.includes('/')) {
+  if (!relPosix.includes('/') && !config.productDeclared) {
     const allow = new Set([...DEFAULT_ROOT_ALLOW, ...config.rootAllow, ...tracked]);
     if (!allow.has(top) && !existsSync(abs)) return `저장소 루트에 새 항목(${top})을 만들지 않는다 — 임시면 ${config.scratchDir}/, 영구면 rules/·docs/·src/ 아래. 루트가 필요하면 harness.yaml scratch.root_allow에 등재(ADR)`;
   }
@@ -75,6 +78,8 @@ if (process.argv.includes('--self-test')) {
   ];
   let fail = 0;
   for (const [p, want] of cases) { const got = judge(p, ctx) ? 'deny' : null; if (got !== want) { fail++; console.error(`FAIL ${p}: want ${want} got ${got}`); } }
+  const ctxP = { ...ctx, config: { ...ctx.config, productDeclared: true } };
+  for (const [p, want] of [['newdir', null], ['newfile.txt', null], ['.tmp-probe.mjs', 'deny'], ['docs/prompts/x.md', 'deny'], ['rules/packs/x.md', 'deny']]) { const got = judge(p, ctxP) ? 'deny' : null; if (got !== want) { fail++; console.error(`FAIL work.product 선언 ${p}: want ${want} got ${got}`); } }
   const bt = writeTargets('node x.mjs > .tmp-out.log 2>&1; echo hi | tee -a app/build.log; cp a b.txt; mkdir -p .scratch/s; Out-File -FilePath C:\\x\\y.log');
   const wantT = ['.tmp-out.log', 'app/build.log', 'b.txt', '.scratch/s', 'C:\\x\\y.log'];
   if (JSON.stringify([...bt].sort()) !== JSON.stringify([...wantT].sort())) { fail++; console.error('FAIL targets', bt); }

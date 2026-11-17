@@ -92,7 +92,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 - 같은 사실은 한 곳에, 다른 곳은 링크. 사본을 만들면 같은 작업에서 대조 기계를 만든다.
 - 사고는 `INC-*`에. 규칙 본문에는 `(INC-…)` 링크만. 방법론 회고는 `RETRO-*` — 결론은 템플릿 REP 제안으로.
 - 세션 종료 시 활성 기록의 `session-log.md`에 4줄(완료·가설·미결·재개점). Stop 훅이 경고한다.
-- **임시 파일은 저장소를 어지럽히지 않는다.** 프로브·로그·중간 산출물은 세션 scratchpad 또는 `.scratch/<YYMMDD>-<topic>/`에만(14일 후 gc). 루트·`docs/`·`rules/`의 신규 폴더와 임시 패턴 이름(`.tmp*`·`*.log`·`probe-*`…)은 훅이 쓰기 전에 막고(`guard-scratch`) 게이트가 커밋을 막는다(`check-clutter`). 증거는 기록 폴더의 `evidence/`, 영구 스크립트는 `.harness/scripts/` + 카탈로그 등재.
+- **임시 파일은 저장소를 어지럽히지 않는다.** 프로브·로그·중간 산출물은 세션 scratchpad 또는 `.scratch/<YYMMDD>-<topic>/`에만(14일 후 gc). 루트(`work.product`를 선언하지 않은 프로젝트)·`docs/`·`rules/`의 신규 폴더와 임시 패턴 이름(`.tmp*`·`*.log`·`probe-*`…)은 훅이 쓰기 전에 막고(`guard-scratch`) 게이트가 커밋을 막는다(`check-clutter`). 증거는 기록 폴더의 `evidence/`, 영구 스크립트는 `.harness/scripts/` + 카탈로그 등재.
 
 ## 9. REP (규칙 변경)
 
@@ -106,5 +106,5 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 
 - 세션 시작 카드가 base를 origin에서 받는다(ff만 · 갈라짐 · 겹침은 받지 않고 경고). 경고가 있으면 정리한 뒤 시작한다.
 - **기록 하나 = 브랜치 하나 = worktree 하나.** `work.mjs start <ID>` → `.worktrees/<ID>/`, 브랜치 `<type>/<ID>`. main에 제품 코드 직접 커밋 금지(게이트). `rfc/*`는 spike — 코드는 병합되지 않고 기록만 반입. 승격은 `promote`(squash 1커밋). S는 ff 병합, M·L은 PR — `finish`가 PR을 열고(본문은 기록에서) 서버 게이트 `ci.mjs`가 scope·리뷰 판정까지 다시 묻는다. 잔존 브랜치·worktree는 lint ⑮. 절차 `.harness/runbooks/work.md`.
-- **제품 경로가 아닌 것**은 docs·rules·mockups·장치 폴더와, 루트 파일 중 코어 기본(규칙·설정 파일 — catalog `check-branch-record`)과 `harness.yaml` `work.root_files`(루트 파일 이름만 · 등재는 ADR)뿐이다. 그 밖의 루트 파일은 제품 경로라 main 직접 커밋·scope·⑧에 걸린다. PR 판정(ci)과 ff 병합 전 리뷰 하한(work.mjs)은 base 쪽 `work.root_files`로 본다 — 등재는 따로 병합한 뒤에 효력. 잘못 쓴 항목·해석 실패는 lint ⑲.
+- **제품 경로가 아닌 것**은 docs·rules·mockups·장치 폴더와, 루트 파일 중 코어 기본(규칙·설정 파일 — catalog `check-branch-record`)과 `harness.yaml` `work.root_files`(루트 파일 이름만 · 등재는 ADR)뿐이다. 그 밖의 루트 파일은 제품 경로라 main 직접 커밋·scope·⑧에 걸린다. PR 판정(ci)과 ff 병합 전 리뷰 하한(work.mjs)은 base 쪽 `work.root_files`로 본다 — 등재는 따로 병합한 뒤에 효력. 잘못 쓴 항목·해석 실패는 lint ⑲. **`work.product`(소스 위치 glob · 설정 질문 Q8 · 바꾸면 ADR)를 선언한 프로젝트는 거꾸로다** — 그 경로만 제품 경로이고, 나머지는 루트에 폴더를 새로 만들어도 main에 바로 커밋한다(판정은 같은 base 쪽 기준).
 - 다른 세션·다른 회사 에이전트와는 `docs/handoffs/HO-…/`로만 주고받는다. 차례마다 새 파일, 남의 파일은 고치지 않는다. 상태는 lint ⑪. 절차 `.harness/runbooks/handoff.md`.

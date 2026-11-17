@@ -28,7 +28,7 @@
 - `.harness/`·`.claude/`·이 파일은 템플릿 사본 — 여기서 고치지 않는다(lint ⑫). 템플릿에서 고치고 `node .harness/scripts/sync-core.mjs`(harness.yaml `upstream` 태그에서 내려받는다 · `--from <경로|주소@태그>`로 바꿀 수 있다).
 - 생성물(`*.generated.md`, `.harness/init-manifest.json`)은 손으로 고치지 않는다.
 - 참조 저장소(`harness.yaml` `references`)는 읽되 고치지 않는다. `trust: external` 협업 저장소는 `writable` 폴더에만 쓰고 개발 저장소 경로·기록 ID·원가·공수를 쓰지 않는다 — 훅이 거부·질의한다.
-- 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에. 루트·`docs/`·`rules/`에 새 폴더를 만들면 훅·pre-commit 게이트가 거부한다 — 우회 플래그는 없다.
+- 임시 스크립트·로그는 세션 scratchpad나 `.scratch/`에. 루트(`harness.yaml` `work.product`로 소스 위치를 선언하지 않은 프로젝트)·`docs/`·`rules/`에 새 폴더를 만들면 훅·pre-commit 게이트가 거부한다 — 우회 플래그는 없다.
 
 ## 다중 에이전트
 

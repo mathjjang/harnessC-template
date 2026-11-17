@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { ownerOf, withOwner } from './lib/records.mjs';
+import { badProductEntry } from './check-branch-record.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = join(HERE, '..', '..');
@@ -30,6 +31,7 @@ export const QUESTIONS = [
   { key: 'external', q: 'Q5. 외부 조직(발주처·협력사)과 같이 보는 문서가 있는가?', type: 'bool', def: false },
   { key: 'signoff', q: 'Q6. 결제·개인정보·의료·공공 납품처럼 사람 사인오프가 필요한 영역이 있는가?', type: 'bool', def: false },
   { key: 'visibility', q: 'Q7. GitHub 저장소 공개 여부', type: 'choice', choices: ['private', 'public'], def: 'private' },
+  { key: 'source', q: 'Q8. 실제 소스 코드가 있는 위치(경로·glob, 쉼표로 여러 개 — 예 src/**, app/**). 여기만 FDR·worktree·리뷰 게이트를 타고 나머지는 main에 바로 커밋한다. 비우면 문서·규칙·장치 폴더 밖 전부', type: 'text', def: '' },
 ];
 export const defaults = () => Object.fromEntries(QUESTIONS.filter((q) => 'def' in q).map((q) => [q.key, q.def]));
 
@@ -40,6 +42,8 @@ export function normalize(raw) {
   a.concurrent = Number(a.concurrent); if (!Number.isInteger(a.concurrent) || a.concurrent < 1) p.push(`concurrent: 1 이상 정수 — ${raw.concurrent}`);
   a.duration_months = Number(a.duration_months); if (!(a.duration_months > 0)) p.push(`duration_months: 양수 — ${raw.duration_months}`);
   for (const q of QUESTIONS.filter((x) => x.type === 'choice')) if (!q.choices.includes(a[q.key])) p.push(`${q.key}: ${q.choices.join('|')} — ${a[q.key]}`);
+  a.source = (Array.isArray(a.source) ? a.source : String(a.source ?? '').replace(/^"(.*)"$/, '$1').split(',')).map((s) => String(s).trim()).filter(Boolean).join(',');
+  for (const s of a.source ? a.source.split(',') : []) if (badProductEntry(s)) p.push(`source: 저장소 안의 소스 경로·glob만(문서·규칙·장치 폴더 · 절대 경로 · .. · \\ 금지) — ${s}`);
   for (const k of ['external', 'signoff']) a[k] = a[k] === true || /^(true|y|yes|예|네|1)$/i.test(String(a[k]));
   return { answers: a, problems: p };
 }
@@ -79,8 +83,11 @@ export function applyConfig(root, a, d, { adrId = '' } = {}) {
   set(/^human_touchpoints:.*$/m, pad(`human_touchpoints: [${d.human_touchpoints.join(', ')}]`, 29) + `# 근거: ${d.why.human_touchpoints}`, 'human_touchpoints');
   set(/^  always_on_kb:.*$/m, pad(`  always_on_kb: ${d.always_on_kb}`, 29) + `# 근거: ${d.why.always_on_kb} — 규칙 파일 합계 상한`, 'always_on_kb');
   set(/^  merge:.*$/m, pad(`  merge: ${d.merge}`, 29) + `# 근거: ${d.why.merge}`, 'work.merge');
+  const src = a.source ? a.source.split(',') : [];
+  const prodLine = pad(`  product: [${src.map((s) => JSON.stringify(s)).join(', ')}]`, 29) + `# 근거: Q8 ${src.length ? '소스 위치 — 이 경로만 제품 경로(FDR·worktree·리뷰 게이트), 나머지는 main에 바로 커밋' : '미지정 — 문서·규칙·장치 폴더 밖 전부가 제품 경로'} (HARNESS §11 · 바꾸면 ADR)`;
+  if (/^  product:.*$/m.test(t)) t = t.replace(/^  product:.*$/m, () => prodLine); else t = t.replace(/^(  merge:.*)$/m, (m) => `${m}\n${prodLine}`);
   const block = ['setup:                       # 프로젝트 설정 질문의 답 — setup.mjs --reconfigure가 기본값으로 다시 묻는다' + (adrId ? ` · 근거 기록 ${adrId}` : ''),
-    `  concurrent: ${a.concurrent}`, `  duration_months: ${a.duration_months}`, `  scale: ${a.scale}`, `  ui: ${a.ui}`, `  external: ${a.external}`, `  signoff: ${a.signoff}`, `  visibility: ${a.visibility}`, `  answered: ${today()}`, ''].join('\n');
+    `  concurrent: ${a.concurrent}`, `  duration_months: ${a.duration_months}`, `  scale: ${a.scale}`, `  ui: ${a.ui}`, `  external: ${a.external}`, `  signoff: ${a.signoff}`, `  visibility: ${a.visibility}`, `  source: "${a.source}"`, `  answered: ${today()}`, ''].join('\n');
   t = /^setup:[^\n]*\n(?:[ \t]+.*\n?)*/m.test(t) ? t.replace(/^setup:[^\n]*\n(?:[ \t]+.*\n?)*\n?/m, block + '\n') : t.replace(/\n?$/, '\n\n' + block);
   writeFileSync(p, t);
   return p;
@@ -88,7 +95,7 @@ export function applyConfig(root, a, d, { adrId = '' } = {}) {
 /** harness.yaml setup 블록 → 이전 답 */
 export function readSetup(root) {
   const t = rd(join(root, 'harness.yaml')); const b = (t.match(/^setup:[^\n]*\n((?:[ \t]+.*\n?)*)/m) || [])[1] || '';
-  const o = {}; for (const m of b.matchAll(/^\s+([a-z_]+):\s*(.*?)\s*$/gm)) o[m[1]] = m[2];
+  const o = {}; for (const m of b.matchAll(/^\s+([a-z_]+):\s*(.*?)\s*$/gm)) o[m[1]] = m[2].replace(/^"(.*)"$/, (x, v) => v);
   const name = ((t.match(/^project:\s*"?([^"\n]*)"?/m) || [])[1] || '').trim();
   return Object.keys(o).length ? { name, ...o } : null;
 }
