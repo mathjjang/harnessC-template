@@ -1,6 +1,6 @@
 # ADR-261117-product-paths: 제품 경로를 프로젝트가 선언한다 — work.product
 
-- 상태: Proposed (REP `rep/product-paths` — PR 리뷰·병합이 승인이다)
+- 상태: Accepted (REP `rep/product-paths` · PR #10 · 담당 승인 2026-11-17)
 - 작성: Claude Code (claude-fable-5-2) · 담당 mathjjang · 2026-11-17
 - 강제 등급: gate — 집행 수단: `.harness/catalog.yaml` check-branch-record.mjs(pre-commit) · ci.mjs(PR) · lint ⑲ · guard-scratch(쓰기 전 훅) · setup.mjs(설정 질문 Q8)
 - 위험: medium (제품 경로 판정 — 모든 게이트가 쓰는 기준. 선언하지 않은 프로젝트의 동작은 그대로)
