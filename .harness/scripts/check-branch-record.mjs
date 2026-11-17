@@ -6,7 +6,8 @@
 //   ho/ mtg/ inc/    : 자기 기록 폴더만
 //   plan/<ID>        : 통합 브랜치 — FDR 병합을 받는 자리. 직접 커밋은 자기 기록과 병합 커밋만
 //   rep/<slug>       : 템플릿 저장소의 규칙 변경(HARNESS §9) — 스테이징에 제품 경로가 없을 때만 통과(ci.mjs와 같은 조건 templateRep)
-// 제품 경로가 아닌 것(nonProductOf): 문서·규칙·목업·장치 폴더와, 루트 파일 중 코어 기본 목록(CORE_ROOT_FILES) + harness.yaml work.root_files(프로젝트 확장 · 등재는 ADR). 그 밖의 루트 파일(package.json·main.py …)은 제품 경로다
+// harness.yaml work.product(소스 위치 glob · 설정 질문 Q8 · 바꾸면 ADR)가 있으면 그 경로만 제품 경로다 — 나머지는 폴더를 새로 만들어도 제품 경로가 아니다. 없으면 아래 기본 판정
+// 제품 경로가 아닌 것(nonProductOf · 기본 판정): 문서·규칙·목업·장치 폴더와, 루트 파일 중 코어 기본 목록(CORE_ROOT_FILES) + harness.yaml work.root_files(프로젝트 확장 · 등재는 ADR). 그 밖의 루트 파일(package.json·main.py …)은 제품 경로다
 // 기록 자리는 lib/records.mjs(ADR→docs/decisions · RFC→research · FDR→features · HO→handoffs · 그 밖→records)
 // 선언은 없다 — 브랜치 이름이 곧 기록이다. 우회 플래그 없음. 자기 검사: --self-test
 import { execSync } from 'node:child_process';
@@ -30,7 +31,7 @@ const flowItems = (s) => { const out = []; let cur = ''; let q = ''; for (let i 
  *  CRLF·BOM, 절 안의 빈 줄·0열 주석, 흐름 목록([a, b] — 더 깊이 들여쓴 줄로 이어 쓰기 포함)·블록 목록(- x)·따옴표 스칼라를 읽는다.
  *  읽지 못한 줄(키 형식 아님·들여쓰기 다름·탭·닫히지 않은 [·] 뒤 글·목록 아닌 root_files·같은 키 두 번·블록 스칼라(| > — 값으로 쓰지 않고 본문은 건너뛴다)·work 절 둘)은 버리지 않고 errors로 알린다(lint ⑲ 실패 · work.mjs config는 멈춘다) — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. YAML 전체가 아니라 work 절에 쓰는 형식만 */
 export function parseWork(text) {
-  const out = { base: '', rootFiles: [], errors: [], values: {}, lists: {} };
+  const out = { base: '', rootFiles: [], product: [], errors: [], values: {}, lists: {} };
   const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
   const heads = lines.flatMap((l, i) => (/^work:/.test(l) ? [i] : []));
   if (heads.length > 1) out.errors.push(`work: 절이 ${heads.length}개다 — 하나로 합친다(앞 절만 읽는다)`);
@@ -71,6 +72,8 @@ export function parseWork(text) {
   }
   out.base = out.values.base || '';
   out.rootFiles = out.lists.root_files || [];
+  out.product = out.lists.product || [];
+  if ('product' in out.values) out.errors.push(`work.product가 목록이 아니다(${out.values.product}) — [src/**, app/**] 또는 "- 경로"`);
   if ('root_files' in out.values) out.errors.push(`work.root_files가 목록이 아니다(${out.values.root_files}) — [a, b] 또는 "- 파일"`);
   return out;
 }
@@ -83,13 +86,18 @@ export const rootFileEntries = (root) => workOf(root).rootFiles;
 export const notRootEntry = (s) => /[/\\]/.test(s);
 /** 제품이 아닌 루트 파일(프로젝트 확장) — 루트가 아닌 항목은 버린다 */
 export const rootFiles = (root) => rootFileEntries(root).filter((s) => !notRootEntry(s));
-/** 제품 경로가 아닌지 — { test(경로) }. extra: 더 허용할 루트 파일 */
-export const nonProduct = (extra = []) => { const files = new Set([...CORE_ROOT_FILES, ...extra]); return { test: (p) => NON_PRODUCT_DIR.test(p) || files.has(p) }; };
+/** harness.yaml work.product 원문 항목 — 제품 경로 선언(glob). lint ⑲가 쓸 수 없는 항목을 거부한다 */
+export const productEntries = (root) => workOf(root).product;
+/** 쓸 수 없는 work.product 항목 — 빈 값·절대 경로·드라이브·~·역슬래시·..·문서/규칙/장치 폴더. 버린다(남는 항목이 없으면 기본 판정으로 돌아간다 — 닫힌 쪽으로 실패) */
+export const badProductEntry = (s) => !s || s !== s.trim() || /^[/~]|^[A-Za-z]:|\\|(^|\/)\.\.(\/|$)/.test(s) || NON_PRODUCT_DIR.test(s.replace(/\/*$/, '/'));
+const productRes = (entries) => { const ok = entries.filter((s) => !badProductEntry(s)); return ok.length ? ok.map((g) => globRe(g)) : []; };
+/** 제품 경로가 아닌지 — { test(경로) }. extra: 더 허용할 루트 파일 · product: 제품 경로 선언(있으면 그 경로만 제품이고 extra·기본 목록은 쓰지 않는다) */
+export const nonProduct = (extra = [], product = []) => { const res = productRes(product); if (res.length) return { test: (p) => !res.some((re) => re.test(p)) }; const files = new Set([...CORE_ROOT_FILES, ...extra]); return { test: (p) => NON_PRODUCT_DIR.test(p) || files.has(p) }; };
 /** 코어 기본만(프로젝트 확장 없음). 프로젝트 판정은 nonProductOf(root) */
 export const NON_PRODUCT = nonProduct();
-export const nonProductOf = (root) => nonProduct(rootFiles(root));
+export const nonProductOf = (root) => nonProduct(rootFiles(root), productEntries(root));
 /** harness.yaml 원문(ci는 base 쪽)으로 — PR이 스스로 등재한 루트 파일은 그 PR의 판정에서 면제되지 않는다 */
-export const nonProductOfYaml = (text) => nonProduct(parseWork(text).rootFiles.filter((s) => !notRootEntry(s)));
+export const nonProductOfYaml = (text) => { const w = parseWork(text); return nonProduct(w.rootFiles.filter((s) => !notRootEntry(s)), w.product); };
 /** 템플릿 저장소의 REP 브랜치(HARNESS §9 rep/<slug>) — 브랜치=기록 검사 면제. init.mjs·.harness/tiers는 보조 표지(prune 안 한 프로젝트에도 남는다)이고 실질 방어는 바뀐 경로에 제품 경로가 없다는 것(main 직접 커밋 허용 범위와 같다). ci(PR 전체)·pre-commit(스테이징)이 같이 쓴다 */
 export const templateRep = (root, branch, paths, np = nonProductOf(root)) => existsSync(join(root, 'init.mjs')) && existsSync(join(root, '.harness', 'tiers')) && /^rep\/[a-z0-9-]+$/.test(branch) && paths.every((f) => np.test(f));
 const yamlScalar = (text, key) => ((text.match(new RegExp(`^\\s*${key}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim();
@@ -224,6 +232,18 @@ if (process.argv.includes('--self-test')) {
     writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
     if (!P('main', ['package.json'])) { fail++; console.error('FAIL 다른 절의 root_files를 읽음(package.json 미차단)'); }
     if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL 템플릿 아닌 저장소의 rep/ 커밋 미차단'); }
+    // work.product — 선언한 경로만 제품 경로. 나머지(새 루트 폴더·루트 파일)는 main에 바로. 쓸 수 없는 항목은 버리고, 남는 것이 없으면 기본 판정
+    writeFileSync(join(t, 'harness.yaml'), 'work:\n  base: main\n  product: ["legacy/**", app]\n');
+    if (P('main', ['notes/a.md', 'package.json', 'tools/x.mjs', 'legacyx/a.cs'])) { fail++; console.error('FAIL work.product 밖 경로를 제품으로 막음'); }
+    if (!P('main', ['legacy/a.cs']) || !P('main', ['legacy/sub/b.cs']) || !P('main', ['app/x.ts']) || !P('main', ['notes/a.md', 'app/x.ts'])) { fail++; console.error('FAIL work.product 안 경로를 main에서 미차단'); }
+    if (precommit(t, { branch: 'main', staged: ['legacy/a.cs'], finishing: true }).length) { fail++; console.error('FAIL work.product 경로의 finish 병합 오탐'); }
+    writeFileSync(join(t, 'harness.yaml'), 'work:\n  base: main\n  product: [docs/x, "../y", "/abs", ".harness", ""]\n');
+    if (!P('main', ['src/a.ts']) || P('main', ['docs/x/a.md'])) { fail++; console.error('FAIL 쓸 수 없는 work.product 항목뿐일 때 기본 판정으로 돌아가지 않음'); }
+    if (['docs/x', '../y', 'a/../b', '/abs', 'C:/x', '~/x', 'a\\b', '.harness', 'rules', '', ' src'].some((s) => !badProductEntry(s)) || ['src', 'src/**', 'legacy/app/*.cs', 'package.json'].some((s) => badProductEntry(s))) { fail++; console.error('FAIL badProductEntry'); }
+    writeFileSync(join(t, 'harness.yaml'), 'work:\n  base: main\n  product: src/**\n');
+    if (!workErrors(t).some((e) => /work\.product/.test(e)) || !P('main', ['src/a.ts'])) { fail++; console.error('FAIL 목록 아닌 work.product'); }
+    if (nonProductOfYaml('work:\n  product: [legacy]\n').test('legacy/a.cs') || !nonProductOfYaml('work:\n  product: [legacy]\n').test('newdir/a.md') || !nonProductOfYaml('work:\n  base: main\n').test('docs/a.md') || nonProductOfYaml('work:\n  base: main\n').test('newdir/a.md')) { fail++; console.error('FAIL nonProductOfYaml work.product'); }
+    writeFileSync(join(t, 'harness.yaml'), 'mockup:\n  root_files: [package.json]\n\nwork:\n  base: main\n  root_files: [pyproject.toml, ".npmrc", src/a.ts, "lib\\\\x.ts"]   # x\n');
     writeFileSync(join(t, 'init.mjs'), '//\n'); if (!P('rep/x', ['.harness/HARNESS.md'])) { fail++; console.error('FAIL init.mjs만 있는 저장소의 rep/ 커밋 미차단'); }
     mkdirSync(join(t, '.harness', 'tiers'), { recursive: true });
     if (P('rep/x', ['.harness/HARNESS.md', 'init.mjs', 'pyproject.toml'])) { fail++; console.error('FAIL 템플릿 rep/ 커밋 오탐', precommit(t, { branch: 'rep/x', staged: ['.harness/HARNESS.md'] })); }

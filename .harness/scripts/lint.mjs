@@ -7,7 +7,7 @@
 //       ⑪ 핸드오프(HO-)의 상태가 open|taken|answered|closed이고 closed면 result.md가 있는가
 //       ⑫ 코어(모든 프로젝트 동일 부분)가 init-manifest의 해시와 같은가 — 다르면 템플릿에서 고치고 sync-core
 //       ⑬ docs/·rules/ 아래 폴더가 고정 목록 밖으로 늘지 않았는가
-//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가 ⑲ harness.yaml work.root_files가 루트 파일 이름만인가
+//       ⑭ 활성 FDR끼리 scope(제품 경로)가 겹치지 않는가 ⑮ 닫힌 기록에 브랜치·worktree가 남지 않았는가 ⑱ FDR risk가 low|medium|high(소문자)인가 ⑲ harness.yaml work.root_files가 루트 파일 이름만이고 work.product가 저장소 안 소스 경로만인가
 //       ⑳ 로컬 생성 인덱스(lib/generated-index.mjs LOCAL)가 .gitignore에 있고 추적되지 않는가 — 추적하면 병합마다 같은 줄이 충돌한다
 //       ⑯ 확정 목업(mockup/)이 있는 FDR — 승격 사본 정책·css 지문 불변 · 스펙이 정책(rev N)을 인용 · shipped·closed면 같은 rev의 대조 기록·상태 전수·초과 등재·캡처 해시 · 원본 재확정·reopen이면 거부 (mockup-diff.mjs checkMockup)
 //       ⑰ 개발 저장소 안에 둔 목업 저장소(references role: mockup, embedded: true)의 자체 게이트(scripts/validate.mjs)가 통과하는가 — embedded는 ⑧(gitignore) 대상이 아니다
@@ -22,7 +22,7 @@ import { hashCore } from './lib/core-files.mjs';
 import { localIndexProblems } from './lib/generated-index.mjs';
 import { DOCS_DIRS, listRecords, OWNER_FROM, OWNER_RE } from './lib/records.mjs';
 import { checkMockup } from './mockup-diff.mjs';
-import { rootFileEntries, notRootEntry, workErrors } from './check-branch-record.mjs';
+import { rootFileEntries, notRootEntry, workErrors, productEntries, badProductEntry } from './check-branch-record.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RULE_FILES = ['.harness/HARNESS.md', 'rules/product.md', 'AGENTS.md', 'CLAUDE.md'];
@@ -152,6 +152,7 @@ export function lint(root) {
   // ⑲ work.root_files는 루트 파일만 — 하위 경로(/·\)를 넣으면 그 경로가 제품 경로 판정(scope·⑧)에서 빠진다. check-branch-record도 버리지만 등재 실수를 숨기지 않게 여기서 실패시킨다
   //    work 절을 읽지 못한 값(목록 아님·닫히지 않음 등)도 알린다 — 경고 없이 []가 되면 막힌 원인을 찾기 어렵다. 어느 경로와도 같아질 수 없는 항목(폴더·와일드카드·. ..·구분자 닮은 글자·앞뒤 공백)도 등재 실수라 알린다(면제는 생기지 않는다)
   for (const e of workErrors(root)) problems.push(`harness.yaml work 절: ${e} — HARNESS §11`);
+  for (const s of productEntries(root)) if (badProductEntry(s)) problems.push(`work.product(${s || '빈 항목'}) — 저장소 안의 소스 경로·glob만 넣는다(문서·규칙·장치 폴더 · 절대 경로 · .. · \\ 금지). 이 항목은 버려지고, 남는 항목이 없으면 기본 판정(문서·규칙·장치 폴더 밖 전부가 제품 경로)으로 돌아간다 — HARNESS §11`);
   for (const s of rootFileEntries(root)) {
     if (notRootEntry(s)) problems.push(`work.root_files(${s}) — 루트 파일 이름만 넣는다(/·\\ 금지). 하위 경로는 docs·rules 같은 자리나 FDR scope로 — HARNESS §11`);
     else if (/^\.{1,2}$|[*?[\]{}]|^\s|\s$|[\uFF0F\uFF3C\u2215\u2044\u29F8\u29F9]/.test(s)) problems.push(`work.root_files(${s}) — 파일 이름이 아니다(와일드카드·. ..·구분자 닮은 글자·앞뒤 공백). 어느 경로와도 같지 않아 효과가 없다 — HARNESS §11`);
