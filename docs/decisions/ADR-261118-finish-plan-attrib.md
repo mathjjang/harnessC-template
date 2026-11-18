@@ -1,6 +1,6 @@
 # ADR-261118-finish-plan-attrib: 구현 전 FDR은 finish가 shipped로 올리지 않고, plan PR은 들어온 FDR의 판정을 보며, standard FDR의 작성 줄은 01-spec에서 읽는다
 
-- 상태: Proposed
+- 상태: Accepted (REP `rep/finish-plan-attrib` · PR #11 · 담당 승인 2026-11-18)
 - 작성: Claude Code (claude-opus-5-5) · 담당 mathjjang · 2026-11-18
 - 강제 등급: gate — 집행 수단: `.harness/catalog.yaml` work.mjs(finish 거부 · `--draft`) · ci.mjs(plan PR 판정) · lint.mjs(⑤ 귀속)
 - 위험: low (세 곳 모두 지금 쓸 수 없던 길을 여는 수정이다. 기존에 통과하던 PR·기록이 새로 막히는 경우는 구현 전 FDR의 finish 하나뿐이다)
