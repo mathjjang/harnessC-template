@@ -87,10 +87,11 @@ export function lint(root) {
   for (const r of records) {
     const m = recordMain(r.path);
     if (!m) { problems.push(`기록 본문 없음: ${r.dir}/${r.name}`); continue; }
-    if (!/작성[:：]/.test(rd(m).slice(0, 800))) { problems.push(`귀속 머리 없음: ${relative(root, m).split(sep).join("/")}`); continue; }
+    // standard·full FDR은 작성 줄이 01-spec.md에 있다(new-doc이 쓰는 자리 · ci가 작성자를 읽는 자리) — manifest.yaml에서 찾지 않는다
+    const spec = join(r.path, '01-spec.md'); const om = /manifest\.yaml$/.test(m) && existsSync(spec) ? spec : m;
+    if (!/작성[:：]/.test(rd(om).slice(0, 800))) { problems.push(`귀속 머리 없음: ${relative(root, om).split(sep).join("/")}`); continue; }
     const day = (r.name.match(/^[A-Z]+-(\d{6})-/) || [])[1];
     if (!day || day < ownerFrom || /^MTG-/.test(r.name)) continue;
-    const spec = join(r.path, '01-spec.md'); const om = /manifest\.yaml$/.test(m) && existsSync(spec) ? spec : m;
     if (!OWNER_RE.test(rd(om).slice(0, 800))) problems.push(`담당 없음: ${relative(root, om).split(sep).join("/")} — 작성 줄은 「<에이전트(모델)> · 담당 <사람> · <날짜>」(new-doc.mjs가 git user.name으로 넣는다 · 시작일은 harness.yaml ids.owner_from)`);
   }
   // ⑥ 생성물 표식
@@ -226,7 +227,12 @@ if (process.argv.includes('--self-test')) {
   mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-lite'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-std', 'evidence', 'runs'), { recursive: true }); mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs'), { recursive: true });
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-lite', 'fdr.md'), '---\nid: FDR-000000-lite\nstatus: closed\ncapability:\n---\n- 작성: t\n## 4. Test\n\n| AC | 계층 | 명령 | RUN | 판정 |\n|---|---|---|---|---|\n\n## 5. Review\n');
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-std', 'manifest.yaml'), 'id: FDR-000000-std\nstatus: closed\ncapability: cap\n작성: t\n');
-  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'manifest.yaml'), 'id: FDR-000000-ok\nstatus: closed\ncapability: cap\n작성: t\n');
+  // ⑤ standard FDR — 작성 줄은 01-spec.md에 있다(manifest.yaml에는 없다): 양성 FDR-000000-ok · 부정 FDR-000000-noattr(01-spec에도 없다)
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'manifest.yaml'), 'id: FDR-000000-ok\nstatus: closed\ncapability: cap\n');
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', '01-spec.md'), '# FDR-000000-ok · Stage spec\n\n- 작성: t · 2026-01-01\n');
+  mkdirSync(join(tmp, 'docs', 'features', 'FDR-000000-noattr'), { recursive: true });
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-noattr', 'manifest.yaml'), 'id: FDR-000000-noattr\nstatus: draft\n작성: t\n');
+  writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-noattr', '01-spec.md'), '# FDR-000000-noattr · Stage spec\n');
   writeFileSync(join(tmp, 'docs', 'features', 'FDR-000000-ok', 'evidence', 'runs', 'unit.out'), 'exit 0\n');
   // ⑭ 부정: 활성 FDR 둘의 scope가 겹침 / 양성: 서로소
   for (const [id, sc, st = 'in-progress'] of [['FDR-000000-a', 'src/customs/**'], ['FDR-000000-b', 'src/customs/api/*'], ['FDR-000000-c', 'src/report/**'], ['FDR-000000-d', 'src/report/**', 'shipped']]) { mkdirSync(join(tmp, 'docs', 'features', id), { recursive: true }); writeFileSync(join(tmp, 'docs', 'features', id, 'fdr.md'), `---\nid: ${id}\nstatus: ${st}\nscope: [${sc}]\n---\n- 작성: t\n`); }   // d: shipped는 c와 같은 경로여도 겹침 아님
@@ -246,7 +252,7 @@ if (process.argv.includes('--self-test')) {
     mkdirSync(join(t2, '받은 자료'), { recursive: true }); writeFileSync(join(t2, '.gitignore'), '/받은 자료/\n'); writeFileSync(join(t2, '받은 자료', 'ignored-bom.md'), '﻿# 받은 자료\n'); writeFileSync(join(t2, 'docs', 'tracked-bom.md'), '﻿# 추적\n');
     try { execSync('git init -q -b main', { cwd: t2, stdio: 'ignore' }); execSync('git add -A', { cwd: t2, stdio: 'ignore' }); p.push(...lint(t2).filter((x) => x.startsWith('로컬 생성 인덱스 docs/INDEX.generated.md') || /^BOM: /.test(x))); } catch { /* 아래 미검출로 드러난다 */ }
     rmSync(t2, { recursive: true, force: true }); }
-  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', 'tracked-bom.md','카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '담당 없음: docs/decisions/ADR-991231-noowner.md', '담당 없음: docs/decisions/ADR-991231-ownerfirst.md', '담당 없음: docs/features/FDR-991231-stdnoowner/01-spec.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
+  const want = ['로컬 생성 인덱스 docs/INDEX.generated.md가 git에 추적되고 있다', 'BOM', 'tracked-bom.md','카탈로그', '예산', '중복 문장', '귀속 머리 없음: docs/decisions/ADR-000000-x.md', '귀속 머리 없음: docs/features/FDR-000000-noattr/01-spec.md', '귀속 머리 없음: docs/records/INC-000000-x.md', '담당 없음: docs/decisions/ADR-991231-noowner.md', '담당 없음: docs/decisions/ADR-991231-ownerfirst.md', '담당 없음: docs/features/FDR-991231-stdnoowner/01-spec.md', '생성물 표식', 'axis(real-device)', 'closed FDR FDR-000000-lite: capability', 'closed FDR FDR-000000-lite: RUN', 'closed FDR FDR-000000-std: RUN', 'HO-000000-bad: 상태(done)', 'HO-000000-noresult: closed인데', '코어 파일이 템플릿 사본과 다르다: .harness/HARNESS.md', 'docs/extra/', 'rules/packs', 'scope 겹침: FDR-000000-a(src/customs/**) ↔ FDR-000000-b', '목업 대조 FDR-000000-mock: shipped인데 rev 1의 대조 기록이 없다', '목업 게이트(mockups) 위반: 목업 검사 위반 1건', '프로젝트 도구가 없다: scripts/missing-tool.mjs', 'risk 값: FDR-000000-rtypo의 risk(hgih)', 'risk 값: FDR-000000-rcap의 risk(High)', 'work.root_files(src/x.ts)', 'work.root_files(lib\\', 'work.root_files(srcd) — 폴더', 'work.root_files(*) — 파일 이름이 아니다', 'work.root_files(..) — 파일 이름이 아니다', 'work.root_files(a\uFF0Fb) — 파일 이름이 아니다', 'work 절: work.root_files가 목록이 아니다(oops.toml)', 'work.root_files( sp.toml) — 파일 이름이 아니다'];
   const miss = want.filter((w) => !p.some((x) => x.includes(w)));
   const falsePos = p.filter((x) => x.includes('FDR-000000-ok') || x.includes('ADR-991231-ownerok') || x.includes('FDR-991231-stdowner') || /담당 없음: .*-000000-/.test(x) || x.includes('FDR-000000-rok') || x.includes('HO-000000-ok') || x.includes('FDR-000000-mockwip') || /scope 겹침.*FDR-000000-[cd]/.test(x) || /참조 저장소 mockups/.test(x) || /ok-tool|validate\.mjs/.test(x) || /root_files\(pyproject/.test(x) || /ignored-bom/.test(x));
   console.log(miss.length || falsePos.length ? `self-test FAIL (미검출: ${miss.join(', ')} · 오탐: ${falsePos.join(', ')})\n` + p.join('\n') : `self-test OK (${want.length}종 검출 · 양성 대조 6건 · 기록 자리 3곳 · 프로젝트 도구)`);
