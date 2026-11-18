@@ -209,7 +209,10 @@ export function finish(root, id, { gates = true, gh = true, draft = false } = {}
   const c = config(root);
   const r = record(root, id) || { id, type: id.split('-')[0] };
   // 구현 전 FDR을 finish가 shipped로 올리면 안 된다 — 설계 검토는 상태를 두고 초안 PR로(--draft)
-  const pre = r.type === 'FDR' && r.path ? preImplStage(r.path) : null;
+  // 단계는 worktree(브랜치)의 기록에서 읽는다 — 본 트리(main)의 사본은 착수 때 그대로라 spec으로 남아 있다
+  const wr = existsSync(join(root, c.dir, id)) ? record(join(root, c.dir, id), id) : null;
+  const sr = wr || r;
+  const pre = sr.type === 'FDR' && sr.path ? preImplStage(sr.path) : null;
   if (draft && (r.type !== 'FDR' || c.merge !== 'pr')) throw new Error(`--draft는 FDR이고 work.merge: pr일 때만 — 초안 PR로 설계 검토를 받는 길이다`);
   if (pre && !draft) throw new Error(`${id}는 아직 ${pre} 단계다 — finish는 구현·시험을 마친 뒤에 한다(shipped로 올린다). 설계 검토를 받으려면: node .harness/scripts/work.mjs finish ${id} --draft (상태는 그대로 · 초안 PR)`);
   const branch = branchOf(id);
@@ -371,6 +374,13 @@ if (process.argv.includes('--self-test')) {
       try { finish(tmp, 'FDR-260101-stdpre', { gates: false, draft: true }); fails.push('finish --draft: ff 저장소에서 받음'); } catch (e) { if (!/--draft는/.test(e.message)) fails.push('finish --draft(ff) 거부 사유: ' + e.message); }
       if (preImplStage(sd) !== 'design') fails.push('preImplStage: design 미검출');
       writeFileSync(join(sd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: impl\n'); if (preImplStage(sd) !== null) fails.push('preImplStage: impl을 구현 전으로 봄');
+      // 단계는 worktree의 기록에서 읽는다 — 본 트리 사본이 spec이어도 worktree가 review면 거부하지 않고, 그 반대면 거부한다
+      const wd = join(tmp, '.worktrees', 'FDR-260101-stdpre', FDR_DIR, 'FDR-260101-stdpre'); mkdirSync(wd, { recursive: true });
+      writeFileSync(join(sd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: spec\n'); writeFileSync(join(wd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: in-progress\ncurrent_stage: review\n');
+      try { finish(tmp, 'FDR-260101-stdpre', { gates: false }); } catch (e) { if (/단계다/.test(e.message)) fails.push('finish: 본 트리 사본(spec)으로 거부 — worktree는 review'); }
+      writeFileSync(join(sd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: impl\n'); writeFileSync(join(wd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: design\n');
+      try { finish(tmp, 'FDR-260101-stdpre', { gates: false }); fails.push('finish: worktree가 design인데 본 트리 사본(impl)으로 받음'); } catch (e) { if (!/design 단계다/.test(e.message)) fails.push('finish worktree 단계 거부 사유: ' + e.message); }
+      rmSync(join(tmp, '.worktrees', 'FDR-260101-stdpre'), { recursive: true, force: true });
       rmSync(sd, { recursive: true, force: true }); }
     const f2 =finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
