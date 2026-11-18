@@ -3,6 +3,7 @@
 //
 //   start   <ID> [--base <ref>]            기록(docs/<자리>/<ID> — lib/records.mjs)이 있어야 한다. 브랜치 <type>/<ID> + .worktrees/<ID> 생성, 로컬 재료 링크, setup 실행
 //   finish  <ID>                           worktree가 깨끗하면: rfc·ho·mtg → 기록 폴더만 main에 반입(코드는 병합 안 함) · fdr·plan → 게이트 통과 후 ff 병합(work.merge=ff) 또는 PR 안내(pr). 그 뒤 worktree·브랜치 제거
+//   finish  <ID> --draft                   (merge: pr) 상태를 바꾸지 않고 push + 초안 PR — 구현 전 FDR(standard current_stage spec·design·ui-flow·prototype)의 설계 검토용. 구현 전 FDR은 --draft 없이 finish하지 않는다
 //   promote <RFC-ID> <slug> "<제목>"        RFC를 FDR로 승격: FDR 생성 → main에서 fdr 브랜치·worktree → rfc 브랜치를 squash 재기반(커밋 1개). 승격 전에 RFC를 finish해 기록을 main에 두는 것이 순서다
 //   list                                   열린 worktree와 기록 상태
 //   gc [--apply]                           기록이 닫혔거나 PR이 병합된(gh) worktree·브랜치 정리(깨끗한 것만)
@@ -107,7 +108,7 @@ export function prBody(root, id) {
   return [`## ${id}${title ? ` · ${title}` : ''}`, '', `- 기록(정본): \`${rel}/\` · 상태 ${r.status || '?'} · risk ${yamlScalar(head, 'risk') || '?'}`, `- scope: \`${scope || '(없음)'}\``, '', '### AC', ...(ac.length ? ac.map((a) => `- ${a}`) : ['- (기록에 AC 없음)']), '', '### 시험 (RUN — 원문은 기록의 evidence/)', ...(rows.length ? ['| AC | … |', '|---|---|', ...rows] : ['- (시험 표에 행 없음 — 미검증)']), ...(mk ? ['', `- ${mk}`] : []), '', '### 리뷰', `- ${rev}`, '', '_이 본문은 `work.mjs finish`가 기록에서 생성한다 — 고칠 것은 기록이다._'].join('\n');
 }
 /** gh로 PR을 열거나(없으면) 본문을 갱신한다(있으면). gh가 없으면 안내만 */
-export function openPr(root, id, { branch, base, gh = true } = {}) {
+export function openPr(root, id, { branch, base, gh = true, draft = false } = {}) {
   const wt = join(root, config(root).dir, id);
   const body = prBody(existsSync(wt) ? wt : root, id);   // 본문은 브랜치(worktree)의 기록에서 — main에는 아직 없는 시험·리뷰가 거기 있다
   const tmp = join(root, '.git', `PR_BODY_${id}.md`); writeFileSync(tmp, body);
@@ -118,8 +119,15 @@ export function openPr(root, id, { branch, base, gh = true } = {}) {
     const url = execSync(`gh pr view "${branch}" --json url,state -q "select(.state==\\"OPEN\\") | .url"`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     if (url) { execSync(`gh pr edit "${branch}" --body-file "${tmp}"`, { cwd: root, stdio: 'ignore' }); return { note: `PR 본문 갱신 ${url}`, body, url }; }
   } catch { /* 없음 */ }
-  try { const url = execSync(`gh pr create --base "${base}" --head "${branch}" --title "${title.replace(/"/g, "'")}" --body-file "${tmp}"`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim().split('\n').pop(); return { note: `PR 생성 ${url}`, body, url }; }
+  try { const url = execSync(`gh pr create${draft ? ' --draft' : ''} --base "${base}" --head "${branch}" --title "${title.replace(/"/g, "'")}" --body-file "${tmp}"`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim().split('\n').pop(); return { note: `PR 생성 ${url}`, body, url }; }
   catch (e) { return { note: `PR 생성 실패(${String(e.stderr || e.message).trim().split('\n').pop()}) — GitHub에서 연다: ${branch} → ${base}`, body }; }
+}
+
+/** 구현 전 단계 — standard·full FDR의 manifest current_stage가 구현(impl) 앞이면 그 이름, 아니면 null. lite는 단계 칸이 없어 보지 않는다 */
+export const PRE_IMPL_STAGES = ['spec', 'design', 'ui-flow', 'prototype'];
+export function preImplStage(recordPath) {
+  const f = join(recordPath, 'manifest.yaml'); if (!existsSync(f)) return null;
+  const st = yamlScalar(rd(f), 'current_stage'); return PRE_IMPL_STAGES.includes(st) ? st : null;
 }
 
 /** 브랜치(worktree)의 FDR 기록을 draft|in-progress → shipped로 올리고 커밋한다(이미 shipped·closed면 그대로) */
@@ -197,9 +205,13 @@ function rebaseOnto(root, wt, base) {
   }
 }
 
-export function finish(root, id, { gates = true, gh = true } = {}) {
+export function finish(root, id, { gates = true, gh = true, draft = false } = {}) {
   const c = config(root);
   const r = record(root, id) || { id, type: id.split('-')[0] };
+  // 구현 전 FDR을 finish가 shipped로 올리면 안 된다 — 설계 검토는 상태를 두고 초안 PR로(--draft)
+  const pre = r.type === 'FDR' && r.path ? preImplStage(r.path) : null;
+  if (draft && (r.type !== 'FDR' || c.merge !== 'pr')) throw new Error(`--draft는 FDR이고 work.merge: pr일 때만 — 초안 PR로 설계 검토를 받는 길이다`);
+  if (pre && !draft) throw new Error(`${id}는 아직 ${pre} 단계다 — finish는 구현·시험을 마친 뒤에 한다(shipped로 올린다). 설계 검토를 받으려면: node .harness/scripts/work.mjs finish ${id} --draft (상태는 그대로 · 초안 PR)`);
   const branch = branchOf(id);
   const wt = join(root, c.dir, id);
   if (!existsSync(wt)) throw new Error(`열린 worktree가 없다: ${relative(root, wt)}`);
@@ -209,6 +221,13 @@ export function finish(root, id, { gates = true, gh = true } = {}) {
   if (!clean(root)) throw new Error(`본 트리에 미커밋 변경이 있다 — 병합 전에 정리`);
   const env = { HARNESS_WORK_FINISH: '1' };
   let merged = 'none';
+  if (draft) {   // 상태를 바꾸지 않는다 — rebase · lint · push · 초안 PR
+    rebaseOnto(root, wt, c.base);
+    if (gates) execSync('node .harness/scripts/lint.mjs', { cwd: wt, stdio: 'inherit' });
+    git(root, `push -u --force-with-lease origin "${branch}"`, { quiet: true });
+    const pr = openPr(root, id, { branch, base: c.base, gh, draft: true });
+    return { id, branch, merged: 'draft', note: `${pr.note} · 상태 그대로(${pre || r.status}) — 구현·시험을 마친 뒤 --draft 없이 finish` };
+  }
   if (['FDR', 'PLAN'].includes(r.type)) {
     markShipped(wt, id, root);   // 병합되면 main에서 이 기록은 shipped — 활성 FDR로 남아 scope 겹침(lint ⑭)·카드에 걸리지 않게. ff면 곧바로, pr이면 병합될 때 main에 닿는다
     // rebase 먼저 — lint가 main의 최신 기록(다른 FDR의 shipped 등)을 보고 판정해야 한다
@@ -346,6 +365,13 @@ if (process.argv.includes('--self-test')) {
     // r4 R4-2 — base에서 harness.yaml을 못 읽으면 코어 기본만(작업 트리가 등재한 pyproject.toml도 제품) · 읽으면 base 것
     if (baseNp(p.path, 'no-such-ref').test('pyproject.toml') || !baseNp(p.path, 'no-such-ref').test('README.md')) fails.push('baseNp: base를 못 읽을 때 작업 트리 root_files를 씀');
     if (baseNp(p.path, 'HEAD').test('pyproject.toml') !== true) fails.push('baseNp: 그 ref의 harness.yaml을 읽지 않음');
+    // 구현 전 FDR(standard current_stage: design)은 --draft 없이 finish하지 않는다 · ff 저장소의 --draft는 거부 · 구현 뒤(impl)는 막지 않는다
+    { const sd = join(tmp, FDR_DIR, 'FDR-260101-stdpre'); mkdirSync(sd, { recursive: true }); writeFileSync(join(sd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: design\n');
+      try { finish(tmp, 'FDR-260101-stdpre', { gates: false }); fails.push('finish: 구현 전 FDR을 받음'); } catch (e) { if (!/design 단계다/.test(e.message)) fails.push('finish 구현 전 거부 사유: ' + e.message); }
+      try { finish(tmp, 'FDR-260101-stdpre', { gates: false, draft: true }); fails.push('finish --draft: ff 저장소에서 받음'); } catch (e) { if (!/--draft는/.test(e.message)) fails.push('finish --draft(ff) 거부 사유: ' + e.message); }
+      if (preImplStage(sd) !== 'design') fails.push('preImplStage: design 미검출');
+      writeFileSync(join(sd, 'manifest.yaml'), 'id: FDR-260101-stdpre\nstatus: draft\ncurrent_stage: impl\n'); if (preImplStage(sd) !== null) fails.push('preImplStage: impl을 구현 전으로 봄');
+      rmSync(sd, { recursive: true, force: true }); }
     const f2 =finish(tmp, p.fdr, { gates: false });
     if (f2.merged !== 'ff' || !existsSync(join(tmp, 'src', 'spike.ts'))) fails.push(`finish(fdr): ff 병합 (${f2.merged})`);
     if (!/^status: shipped/m.test(rd(join(tmp, FDR_DIR, p.fdr, 'fdr.md')))) fails.push('finish(fdr): 병합된 기록이 shipped가 아니다');
@@ -434,7 +460,7 @@ const [cmd, a, b, c] = process.argv.slice(2);
 const opt = (f) => (process.argv.includes(f) ? process.argv[process.argv.indexOf(f) + 1] : undefined);
 try {
   if (cmd === 'start') { const r = start(DEFAULT_ROOT, a, { base: opt('--base') }); console.log(`${r.id} → ${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}  (cd 해서 작업 · 끝나면 work.mjs finish ${r.id})`); }
-  else if (cmd === 'finish') { const r = finish(DEFAULT_ROOT, a); console.log(`${r.id}: ${r.merged}${r.note ? ' — ' + r.note : ''} · worktree·브랜치 ${r.merged === 'pr' ? '유지' : '제거'}`); }
+  else if (cmd === 'finish') { const r = finish(DEFAULT_ROOT, a, { draft: process.argv.includes('--draft') }); console.log(`${r.id}: ${r.merged}${r.note ? ' — ' + r.note : ''} · worktree·브랜치 ${r.merged === 'pr' ? '유지' : '제거'}`); }
   else if (cmd === 'promote') { const r = await promote(DEFAULT_ROOT, a, b, c, { agent: withOwner(opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)', ownerOf(DEFAULT_ROOT, opt('--owner'))) }); console.log(`${r.from} → ${r.fdr} (${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}) — spike 커밋 1개로 재기반. 스펙 델타·테스트를 붙여 finish`); }
   else if (cmd === 'list') { const l = list(DEFAULT_ROOT); console.log(l.length ? l.map((w) => `${w.id}  ${w.status}${w.dirty ? '  (미커밋)' : ''}${w.closed ? '  ← 닫힘: gc 대상' : ''}`).join('\n') : '열린 worktree 없음'); }
   else if (cmd === 'protect') { const n = process.argv.includes('--reviews') ? Number(opt('--reviews')) : undefined; const r = protect(DEFAULT_ROOT, { reviews: n, dryRun: process.argv.includes('--dry-run') }); console.log(`${r.applied ? '보호 적용' : '[dry-run] 보호 규칙'} ${r.base}: 필수 검사 harness · 필수 승인 ${r.rule.required_pull_request_reviews ? r.rule.required_pull_request_reviews.required_approving_review_count : 0} · 직접 push·force-push·삭제 금지`); }

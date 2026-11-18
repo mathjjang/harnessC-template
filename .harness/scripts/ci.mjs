@@ -83,13 +83,14 @@ export function prProblems(root, { base, head, changed, deleted = [], commits = 
   // 템플릿 저장소의 규칙 변경(REP, HARNESS §9 rep/<slug>) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 면제 조건은 pre-commit과 같다(check-branch-record templateRep)
   if (!templateRep(root, head, changed, np)) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false, np })) p.push(`브랜치·scope: ${x}`);
   for (const f of changed.filter((f) => !deleted.includes(f) && isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
-  return [...p, ...reviewProblems(root, { head, commits, showAt, np })];
+  return [...p, ...reviewProblems(root, { head, commits, showAt, np, changed })];
 }
 
 /** 리뷰 판정(⑦·⑧) — fdr/*·plan/* 브랜치만, 반환 [「리뷰:」 문제]. 변경 파일 목록은 쓰지 않는다(⑧은 커밋 이력으로 본다). CI(prProblems)와 work.mjs finish(ff)가 같이 쓴다 */
-export function reviewProblems(root, { head, commits = null, showAt = null, np = nonProductOf(root) }) {
+export function reviewProblems(root, { head, commits = null, showAt = null, np = nonProductOf(root), changed = [] }) {
   const p = [];
   const m = head.match(/^(fdr|plan)\/([A-Z]+-\d{6}-[a-z0-9-]+)$/);
+  if (m && m[1] === 'plan') return planReview(root, m[2], { commits, changed, np });
   if (m) {
     const id = m[2]; const dir = join(root, recordDir(id), id);
     if (!existsSync(dir)) return [`리뷰: 기록 폴더가 없다 — ${recordDir(id)}/${id}`];
@@ -113,6 +114,17 @@ export function reviewProblems(root, { head, commits = null, showAt = null, np =
     if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt, sub ? `${recordDir(id)}/${id}/evidence/review` : '', np)); }
   }
   return p;
+}
+
+/** plan/* PR — PLAN 기록은 파일 한 장(docs/records/PLAN-….md)이고 판정 칸이 없다. plan 통합 브랜치로 들어온 FDR마다 그 기록의 판정(⑦)을 본다.
+ *  ⑧(판정 뒤 제품 코드)은 보지 않는다 — 각 FDR이 plan 브랜치에 병합될 때 이미 물었고, 여러 FDR의 커밋이 섞인 이력에서는 남의 코드가 판정 뒤로 잡힌다.
+ *  FDR이 하나도 없는 PR(기록·문서만)은 판정을 요구하지 않는다 */
+function planReview(root, id, { commits, changed, np }) {
+  const file = join(root, recordDir(id), `${id}.md`); const dir = join(root, recordDir(id), id);
+  if (!existsSync(file) && !existsSync(dir)) return [`리뷰: PLAN 기록이 없다 — ${recordDir(id)}/${id}.md`];
+  const paths = [...changed, ...(commits || []).flatMap((c) => c.files)];
+  const fdrs = [...new Set(paths.map((f) => (f.match(/^docs\/features\/(FDR-\d{6}-[a-z0-9-]+)\//) || [])[1]).filter(Boolean))].sort();
+  return fdrs.filter((f) => existsSync(join(root, recordDir(f), f))).flatMap((f) => reviewProblems(root, { head: `fdr/${f}`, np }));
 }
 
 /** 판정 뒤 제품 코드(⑧)는 커밋 순서로 본다 — ranges 중 처음 되는 범위의 { commits(오래된 것부터 [{sha, files, added}] — added는 그 커밋이 새로 만든 경로), showAt }. CI(PR)와 work.mjs finish(ff)가 같이 쓴다 */
@@ -237,6 +249,13 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     if (!PR('FDR-260101-ok', ['src/a/.tmp-probe.mjs']).some((x) => /임시 파일/.test(x))) fails.push('임시 파일 미차단');
     if (!prProblems(t, { base: 'main', head: 'feature/x', changed: ['src/a.ts'] }).some((x) => /기록 ID 형식/.test(x))) fails.push('기록 아닌 브랜치 미차단');
     if (prProblems(t, { base: 'main', head: 'rfc/RFC-260101-q', changed: ['src/any.ts'] }).some((x) => /리뷰/.test(x))) fails.push('rfc PR에 리뷰 요구');
+    // plan/* — PLAN은 파일 한 장. 기록·문서만이면 판정을 요구하지 않고, 들어온 FDR은 그 기록의 판정을 본다
+    const PLP = (changed, commits = null) => reviewProblems(t, { head: 'plan/PLAN-260101-p', changed, commits });
+    if (!PLP(['docs/decisions/ADR-260101-a.md']).some((x) => /PLAN 기록이 없다/.test(x))) fails.push('plan: 기록 없음 미차단');
+    w('docs/records/PLAN-260101-p.md', '# PLAN-260101-p\n\n- 작성: dev(a) · 담당 a · 2026-01-01\n');
+    if (PLP(['docs/decisions/ADR-260101-a.md', 'docs/records/PLAN-260101-p.md']).length) fails.push('plan: 문서만인 PR에 판정 요구 — ' + PLP(['docs/decisions/ADR-260101-a.md']).join(' | '));
+    if (!PLP(['docs/features/FDR-260101-blank/fdr.md', 'src/a/x.ts']).some((x) => /FDR-260101-blank 판정 없음/.test(x))) fails.push('plan: 들어온 FDR의 판정 없음 미차단');
+    if (PLP([], [{ sha: 'a1', files: ['docs/features/FDR-260101-ok/fdr.md'], added: [] }, { sha: 'a2', files: ['src/a/x.ts'], added: [] }]).length) fails.push('plan: 판정 있는 FDR 오탐(⑧은 plan에서 보지 않는다)');
     // standard 06-review.md
     w('docs/features/FDR-260101-std/manifest.yaml', 'id: FDR-260101-std\nrisk: medium\nscope: [src/a/**]\n'); w('docs/features/FDR-260101-std/01-spec.md', '- 작성: dev(a) · 2026-01-01\n');
     w('docs/features/FDR-260101-std/06-review.md', '# r\n\n- 리뷰어(모델): reviewer(b) · 일자: 2026-01-02\n\n## 1. 판정\n\n- 통과 | 재작업(재개 Stage: ) | 조건부(조건: )\n');

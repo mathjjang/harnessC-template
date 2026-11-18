@@ -28,6 +28,7 @@ cd .worktrees/FDR-…  …작업·커밋(pathspec)…                     # 게�
 node .harness/scripts/work.mjs finish FDR-…                   # (본 트리에서) main 위 rebase → lint → 리뷰 판정 확인(통과·리뷰어≠작성자·high 사인오프 — PR 모드와 같은 하한) → ff 병합 → worktree·브랜치 제거  / merge: pr 이면 push + PR 생성(§4)
 ```
 
+- **구현 전에 설계 검토를 받을 때**(standard·full FDR의 `current_stage`가 spec·design·ui-flow·prototype)는 `finish`가 거부한다 — finish는 기록을 shipped로 올린다. `merge: pr`이면 `node .harness/scripts/work.mjs finish FDR-… --draft`로 상태를 두고 push + 초안 PR을 연다. 검토 뒤 같은 브랜치에서 구현을 이어 가고, 끝나면 `--draft` 없이 finish한다.
 - `scope:`가 비어 있으면 제품 경로 커밋이 거부된다 — 먼저 선언한다. 활성 FDR끼리 겹치면 lint ⑭가 알린다.
 - 두 FDR이 같은 파일을 고쳐야 하면: **공유 변경을 작은 lite FDR로 먼저 main에 병합**하고 둘 다 `git rebase main`. "선점 후 대기"가 아니라 "공유분을 먼저 끝낸다".
 - **제품 변경은 이미 병합됐는데 기록 커밋이 lint ⑭로 막히면**(다른 세션의 열린 FDR과 scope 겹침 — 제품 저장소가 따로면 그쪽 PR이 먼저 병합된 경우) 공유분 lite FDR이 아니라 내 FDR을 종결 단계로 올린다. ⑭는 `shipped`·`closed`를 보지 않는다(이미 main에 있어 동시 편집 위험이 없다) — ADR-261113-scope-overlap-after-merge.
@@ -54,7 +55,7 @@ node .harness/scripts/work.mjs finish RFC-…                   # 기록 폴더(
 
 ## 3. 큰 요청 (PLAN)
 
-`plan/PLAN-…`이 통합 브랜치다. FDR 브랜치는 `work.mjs start FDR-… --base plan/PLAN-…`으로 거기서 갈라지고 finish가 거기로 ff 병합한다. 마지막에 PLAN을 finish하면 main으로 한 번 간다.
+`plan/PLAN-…`이 통합 브랜치다. PLAN을 main으로 올리는 PR에서 CI는 PLAN 자체의 판정을 묻지 않고, 그 PR로 들어오는 FDR마다 그 기록의 판정을 본다(판정 뒤 제품 코드 ⑧은 각 FDR이 plan에 병합될 때 이미 물었다). 기록·문서만 바꾸는 일은 plan 브랜치가 아니라 main에 바로 커밋한다(제품 경로가 아니다). FDR 브랜치는 `work.mjs start FDR-… --base plan/PLAN-…`으로 거기서 갈라지고 finish가 거기로 ff 병합한다. 마지막에 PLAN을 finish하면 main으로 한 번 간다.
 
 ## 4. 여러 사람
 
