@@ -48,3 +48,4 @@
 | 날짜 | 에이전트(모델) | 수정 부위 | 요지 |
 |---|---|---|---|
 | 2026-11-18 | Claude Code (claude-opus-5-5) · 담당 mathjjang | 전체 | 최초 작성 |
+| 2026-11-18 | Claude Code (claude-opus-5-5) · 담당 mathjjang | §2 finish | 구현 전 판단을 worktree(브랜치)의 기록에서 읽는다 — v0.4.12는 본 트리 사본(착수 때 spec)을 읽어 구현을 마친 FDR의 finish를 거부했다 |
