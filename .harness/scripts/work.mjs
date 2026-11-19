@@ -2,6 +2,8 @@
 // work.mjs — 기록 하나 = 브랜치 하나 = worktree 하나.
 //
 //   start   <ID> [--base <ref>]            기록(docs/<자리>/<ID> — lib/records.mjs)이 있어야 한다. 브랜치 <type>/<ID> + .worktrees/<ID> 생성, 로컬 재료 링크, setup 실행
+//           [--takeover] [--no-claim]      원격(origin)이 있으면 착수 = 원격 점유: origin에 그 브랜치가 이미 있으면 멈추고(다른 곳에서 착수 — 이어받기는 --takeover · origin 브랜치를 그대로 받는다),
+//                                          없으면 만들자마자 push한다(두 곳이 동시에 눌러도 늦은 쪽 push가 거부된다). --no-claim은 원격을 보지도 올리지도 않는다(오프라인 · 혼자 쓰는 저장소)
 //   finish  <ID>                           worktree가 깨끗하면: rfc·ho·mtg → 기록 폴더만 main에 반입(코드는 병합 안 함) · fdr·plan → 게이트 통과 후 ff 병합(work.merge=ff) 또는 PR 안내(pr). 그 뒤 worktree·브랜치 제거
 //   finish  <ID> --draft                   (merge: pr) 상태를 바꾸지 않고 push + 초안 PR — 구현 전 FDR(standard current_stage spec·design·ui-flow·prototype)의 설계 검토용. 구현 전 FDR은 --draft 없이 finish하지 않는다
 //   promote <RFC-ID> <slug> "<제목>"        RFC를 FDR로 승격: FDR 생성 → main에서 fdr 브랜치·worktree → rfc 브랜치를 squash 재기반(커밋 1개). 승격 전에 RFC를 finish해 기록을 main에 두는 것이 순서다
@@ -46,6 +48,14 @@ export function record(root, id) {
 }
 const git = (root, cmd, opts = {}) => execSync(`git ${cmd}`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', opts.quiet ? 'ignore' : 'pipe'], env: { ...process.env, ...(opts.env || {}) } }).trim();
 const branchExists = (root, b) => git(root, `branch --list "${b}"`).length > 0;
+const hasOrigin = (root) => git(root, 'remote').split('\n').map((x) => x.trim()).includes('origin');
+const isAncestor = (root, a, b) => { try { git(root, `merge-base --is-ancestor "${a}" "${b}"`, { quiet: true }); return true; } catch { return false; } };
+/** 원격 점유 조회 — origin에 그 브랜치가 있으면 sha · 없으면 '' · 원격(origin)이 없는 저장소면 null. origin에 닿지 못하면 멈춘다(모르는 채 시작하지 않는다) */
+export function remoteClaim(root, branch) {
+  if (!hasOrigin(root)) return null;
+  try { return git(root, `ls-remote --heads origin "${branch}"`, { quiet: true }).split(/\s+/)[0] || ''; }
+  catch { throw new Error(`origin에 닿지 못해 ${branch}가 다른 곳에서 이미 착수됐는지 알 수 없다 — 네트워크를 확인한다. 오프라인이거나 혼자 쓰는 저장소면 --no-claim(원격 점유 없이 시작 — 다른 곳과 겹칠 수 있다)`); }
+}
 const clean = (dir) => git(dir, 'status --porcelain --untracked-files=all') === '';
 
 function ensureIgnored(root, dir) {
@@ -73,7 +83,7 @@ export function ensureToolIgnores(root, dir) {
   return changed;
 }
 
-export function start(root, id, { base } = {}) {
+export function start(root, id, { base, claim = true, takeover = false } = {}) {
   const r = record(root, id);
   if (!r) throw new Error(`기록이 없다: ${recordRel(id)} — 먼저 node .harness/scripts/new-doc.mjs로 만든다`);
   if (r.closed) throw new Error(`${id}는 ${r.status} — 닫힌 기록은 열지 않는다`);
@@ -84,12 +94,34 @@ export function start(root, id, { base } = {}) {
   const wt = join(root, c.dir, id);
   if (existsSync(wt)) throw new Error(`이미 열려 있다: ${relative(root, wt)}`);
   const branch = branchOf(id);
+  // 착수 = 원격 점유 — 「기록 = 브랜치」는 push 전에는 이 PC 안에서만 참이다. 다른 PC·다른 사람이 같은 기록을 따로 구현하지 않게 원격을 보고, 올린다
+  const remote = claim ? remoteClaim(root, branch) : null;
+  const had = branchExists(root, branch);
+  if (remote) {
+    git(root, `fetch -q origin "${branch}"`, { quiet: true });
+    const mine = had ? git(root, `rev-parse "${branch}"`) : '';
+    const related = !!mine && (mine === remote || isAncestor(root, mine, remote) || isAncestor(root, remote, mine));   // 내가 올린 브랜치를 다시 여는 것
+    if (mine && !related) throw new Error(`로컬 ${branch}가 origin/${branch}(${remote.slice(0, 7)})와 갈라져 있다 — 같은 기록을 두 곳에서 구현했다. 덮어쓰지 않는다: 사람이 어느 쪽이 계속할지 정하고, 멈추는 쪽은 구현을 핸드오프로 남긴 뒤 로컬 브랜치를 지운다`);
+    if (!mine && !takeover) {
+      let who = ''; try { who = git(root, `log -1 --format="%an · %cd" --date=format:"%Y-%m-%d %H:%M" "origin/${branch}"`, { quiet: true }); } catch { /* */ }
+      throw new Error(`${id}는 이미 다른 곳에서 착수했다 — origin/${branch} ${remote.slice(0, 7)}${who ? ` (${who})` : ''}. 그 담당과 맞춘 뒤 이어받으려면 --takeover (origin 브랜치를 그대로 받아 연다)`);
+    }
+  }
   mkdirSync(join(root, c.dir), { recursive: true });
-  if (branchExists(root, branch)) git(root, `worktree add "${wt}" "${branch}"`, { quiet: true });
+  if (had) git(root, `worktree add "${wt}" "${branch}"`, { quiet: true });
+  else if (remote) git(root, `worktree add -b "${branch}" "${wt}" "origin/${branch}"`, { quiet: true });   // 이어받기 — origin 브랜치에서
   else git(root, `worktree add -b "${branch}" "${wt}" "${base || c.base}"`, { quiet: true });
+  let claimed = remote ? 'remote' : 'none';
+  if (remote === '') {   // 원격은 있는데 그 브랜치는 없다 — 지금 올려 점유한다
+    try { git(root, `push -q -u origin "${branch}"`, { quiet: true }); claimed = 'pushed'; }
+    catch {
+      try { git(root, `worktree remove --force "${wt}"`, { quiet: true }); if (!had) git(root, `branch -D "${branch}"`, { quiet: true }); } catch { /* 손으로 */ }
+      throw new Error(`${branch}를 origin에 올리지 못했다 — 그 사이 다른 곳이 착수했거나 push 권한이 없다. git fetch 뒤 다시 start(이미 있으면 그 담당과 맞춘다) · 원격 점유 없이 시작하려면 --no-claim`);
+    }
+  } else if (remote) { try { git(root, `branch -q --set-upstream-to="origin/${branch}" "${branch}"`, { quiet: true }); } catch { /* */ } }
   linkMaterials(root, wt, c.link);
   if (c.setup) execSync(c.setup, { cwd: wt, stdio: 'inherit' });
-  return { id, branch, path: wt };
+  return { id, branch, path: wt, claimed };
 }
 
 /** PR 본문 — FDR에서 만든다(정본은 FDR · 본문은 요약과 링크). scope · AC · 시험(RUN) · 목업 대조 · 리뷰 판정 */
@@ -254,6 +286,8 @@ export function finish(root, id, { gates = true, gh = true, draft = false } = {}
   }
   git(root, `worktree remove "${wt}"`, { quiet: true });
   git(root, `branch -D "${branch}"`, { quiet: true });
+  // start가 올린 원격 점유 브랜치 — 여기(ff 병합·기록만 반입)는 PR이 없어 아무도 지우지 않는다. 남으면 다음 start가 「이미 착수」로 읽는다
+  try { if (hasOrigin(root) && git(root, `ls-remote --heads origin "${branch}"`, { quiet: true })) git(root, `push -q origin --delete "${branch}"`, { quiet: true }); } catch { /* 원격에 닿지 못함 — 손으로 */ }
   return { id, branch, merged };
 }
 
@@ -459,23 +493,53 @@ if (process.argv.includes('--self-test')) {
     if (gc(tmp, { merged: new Set() }).some((x) => x.id === f3.id)) fails.push('gc: 병합 전 PR 브랜치를 지우려 함');
     gc(tmp, { apply: true, merged: new Set([`fdr/${f3.id}`]) }); if (existsSync(join(tmp, '.worktrees', f3.id)) || g(`branch --list "fdr/${f3.id}"`)) fails.push('gc: 병합된 PR 미정리');
     const pr = protect(tmp, { dryRun: true }); if (pr.rule.required_pull_request_reviews.required_approving_review_count !== 1 || pr.rule.required_status_checks.contexts[0] !== 'harness') fails.push('protect(M) 규칙');
+    // 착수 = 원격 점유 (ADR-261119-start-remote-claim) — origin이 있으면 start가 브랜치를 올리고, 이미 있으면 멈춘다
+    const onBare = (b) => execSync(`git --git-dir="${bare}" branch --list "${b}"`, { encoding: 'utf8' }).trim().length > 0;
+    if (w3.claimed !== 'pushed') fails.push(`claim: start가 origin에 올리지 않음 (${w3.claimed})`);
+    const f5 = create(tmp, 'fdr', 'claim-two', '점유 둘', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m f5'); g('push -q origin main');
+    const other = join(tmp, '..', '.work-selftest-other'); rmSync(other, { recursive: true, force: true });   // 다른 PC
+    execSync(`git clone -q "${bare}" "${other}"`, { stdio: 'ignore' });
+    const go = (c2) => execSync(`git -c user.name=o -c user.email=o@o ${c2}`, { cwd: other, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    go(`checkout -q -b "fdr/${f5.id}"`); writeFileSync(join(other, 'other.txt'), '1'); go('add -A'); go('commit -q -m other-1'); go(`push -q -u origin "fdr/${f5.id}"`);
+    try { start(tmp, f5.id); fails.push('claim: 다른 곳이 이미 올린 브랜치인데 시작함'); } catch (e) { if (!/이미 다른 곳에서 착수/.test(e.message)) fails.push('claim 거부 사유: ' + e.message); }
+    if (existsSync(join(tmp, '.worktrees', f5.id)) || g(`branch --list "fdr/${f5.id}"`)) fails.push('claim: 거부했는데 worktree·브랜치가 남음');
+    const w5 = start(tmp, f5.id, { takeover: true });
+    if (w5.claimed !== 'remote' || g('rev-parse HEAD', w5.path) !== go('rev-parse HEAD') || !existsSync(join(w5.path, 'other.txt'))) fails.push('takeover: origin 브랜치를 그대로 받지 않음');
+    writeFileSync(join(w5.path, 'mine.txt'), '1'); g('add -A', w5.path); g('commit -q -m mine-1', w5.path);   // 올리지 않은 로컬 커밋
+    g(`worktree remove --force "${w5.path}"`);
+    const w5b = start(tmp, f5.id); if (w5b.claimed !== 'remote') fails.push('claim: 내 브랜치(원격의 뒤를 이은 것)를 다시 열지 못함'); g(`worktree remove --force "${w5b.path}"`);
+    writeFileSync(join(other, 'other.txt'), '2'); go('commit -q -am other-2'); go('push -q');   // 그 사이 다른 곳이 더 올림 → 갈라짐
+    try { start(tmp, f5.id); fails.push('claim: 갈라진 브랜치를 엶'); } catch (e) { if (!/갈라져 있다/.test(e.message)) fails.push('갈라짐 거부 사유: ' + e.message); }
+    if (existsSync(join(tmp, '.worktrees', f5.id))) fails.push('claim: 갈라짐 거부 뒤 worktree가 남음');
+    g(`branch -D "fdr/${f5.id}"`);
+    const f6 = create(tmp, 'fdr', 'claim-off', '점유 끔', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m f6');
+    const w6 = start(tmp, f6.id, { claim: false }); if (w6.claimed !== 'none' || onBare(`fdr/${f6.id}`)) fails.push('--no-claim: 원격에 올림');
+    g(`worktree remove --force "${w6.path}"`); g(`branch -D "fdr/${f6.id}"`);
+    const r7 = create(tmp, 'rfc', 'claim-rfc', '점유 지움', { agent: 't' }); g('add -A'); g('commit -q -m r7');
+    const w7 = start(tmp, r7.id); if (w7.claimed !== 'pushed' || !onBare(`rfc/${r7.id}`)) fails.push('claim(rfc): 원격에 올리지 않음');
+    finish(tmp, r7.id, { gates: false }); if (onBare(`rfc/${r7.id}`)) fails.push('finish(기록만 반입): 원격 점유 브랜치가 남음');
+    g('remote set-url origin "' + join(tmp, '..', '.work-selftest-nowhere.git') + '"');   // 닿지 못하는 원격 — 모르는 채 시작하지 않는다
+    const f8 = create(tmp, 'fdr', 'claim-down', '원격 끊김', { agent: 't', profile: 'lite' }); g('add -A'); g('commit -q -m f8');
+    try { start(tmp, f8.id); fails.push('claim: 원격에 닿지 못했는데 시작함'); } catch (e) { if (!/origin에 닿지 못해/.test(e.message)) fails.push('원격 끊김 거부 사유: ' + e.message); }
+    const w8 = start(tmp, f8.id, { claim: false }); if (w8.claimed !== 'none') fails.push('--no-claim(원격 끊김)'); g(`worktree remove --force "${w8.path}"`); g(`branch -D "fdr/${f8.id}"`);
+    rmSync(other, { recursive: true, force: true });
     rmSync(bare, { recursive: true, force: true });
   } catch (e) { fails.push('예외: ' + e.message); }
   try { for (const w of (g('worktree list --porcelain').match(/^worktree (.+)$/gm) || []).slice(1)) g(`worktree remove --force "${w.slice(9)}"`); } catch { /* */ }
   rmSync(tmp, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·config 해석(CRLF·빈 줄·블록 목록)·ff 리뷰 하한 6(⑧ 포함·스스로 등재한 루트 파일 2)·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect)');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (start·링크·도구 ignore·promote squash·finish rfc 기록만·config 해석(CRLF·빈 줄·블록 목록)·ff 리뷰 하한 6(⑧ 포함·스스로 등재한 루트 파일 2)·finish fdr ff·gc · PR 모드: push·본문·병합 PR 정리·protect · 원격 점유: start push·이미 착수 거부·takeover·갈라짐 거부·--no-claim·기록만 반입 뒤 원격 삭제·원격 끊김 거부)');
   process.exit(fails.length ? 1 : 0);
 }
 
 const [cmd, a, b, c] = process.argv.slice(2);
 const opt = (f) => (process.argv.includes(f) ? process.argv[process.argv.indexOf(f) + 1] : undefined);
 try {
-  if (cmd === 'start') { const r = start(DEFAULT_ROOT, a, { base: opt('--base') }); console.log(`${r.id} → ${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}  (cd 해서 작업 · 끝나면 work.mjs finish ${r.id})`); }
+  if (cmd === 'start') { const r = start(DEFAULT_ROOT, a, { base: opt('--base'), claim: !process.argv.includes('--no-claim'), takeover: process.argv.includes('--takeover') }); console.log(`${r.id} → ${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}  (cd 해서 작업 · 끝나면 work.mjs finish ${r.id})${r.claimed === 'pushed' ? ' · origin에 브랜치를 올려 점유했다 — 커밋할 때마다 push' : r.claimed === 'remote' ? ' · origin 브랜치를 이어 연다' : ''}`); }
   else if (cmd === 'finish') { const r = finish(DEFAULT_ROOT, a, { draft: process.argv.includes('--draft') }); console.log(`${r.id}: ${r.merged}${r.note ? ' — ' + r.note : ''} · worktree·브랜치 ${r.merged === 'pr' ? '유지' : '제거'}`); }
   else if (cmd === 'promote') { const r = await promote(DEFAULT_ROOT, a, b, c, { agent: withOwner(opt('--agent') || process.env.HARNESS_AGENT || '(모델 미확인)', ownerOf(DEFAULT_ROOT, opt('--owner'))) }); console.log(`${r.from} → ${r.fdr} (${r.branch} @ ${relative(DEFAULT_ROOT, r.path)}) — spike 커밋 1개로 재기반. 스펙 델타·테스트를 붙여 finish`); }
   else if (cmd === 'list') { const l = list(DEFAULT_ROOT); console.log(l.length ? l.map((w) => `${w.id}  ${w.status}${w.dirty ? '  (미커밋)' : ''}${w.closed ? '  ← 닫힘: gc 대상' : ''}`).join('\n') : '열린 worktree 없음'); }
   else if (cmd === 'protect') { const n = process.argv.includes('--reviews') ? Number(opt('--reviews')) : undefined; const r = protect(DEFAULT_ROOT, { reviews: n, dryRun: process.argv.includes('--dry-run') }); console.log(`${r.applied ? '보호 적용' : '[dry-run] 보호 규칙'} ${r.base}: 필수 검사 harness · 필수 승인 ${r.rule.required_pull_request_reviews ? r.rule.required_pull_request_reviews.required_approving_review_count : 0} · 직접 push·force-push·삭제 금지`); }
   else if (cmd === 'pr-body') { console.log(prBody(DEFAULT_ROOT, a)); }
   else if (cmd === 'gc') { const r = gc(DEFAULT_ROOT, { apply: process.argv.includes('--apply') }); console.log(r.length ? r.map((x) => `${x.id}  ${x.status}  ${x.action}`).join('\n') : '정리할 것 없음'); }
-  else { console.error('사용: node .harness/scripts/work.mjs start <ID> [--base <ref>] | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]'); process.exit(2); }
+  else { console.error('사용: node .harness/scripts/work.mjs start <ID> [--base <ref>] [--takeover] [--no-claim] | finish <ID> | promote <RFC-ID> <slug> "<제목>" | protect [--reviews N] [--dry-run] | pr-body <ID> | list | gc [--apply]'); process.exit(2); }
 } catch (e) { console.error(e.message); process.exit(1); }

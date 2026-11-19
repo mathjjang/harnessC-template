@@ -23,12 +23,13 @@ pack: 코어
 
 ```bash
 node .harness/scripts/new-doc.mjs fdr <slug> "<제목>"       # 기록 생성 → scope: [..] 채우고 커밋 (main에 문서 커밋은 허용)
-node .harness/scripts/work.mjs start FDR-…                    # 브랜치 + .worktrees/FDR-…/
+node .harness/scripts/work.mjs start FDR-…                    # 브랜치 + .worktrees/FDR-…/ · 원격(origin)이 있으면 브랜치를 올려 점유한다 — 이미 있으면 멈춘다
 cd .worktrees/FDR-…  …작업·커밋(pathspec)…                     # 게이트: scope 밖 제품 경로 거부 · 다른 기록 수정 거부
 node .harness/scripts/work.mjs finish FDR-…                   # (본 트리에서) main 위 rebase → lint → 리뷰 판정 확인(통과·리뷰어≠작성자·high 사인오프 — PR 모드와 같은 하한) → ff 병합 → worktree·브랜치 제거  / merge: pr 이면 push + PR 생성(§4)
 ```
 
 - **구현 전에 설계 검토를 받을 때**(standard·full FDR의 `current_stage`가 spec·design·ui-flow·prototype)는 `finish`가 거부한다 — finish는 기록을 shipped로 올린다. `merge: pr`이면 `node .harness/scripts/work.mjs finish FDR-… --draft`로 상태를 두고 push + 초안 PR을 연다. 검토 뒤 같은 브랜치에서 구현을 이어 가고, 끝나면 `--draft` 없이 finish한다.
+- **착수 = 원격 점유**(ADR-261119-start-remote-claim): 원격이 있으면 `start`가 `origin`에 그 브랜치가 있는지 보고, 없으면 만들자마자 push한다. 이미 있으면 「다른 곳에서 착수」로 멈춘다 — 그 담당과 맞춘 뒤 `--takeover`(origin 브랜치를 그대로 받는다). 로컬과 원격이 갈라져 있으면 어느 쪽도 덮어쓰지 않고 사람이 정한다. 오프라인·혼자 쓰는 저장소는 `--no-claim`. 구현 커밋은 쌓아 두지 말고 그때그때 push한다.
 - `scope:`가 비어 있으면 제품 경로 커밋이 거부된다 — 먼저 선언한다. 활성 FDR끼리 겹치면 lint ⑭가 알린다.
 - 두 FDR이 같은 파일을 고쳐야 하면: **공유 변경을 작은 lite FDR로 먼저 main에 병합**하고 둘 다 `git rebase main`. "선점 후 대기"가 아니라 "공유분을 먼저 끝낸다".
 - **제품 변경은 이미 병합됐는데 기록 커밋이 lint ⑭로 막히면**(다른 세션의 열린 FDR과 scope 겹침 — 제품 저장소가 따로면 그쪽 PR이 먼저 병합된 경우) 공유분 lite FDR이 아니라 내 FDR을 종결 단계로 올린다. ⑭는 `shipped`·`closed`를 보지 않는다(이미 main에 있어 동시 편집 위험이 없다) — ADR-261113-scope-overlap-after-merge.
@@ -59,7 +60,7 @@ node .harness/scripts/work.mjs finish RFC-…                   # 기록 폴더(
 
 ## 4. 여러 사람
 
-같은 장치다. 사람마다가 아니라 **기록마다** 브랜치. 한 FDR = 구현자 세션 하나. 리뷰어·테스터는 그 FDR의 worktree를 읽기 전용으로 쓴다(`guard-role-write`). M 티어부터 `work.merge: pr`.
+같은 장치다. 사람마다가 아니라 **기록마다** 브랜치. 한 FDR = 구현자 세션 하나 — `start`가 원격 브랜치로 점유하므로 두 번째 `start`는 다른 PC에서도 멈춘다. 리뷰어·테스터는 그 FDR의 worktree를 읽기 전용으로 쓴다(`guard-role-write`). M 티어부터 `work.merge: pr`.
 
 ### PR 흐름 (`merge: pr`)
 
