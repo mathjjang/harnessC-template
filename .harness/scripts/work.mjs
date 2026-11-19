@@ -20,7 +20,7 @@ import { dirname, join, resolve, relative, basename, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RECORD_DIRS, recordDir, recordRel, ownerOf, withOwner } from './lib/records.mjs';
 import { LOCAL_INDEXES, TRACKED_INDEXES } from './lib/generated-index.mjs';
-import { reviewProblems, commitHistory } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(⑦·⑧)
+import { reviewProblems, commitHistory, highSignoffOfYaml } from './ci.mjs';   // ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(⑦·⑧)
 import { parseWork, nonProductOfYaml } from './check-branch-record.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -162,7 +162,8 @@ export function baseNp(wt, base) {
 /** ff 병합 전 리뷰 조건 — PR 모드의 CI와 같은 판정(ci.mjs reviewProblems): 통과·조건부+조건 · 리뷰어≠작성자 · risk high 사인오프 · 판정 뒤 제품 코드 변경이면 판정 무효(⑧). 제품 경로는 CI처럼 base 쪽 harness.yaml의 work.root_files로 본다(브랜치가 스스로 등재한 루트 파일은 면제되지 않는다). 우회 플래그 없음 */
 export function reviewGuard(wt, id, base) {
   const h = commitHistory(wt, [`${base}..HEAD`]); if (!h.commits) throw new Error(`${id} 커밋 이력을 읽지 못했다(${base}..HEAD)`);   // 브랜치·scope는 pre-commit이 커밋마다 봤다 — 여기서는 리뷰 판정만(변경 파일 목록이 필요 없다)
-  const rv = reviewProblems(wt, { head: branchOf(id), ...h, np: baseNp(wt, base) });
+  let by = ''; try { by = execSync(`git show "${base}:harness.yaml"`, { cwd: wt, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch { /* 코어 기본 */ }
+  const rv = reviewProblems(wt, { head: branchOf(id), ...h, np: baseNp(wt, base), highSignoff: highSignoffOfYaml(by) });
   if (rv.length) throw new Error(`${id} 병합 불가 — 리뷰 조건을 못 채웠다(리뷰어는 다른 세션 또는 risk low·medium의 리뷰 서브에이전트):\n- ${rv.join('\n- ')}`);
 }
 

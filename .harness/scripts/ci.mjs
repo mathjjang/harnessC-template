@@ -20,6 +20,8 @@ import { recordDir } from './lib/records.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const rd = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : '');
+/** risk high 사람 사인오프를 묻는가 — harness.yaml review.high_signoff(기본 true). false면 다른 세션 리뷰 판정으로 닫는다(서브에이전트는 여전히 인정 안 함). 판정은 base 쪽 harness.yaml로 한다 — PR이 스스로 끈 값은 그 PR에 효력이 없다 */
+export const highSignoffOfYaml = (text) => !/^(false|no|0)$/i.test(yamlScalar(text || '', 'high_signoff'));
 const yamlScalar = (t, k) => ((t.match(new RegExp(`^\\s*${k}:\\s*([^#\\n]*?)\\s*(#.*)?$`, 'm')) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
 const frontmatter = (t) => (t.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || '';
 
@@ -79,15 +81,16 @@ export function afterVerdict(commits, reviewPath, std, showAt, roundDir = '', np
  *  PR이 스스로 등재한 루트 파일은 그 PR의 scope·⑧에서 면제되지 않는다(등재는 따로 병합한 뒤에 효력). 주지 않으면(null) root의 harness.yaml */
 export function prProblems(root, { base, head, changed, deleted = [], commits = null, showAt = null, baseYaml = null }) {
   const p = []; const np = baseYaml === null ? nonProductOf(root) : nonProductOfYaml(baseYaml);
+  const highSignoff = highSignoffOfYaml(baseYaml === null ? rd(join(root, 'harness.yaml')) : baseYaml);
   const scopeId = (head.match(/^fdr\/([A-Z]+-\d{6}-[a-z0-9-]+)$/) || [])[1];
   // 템플릿 저장소의 규칙 변경(REP, HARNESS §9 rep/<slug>) — 기록 ID가 없다. 승인은 PR 리뷰·병합. 면제 조건은 pre-commit과 같다(check-branch-record templateRep)
   if (!templateRep(root, head, changed, np)) for (const x of judge({ branch: head, base, staged: changed, scope: scopeId ? fdrScope(root, scopeId) : [], finishing: false, np })) p.push(`브랜치·scope: ${x}`);
   for (const f of changed.filter((f) => !deleted.includes(f) && isClutter(f))) p.push(`임시 파일: ${f} — .scratch/ 또는 evidence/로`);
-  return [...p, ...reviewProblems(root, { head, commits, showAt, np, changed })];
+  return [...p, ...reviewProblems(root, { head, commits, showAt, np, changed, highSignoff })];
 }
 
 /** 리뷰 판정(⑦·⑧) — fdr/*·plan/* 브랜치만, 반환 [「리뷰:」 문제]. 변경 파일 목록은 쓰지 않는다(⑧은 커밋 이력으로 본다). CI(prProblems)와 work.mjs finish(ff)가 같이 쓴다 */
-export function reviewProblems(root, { head, commits = null, showAt = null, np = nonProductOf(root), changed = [] }) {
+export function reviewProblems(root, { head, commits = null, showAt = null, np = nonProductOf(root), changed = [], highSignoff = highSignoffOfYaml(rd(join(root, 'harness.yaml'))) }) {
   const p = [];
   const m = head.match(/^(fdr|plan)\/([A-Z]+-\d{6}-[a-z0-9-]+)$/);
   if (m && m[1] === 'plan') return planReview(root, m[2], { commits, changed, np });
@@ -102,7 +105,7 @@ export function reviewProblems(root, { head, commits = null, showAt = null, np =
     if (r.verdict && r.reviewer && r.author && r.reviewer === r.author) p.push(`리뷰: ${id} 리뷰어(${r.reviewer})가 작성자와 같다 — 고친 쪽은 자기 검증자가 될 수 없다`);
     const sub = Boolean(r.verdict) && SUBAGENT.test(markerPart(r.reviewerLine));
     if (sub) {   // 리뷰 서브에이전트(HARNESS §5) — low·medium만, 라운드마다 지시문·보고 원문 짝. 표지는 리뷰어 칸의 자기 신고(표지 없이 쓴 것은 못 잡는다 — catalog)
-      if (r.risk === 'high') p.push(`리뷰: ${id} risk high는 리뷰 서브에이전트를 리뷰어로 인정하지 않는다 — 다른 세션 리뷰 + 사람 사인오프`);
+      if (r.risk === 'high') p.push(`리뷰: ${id} risk high는 리뷰 서브에이전트를 리뷰어로 인정하지 않는다 — 다른 세션 리뷰${highSignoff ? ' + 사람 사인오프' : ''}`);
       const ev = join(dir, 'evidence', 'review');
       const files = existsSync(ev) ? readdirSync(ev, { withFileTypes: true }).filter((e) => e.isFile() && hasText(readFileSync(join(ev, e.name), 'utf8'))).map((e) => e.name) : [];   // 빈 파일·공백·보이지 않는 문자(hasText)만인 파일·폴더는 세지 않는다
       const rounds = (k) => new Set(files.map((f) => { const m = f.match(new RegExp(`^${k}(-[a-z0-9-]+)?\\.md$`, 'i')); return m ? (m[1] || '').toLowerCase() : null; }).filter((x) => x !== null));   // brief.md ↔ report.md · brief-r2.md ↔ report-r2.md(꼬리 대소문자 무시)
@@ -110,7 +113,7 @@ export function reviewProblems(root, { head, commits = null, showAt = null, np =
       if (!b.size || !rp.size) p.push(`리뷰: ${id} 리뷰어가 서브에이전트인데 evidence/review/에 지시문(brief*.md)·보고 원문(report*.md)이 없다(빈 파일·폴더는 세지 않는다)`);
       else { const odd = [...[...b].filter((x) => !rp.has(x)).map((x) => `brief${x}.md`), ...[...rp].filter((x) => !b.has(x)).map((x) => `report${x}.md`)]; if (odd.length) p.push(`리뷰: ${id} 서브에이전트 리뷰의 라운드 짝이 맞지 않는다 — ${odd.join(', ')}의 짝이 없다(라운드마다 brief-<꼬리>.md · report-<꼬리>.md)`); }
     }
-    if (r.risk === 'high' && !hasText(r.signoff.replace(/[()（）]/g, ''))) p.push(`리뷰: ${id} risk high — 사람 사인오프(이름·날짜)가 없다`);
+    if (r.risk === 'high' && highSignoff && !hasText(r.signoff.replace(/[()（）]/g, ''))) p.push(`리뷰: ${id} risk high — 사람 사인오프(이름·날짜)가 없다`);
     if (r.verdict && commits && showAt) { const std = existsSync(join(dir, '06-review.md')); p.push(...afterVerdict(commits, `${recordDir(id)}/${id}/${std ? '06-review.md' : 'fdr.md'}`, std, showAt, sub ? `${recordDir(id)}/${id}/evidence/review` : '', np)); }
   }
   return p;
@@ -191,6 +194,11 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     lite('FDR-260101-self', { verdict: '통과', reviewer: 'dev(a)' }); if (!PR('FDR-260101-self').some((x) => /자기 검증자/.test(x))) fails.push('자기 리뷰 미차단');
     lite('FDR-260101-high', { verdict: '통과', reviewer: 'reviewer(b)', risk: 'high' }); if (!PR('FDR-260101-high').some((x) => /사인오프/.test(x))) fails.push('high 사인오프 미차단');
     lite('FDR-260101-high2', { verdict: '통과', reviewer: 'reviewer(b)', risk: 'high', signoff: '김 · 2026-01-02' }); if (PR('FDR-260101-high2').length) fails.push('high 사인오프 오탐');
+    // review.high_signoff: false — base 쪽 설정이면 사인오프 없이 통과 · 서브에이전트는 여전히 거부 · PR이 스스로 끈 값(head만)은 효력 없음(baseYaml 기본 true)
+    { const off = 'work:\n  base: main\n  root_files: [pyproject.toml]\nreview:\n  high_signoff: false\n';
+      if (prProblems(t, { base: 'main', head: 'fdr/FDR-260101-high', changed: ['src/a/x.ts', 'docs/features/FDR-260101-high/fdr.md'], baseYaml: off }).some((x) => /사인오프/.test(x))) fails.push('high_signoff false인데 사인오프 요구');
+      if (!prProblems(t, { base: 'main', head: 'fdr/FDR-260101-high', changed: ['src/a/x.ts', 'docs/features/FDR-260101-high/fdr.md'], baseYaml: 'work:\n  base: main\n' }).some((x) => /사인오프/.test(x))) fails.push('high_signoff 기본(true) 미차단');
+      if (!reviewProblems(t, { head: 'fdr/FDR-260101-high', highSignoff: true }).some((x) => /사인오프/.test(x)) || reviewProblems(t, { head: 'fdr/FDR-260101-high', highSignoff: false }).some((x) => /사인오프/.test(x))) fails.push('reviewProblems highSignoff 인자'); }
     for (const [k, so] of [['z', '​⁠'], ['n', '\u0000 \u0001'], ['h', '(ㅤ)']]) { lite(`FDR-260101-highi${k}`, { verdict: '통과', reviewer: 'reviewer(b)', risk: 'high', signoff: so }); if (!PR(`FDR-260101-highi${k}`).some((x) => /사인오프/.test(x))) fails.push(`보이지 않는 문자만인 사인오프 미차단(${[...so].map((x) => 'U+' + x.codePointAt(0).toString(16).toUpperCase()).join(' ')})`); }
     lite('FDR-260101-cond', { verdict: '조건부', reviewer: 'reviewer(b)' }); if (!PR('FDR-260101-cond').some((x) => /조건이 없다/.test(x))) fails.push('조건 없는 조건부');
     // 리뷰 서브에이전트 — 증거 짝·risk high 거부
@@ -319,7 +327,7 @@ if (IS_MAIN && process.argv.includes('--self-test')) {
     } finally { rmSync(g2, { recursive: true, force: true }); }
   } catch (e) { fails.push('예외: ' + e.message); }
   rmSync(t, { recursive: true, force: true });
-  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·미할당·비문자·결합 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · 보이는 한 글자 5 · scope 밖 3(루트 파일 2) · base 쪽 root_files 5(scope 3·하위 경로 1·판정 뒤 1) · run 연결부 prCheck git 2 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
+  console.log(fails.length ? 'self-test FAIL: ' + fails.join(' · ') : 'self-test OK (리뷰 판정: 미기입·통과·재작업·자기 리뷰·high 사인오프 2·high_signoff 설정 3·보이지 않는 사인오프 3·조건부 · 서브에이전트 25(짝·라운드·빈 파일·공백 파일·영폭 파일·채움 문자 2(U+3164·U+2800)·제어·서식·사용 영역 문자 3·미할당·비문자·결합 문자 3·폴더·꼬리 대소문자·표지 변형 3·메모 속 표지·High·standard 2) · 리뷰어 빈칸 · 템플릿 REP 브랜치 8(제품 코드 차단·슬러그·보조 표지 2·루트 파일 2) · standard 2 · 보이는 한 글자 5 · scope 밖 3(루트 파일 2) · base 쪽 root_files 5(scope 3·하위 경로 1·판정 뒤 1) · run 연결부 prCheck git 2 · 임시 파일 · 기록 아닌 브랜치 · rfc 면제 · 판정 뒤 코드 8(루트 파일 2·root_files 하위 경로 1) · 서브에이전트 재판정 새 라운드 8(base의 report 3·brief만 1) · 삭제·이동 경로 git 5(추가 판별))');
   process.exit(fails.length ? 1 : 0);
 }
 if (IS_MAIN && !process.argv.includes('--self-test')) {

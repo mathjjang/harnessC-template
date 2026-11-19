@@ -28,6 +28,7 @@ budgets:
 review:
   independent_session: true
   model: null                # 리뷰어 모델. null이면 상속. 구현자와 다르게 두는 것을 권장
+  high_signoff: true         # risk high 병합 전 사람 사인오프(HARNESS §5). false면 다른 세션 에이전트 리뷰 판정으로 닫는다 — 서브에이전트 리뷰는 여전히 인정 안 함 · base 쪽 값으로 판정
 
 references: []               # 형제 체크아웃 저장소 (submodule 아님). 훅 guard-reference가 쓰기를 판정한다.
 #  - { path: ../other-repo, mode: read-only, pin: <sha> }                        # 이식 재료 — 읽기만
