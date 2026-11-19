@@ -61,7 +61,7 @@ runbook .harness/runbooks/(코어) · rules/runbooks/     trigger 매칭 시 —
 |---|---|---|---|
 | low | 일괄 질의, 무응답 시 기본값 진행 | 리뷰 에이전트(다른 세션 또는 리뷰 서브에이전트) | 에이전트 |
 | medium | 승인 | 리뷰 에이전트(다른 세션 또는 리뷰 서브에이전트) + 리뷰 패키지 사람 열람(비차단) | 에이전트 + 표본 감사 |
-| high | 승인 | 사람 사인오프(비동기·기한) | 사람 |
+| high | 승인 | 다른 세션 리뷰 + 사람 사인오프(비동기·기한) — `review.high_signoff: false`면 사인오프 없이 | 사람(false면 에이전트) |
 
 - 리뷰 서브에이전트 = 구현 세션이 띄운 새 문맥 `reviewer`(쓰기 도구 없음). 지시문에 구현자 결론 금지, 지시문·보고 원문을 `evidence/review/brief*.md`·`report*.md`로, 차단 결함은 판정 쓰는 세션이 커밋 원문으로 재확인, 06에 독립성 한계. risk high는 인정 안 함 — `ci.mjs`가 검사. 절차 `.harness/runbooks/review.md`.
 - 중간은 무중단. 정책 공백(PG)은 등재만 하고 계속 간다. 릴리스 차단 여부를 적는다.
